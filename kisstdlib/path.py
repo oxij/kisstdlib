@@ -28,10 +28,11 @@ import typing as _t
 def walk_orderly(path : _t.AnyStr,
                  include_directories : bool = True,
                  follow_symlinks : bool = True,
+                 order_by : bool | None = True,
                  handle_error : _t.Callable[..., None] | None = _logging.error) -> _t.Iterable[_t.AnyStr]:
     """Similar to os.walk, but produces an iterator over plain file paths, allows
        non-directories as input (which will just output a single element), and
-       the output is guaranteed to be ordered.
+       the output is guaranteed to be ordered if `order_by` is not `None`.
     """
 
     try:
@@ -84,13 +85,14 @@ def walk_orderly(path : _t.AnyStr,
                 else:
                     elements.append(entry.path)
 
-    elements.sort()
+    if order_by is not None:
+        elements.sort(reverse=not order_by)
 
     for path in elements:
         lchar : _t.AnyStr = path[-1:]
         if lchar == "/" or lchar == b"/":
             if include_directories:
                 yield path
-            yield from walk_orderly(path, include_directories, follow_symlinks, handle_error)
+            yield from walk_orderly(path, include_directories, follow_symlinks, order_by, handle_error)
         else:
             yield path
