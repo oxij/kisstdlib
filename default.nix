@@ -7,7 +7,7 @@ with pkgs.python3Packages;
 
 buildPythonApplication (rec {
   pname = "kisstdlib";
-  version = "0.0.1";
+  version = "0.0.2";
   format = "pyproject";
 
   src = lib.cleanSourceWith {
