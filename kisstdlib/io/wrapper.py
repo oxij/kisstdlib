@@ -1,6 +1,6 @@
-# This file is a part of kisstdlib project.
+# Copyright (c) 2018-2024 Jan Malakhovski <oxij@oxij.org>
 #
-# Copyright (c) 2018-2023 Jan Malakhovski <oxij@oxij.org>
+# This file is a part of kisstdlib project.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
