@@ -27,27 +27,36 @@ import typing as _t
 
 from .base import *
 
+_logger = _logging.getLogger("kisstd")
+
 class MinimalIOWrapper(MinimalIO):
+    fobj : _t.Any
+    fileno : int | None
+
     def __init__(self, fobj : _t.Any) -> None:
         self.fobj = fobj
         # _socket.socket's fileno() will return -1 after
         # .close() and poll needs an actual value to unsubscribe
         # properly so we have to keep a copy here
         try:
-            self._fileno = fobj.fileno()
+            self.fileno = fobj.fileno()
         except OSError:
-            self._fileno = None
-        _logging.getLogger("kisstd").debug("init %s", self)
+            self.fileno = None
+        _logger.debug("init %s", self)
 
     def __del__(self) -> None:
-        _logging.getLogger("kisstd").debug("del %s", self)
+        _logger.debug("del %s", self)
 
     def __repr__(self) -> str:
-        if self._fileno is not None:
-            desc = "fd=" + str(self._fileno)
+        if self.fileno is not None:
+            desc = "fd=" + str(self.fileno)
         else:
             desc = "obj=" + str(id(self.fobj))
         return "<%s %s %s closed=%s>" % (self.__class__.__name__, hex(id(self)), desc, self.closed)
+
+    @property
+    def isatty(self) -> bool:
+        return self.fobj.isatty() # type: ignore
 
     def close(self) -> None:
         self.fobj.close()
@@ -114,6 +123,10 @@ class TIOWrappedWriter(TIOWrapper, MinimalIOWriter):
         else:
             self.write_bytes(data)
 
-stdin = TIOWrappedReader(_os.fdopen(_sys.stdin.fileno(), "rb"))
-stdout = TIOWrappedWriter(_os.fdopen(_sys.stdout.fileno(), "wb"))
-stderr = TIOWrappedWriter(_os.fdopen(_sys.stderr.fileno(), "wb"))
+    def write_ln(self, data : str | ByteString) -> None:
+        self.write(data)
+        self.write_bytes(self.eol)
+
+    def __exit__(self, exc_type : _t.Any, exc_value : _t.Any, exc_tb : _t.Any) -> None:
+        self.flush()
+        self.close()
