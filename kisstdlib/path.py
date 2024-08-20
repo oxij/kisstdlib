@@ -22,12 +22,17 @@
 
 import errno as _errno
 import os as _os
+import os.path as _op
 import stat as _stat
 import typing as _t
 
+IncludeFilesFunc = _t.Callable[[_t.AnyStr], bool]
+IncludeDirectoriesFunc = _t.Callable[[_t.AnyStr, bool, list[tuple[_t.AnyStr, bool]]], bool | None]
+
 def walk_orderly(path : _t.AnyStr,
                  *,
-                 include_directories : bool = True,
+                 include_files : bool | IncludeFilesFunc[_t.AnyStr] = True,
+                 include_directories : bool | IncludeDirectoriesFunc[_t.AnyStr] = True,
                  follow_symlinks : bool = True,
                  ordering : bool | None = True,
                  handle_error : _t.Callable[..., None] | None = None) -> _t.Iterable[_t.AnyStr]:
@@ -46,6 +51,11 @@ def walk_orderly(path : _t.AnyStr,
         raise
 
     if not _stat.S_ISDIR(fstat.st_mode):
+        if isinstance(include_files, bool):
+            if not include_files:
+                return
+        elif not include_files(path):
+            return
         yield path
         return
 
@@ -58,6 +68,7 @@ def walk_orderly(path : _t.AnyStr,
             return
         raise
 
+    complete = True
     elements : list[tuple[_t.AnyStr, bool]] = []
 
     with scandir_it:
@@ -80,6 +91,7 @@ def walk_orderly(path : _t.AnyStr,
                         eno = exc.errno
                         handle_error("failed to `stat`: [Errno %d, %s] %s: %s", eno, _errno.errorcode.get(eno, "?"), _os.strerror(eno), path)
                         # NB: skip errors here
+                        complete = False
                         continue
                     raise
 
@@ -88,15 +100,61 @@ def walk_orderly(path : _t.AnyStr,
     if ordering is not None:
         elements.sort(reverse=not ordering)
 
-    if include_directories:
-        yield path
+    if isinstance(include_directories, bool):
+        if include_directories:
+            yield path
+    else:
+        inc = include_directories(path, complete, elements)
+        if inc is None:
+            return
+        elif inc:
+            yield path
 
     for epath, eis_dir in elements:
         if eis_dir:
             yield from walk_orderly(epath,
+                                    include_files=include_files,
                                     include_directories=include_directories,
                                     follow_symlinks=follow_symlinks,
                                     ordering=ordering,
                                     handle_error=handle_error)
         else:
             yield epath
+
+def as_include_directories(f : IncludeFilesFunc[_t.AnyStr]) -> IncludeDirectoriesFunc[_t.AnyStr]:
+    """`convert walk_orderly(..., include_files, ...)` filter to `include_directories` filter"""
+    def func(path : _t.AnyStr, complete : bool, elements : list[tuple[_t.AnyStr, bool]]) -> bool:
+        return f(path)
+    return func
+
+def with_extension_in(exts : list[str | bytes] | set[str | bytes]) -> IncludeFilesFunc[_t.AnyStr]:
+    """`walk_orderly(..., include_files, ...)` (or `include_directories`) filter that makes it only include files that have one of the given extensions"""
+    def pred(path : _t.AnyStr) -> bool:
+        _, ext = _op.splitext(path)
+        return ext in exts
+    return pred
+
+def with_extension_not_in(exts : list[str | bytes] | set[str | bytes]) -> IncludeFilesFunc[_t.AnyStr]:
+    """`walk_orderly(..., include_files, ...)` (or `include_directories`) filter that makes it only include files that do not have any of the given extensions"""
+    def pred(path : _t.AnyStr) -> bool:
+        _, ext = _op.splitext(path)
+        return ext not in exts
+    return pred
+
+def not_empty_directories(path : _t.AnyStr, complete : bool, elements : list[tuple[_t.AnyStr, bool]]) -> bool:
+    """`walk_orderly(..., include_directories, ...)` filter that makes it print only non-empty directories"""
+    if len(elements) == 0:
+        return not complete
+    return True
+
+def leaf_directories(path : _t.AnyStr, complete : bool, elements : list[tuple[_t.AnyStr, bool]]) -> bool:
+    """`walk_orderly(..., include_directories, ...)` filter that makes it print leaf directories only, i.e. only directories without sub-directories"""
+    if complete and all(map(lambda x: not x[1], elements)):
+        return True
+    return False
+
+def not_empty_leaf_directories(path : _t.AnyStr, complete : bool, elements : list[tuple[_t.AnyStr, bool]]) -> bool:
+    """`walk_orderly(..., include_directories, ...)` filter that makes it print only non-empty leaf directories, i.e. non-empty directories without sub-directories"""
+    if not_empty_directories(path, complete, elements) and leaf_directories(path, complete, elements):
+        return True
+    return False
