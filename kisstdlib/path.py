@@ -61,7 +61,7 @@ def walk_orderly(path : _t.AnyStr,
     with scandir_it:
         while True:
             try:
-                entry : _t.Any = next(scandir_it)
+                entry : _os.DirEntry[_t.AnyStr] = next(scandir_it)
             except StopIteration:
                 break
             except OSError:
@@ -78,22 +78,24 @@ def walk_orderly(path : _t.AnyStr,
                         return
                     raise
 
+                epath : _t.AnyStr = entry.path
                 if is_dir:
-                    if isinstance(entry.path, bytes):
-                        elements.append(entry.path + b"/") # type: ignore
+                    if isinstance(epath, bytes):
+                        elements.append(epath + b"/")
                     else:
-                        elements.append(entry.path + "/")
+                        elements.append(epath + "/")
                 else:
-                    elements.append(entry.path)
+                    elements.append(epath)
 
     if ordering is not None:
         elements.sort(reverse=not ordering)
 
+    if include_directories:
+        yield path
+
     for path in elements:
         lchar : _t.AnyStr = path[-1:]
         if lchar == "/" or lchar == b"/":
-            if include_directories:
-                yield path
             yield from walk_orderly(path,
                                     include_directories=include_directories,
                                     follow_symlinks=follow_symlinks,
