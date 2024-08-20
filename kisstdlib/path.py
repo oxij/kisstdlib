@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import errno as _errno
 import os as _os
 import stat as _stat
 import typing as _t
@@ -37,9 +38,10 @@ def walk_orderly(path : _t.AnyStr,
 
     try:
         fstat = _os.stat(path, follow_symlinks = follow_symlinks)
-    except OSError:
+    except OSError as exc:
         if handle_error is not None:
-            handle_error("failed to stat: %s", path)
+            eno = exc.errno
+            handle_error("failed to stat `%s`: [Errno %d, %s] %s: %s", eno, _errno.errorcode.get(eno, "?"), _os.strerror(eno), path)
             return
         raise
 
@@ -49,9 +51,10 @@ def walk_orderly(path : _t.AnyStr,
 
     try:
         scandir_it = _os.scandir(path)
-    except OSError:
+    except OSError as exc:
         if handle_error is not None:
-            handle_error("failed to scandir: %s", path)
+            eno = exc.errno
+            handle_error("failed to `scandir`: [Errno %d, %s] %s: %s", eno, _errno.errorcode.get(eno, "?"), _os.strerror(eno), path)
             return
         raise
 
@@ -63,18 +66,21 @@ def walk_orderly(path : _t.AnyStr,
                 entry : _os.DirEntry[_t.AnyStr] = next(scandir_it)
             except StopIteration:
                 break
-            except OSError:
+            except OSError as exc:
                 if handle_error is not None:
-                    handle_error("failed in scandir: %s", path)
+                    eno = exc.errno
+                    handle_error("failed in `scandir`: [Errno %d, %s] %s: %s", eno, _errno.errorcode.get(eno, "?"), _os.strerror(eno), path)
                     return
                 raise
             else:
                 try:
                     entry_is_dir = entry.is_dir(follow_symlinks = follow_symlinks)
-                except OSError:
+                except OSError as exc:
                     if handle_error is not None:
-                        handle_error("failed to stat: %s", entry.path)
-                        return
+                        eno = exc.errno
+                        handle_error("failed to `stat`: [Errno %d, %s] %s: %s", eno, _errno.errorcode.get(eno, "?"), _os.strerror(eno), path)
+                        # NB: skip errors here
+                        continue
                     raise
 
                 elements.append((entry.path, entry_is_dir))
