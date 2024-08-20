@@ -36,7 +36,7 @@ def walk_orderly(path : _t.AnyStr,
                  follow_symlinks : bool = True,
                  ordering : bool | None = True,
                  handle_error : _t.Callable[..., None] | None = None,
-                 path_is_file_maybe : bool = True) -> _t.Iterable[_t.AnyStr]:
+                 path_is_file_maybe : bool = True) -> _t.Iterable[tuple[_t.AnyStr, bool]]:
     """Similar to os.walk, but produces an iterator over plain file paths, allows
        non-directories as input (which will just output a single element), and
        the output is guaranteed to be ordered if `ordering` is not `None`.
@@ -58,7 +58,7 @@ def walk_orderly(path : _t.AnyStr,
                     return
             elif not include_files(path):
                 return
-            yield path
+            yield path, False
             return
 
     try:
@@ -104,13 +104,13 @@ def walk_orderly(path : _t.AnyStr,
 
     if isinstance(include_directories, bool):
         if include_directories:
-            yield path
+            yield path, True
     else:
         inc = include_directories(path, complete, elements)
         if inc is None:
             return
         elif inc:
-            yield path
+            yield path, True
 
     for epath, eis_dir in elements:
         if eis_dir:
@@ -122,7 +122,7 @@ def walk_orderly(path : _t.AnyStr,
                                     handle_error=handle_error,
                                     path_is_file_maybe=False)
         else:
-            yield epath
+            yield epath, False
 
 def as_include_directories(f : IncludeFilesFunc[_t.AnyStr]) -> IncludeDirectoriesFunc[_t.AnyStr]:
     """`convert walk_orderly(..., include_files, ...)` filter to `include_directories` filter"""
