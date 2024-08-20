@@ -35,29 +35,31 @@ def walk_orderly(path : _t.AnyStr,
                  include_directories : bool | IncludeDirectoriesFunc[_t.AnyStr] = True,
                  follow_symlinks : bool = True,
                  ordering : bool | None = True,
-                 handle_error : _t.Callable[..., None] | None = None) -> _t.Iterable[_t.AnyStr]:
+                 handle_error : _t.Callable[..., None] | None = None,
+                 path_is_file_maybe : bool = True) -> _t.Iterable[_t.AnyStr]:
     """Similar to os.walk, but produces an iterator over plain file paths, allows
        non-directories as input (which will just output a single element), and
        the output is guaranteed to be ordered if `ordering` is not `None`.
     """
 
-    try:
-        fstat = _os.stat(path, follow_symlinks = follow_symlinks)
-    except OSError as exc:
-        if handle_error is not None:
-            eno = exc.errno
-            handle_error("failed to stat `%s`: [Errno %d, %s] %s: %s", eno, _errno.errorcode.get(eno, "?"), _os.strerror(eno), path)
-            return
-        raise
-
-    if not _stat.S_ISDIR(fstat.st_mode):
-        if isinstance(include_files, bool):
-            if not include_files:
+    if path_is_file_maybe:
+        try:
+            fstat = _os.stat(path, follow_symlinks = follow_symlinks)
+        except OSError as exc:
+            if handle_error is not None:
+                eno = exc.errno
+                handle_error("failed to stat `%s`: [Errno %d, %s] %s: %s", eno, _errno.errorcode.get(eno, "?"), _os.strerror(eno), path)
                 return
-        elif not include_files(path):
+            raise
+
+        if not _stat.S_ISDIR(fstat.st_mode):
+            if isinstance(include_files, bool):
+                if not include_files:
+                    return
+            elif not include_files(path):
+                return
+            yield path
             return
-        yield path
-        return
 
     try:
         scandir_it = _os.scandir(path)
@@ -117,7 +119,8 @@ def walk_orderly(path : _t.AnyStr,
                                     include_directories=include_directories,
                                     follow_symlinks=follow_symlinks,
                                     ordering=ordering,
-                                    handle_error=handle_error)
+                                    handle_error=handle_error,
+                                    path_is_file_maybe=False)
         else:
             yield epath
 
