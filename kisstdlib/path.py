@@ -20,7 +20,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import logging as _logging
 import os as _os
 import stat as _stat
 import typing as _t
@@ -30,7 +29,7 @@ def walk_orderly(path : _t.AnyStr,
                  include_directories : bool = True,
                  follow_symlinks : bool = True,
                  ordering : bool | None = True,
-                 handle_error : _t.Callable[..., None] | None = _logging.error) -> _t.Iterable[_t.AnyStr]:
+                 handle_error : _t.Callable[..., None] | None = None) -> _t.Iterable[_t.AnyStr]:
     """Similar to os.walk, but produces an iterator over plain file paths, allows
        non-directories as input (which will just output a single element), and
        the output is guaranteed to be ordered if `ordering` is not `None`.
