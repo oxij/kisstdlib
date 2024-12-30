@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Jan Malakhovski <oxij@oxij.org>
+# Copyright (c) 2023-2024 Jan Malakhovski <oxij@oxij.org>
 #
 # This file is a part of kisstdlib project.
 #
@@ -20,8 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Exceptions with printable descriptions.
-"""
+"""Exceptions with printable descriptions."""
 
 import typing as _t
 
@@ -33,8 +32,9 @@ class CatastrophicFailure(Exception):
     def __str__(self) -> str:
         return self.description
 
-    def elaborate(self, what : str, *args : _t.Any) -> None:
+    def elaborate(self, what : str, *args : _t.Any) -> _t.Any:
         self.description = what % args + ": " + self.description
+        return self
 
 class Failure(CatastrophicFailure):
     pass
