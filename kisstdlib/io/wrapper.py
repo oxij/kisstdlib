@@ -20,6 +20,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+"""`MinimalIO` wrappers for file-like objects."""
+
 import logging as _logging
 import os as _os
 import sys as _sys

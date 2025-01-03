@@ -24,6 +24,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+"""Extensions for the standard `argparse` module."""
+
 import typing as _t
 from argparse import *
 from gettext import gettext as _
