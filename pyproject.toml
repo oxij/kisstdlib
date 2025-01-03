@@ -24,3 +24,18 @@ include = ["kisstdlib*"]
 namespaces = true
 [tool.setuptools.package-data]
 "kisstdlib" = ["py.typed"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+implicit_reexport = true
+explicit_package_bases = true
+files = [
+    "**/*.py"
+]
+[[tool.mypy.overrides]]
+module = [
+    "setuptools",
+    "sortedcontainers",
+]
+ignore_missing_imports = true
