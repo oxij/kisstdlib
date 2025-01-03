@@ -29,17 +29,25 @@ import sys as _sys
 
 from .base import TIOEncoder
 
+
 class PyReprEncoder(TIOEncoder):
-    def __init__(self,
-                 fobj : _io.BufferedIOBase,
-                 indent : int = 2,
-                 starting_indent : int = 0,
-                 width : int | None = None,
-                 encoding : str = _sys.getdefaultencoding(),
-                 encoders : dict[type[_t.Any], _t.Callable[[_t.Any, _t.Any], None]] | None = None,
-                 default : _t.Callable[[_t.Any, _t.Any], None] | None = None) -> None:
-        super().__init__(fobj, b"\n", encoding,
-                         pyrepr_default_encoders if encoders is None else encoders, default)
+    def __init__(
+        self,
+        fobj: _io.BufferedIOBase,
+        indent: int = 2,
+        starting_indent: int = 0,
+        width: int | None = None,
+        encoding: str = _sys.getdefaultencoding(),
+        encoders: dict[type[_t.Any], _t.Callable[[_t.Any, _t.Any], None]] | None = None,
+        default: _t.Callable[[_t.Any, _t.Any], None] | None = None,
+    ) -> None:
+        super().__init__(
+            fobj,
+            b"\n",
+            encoding,
+            pyrepr_default_encoders if encoders is None else encoders,
+            default,
+        )
         self.indent = indent
         self.current = starting_indent
         self.width = width
@@ -47,7 +55,7 @@ class PyReprEncoder(TIOEncoder):
         self.want_space = False
         self.want_ln = False
 
-    def flush_line(self, force : bool = False) -> None:
+    def flush_line(self, force: bool = False) -> None:
         if self.linelen != 0:
             if force or self.want_ln or (self.width is not None and self.linelen > self.width):
                 self.write_str_ln("")
@@ -55,12 +63,12 @@ class PyReprEncoder(TIOEncoder):
                 self.want_ln = False
                 self.want_space = False
 
-    def lnlexeme(self, token : str) -> None:
+    def lnlexeme(self, token: str) -> None:
         token = " " * self.current + token
         self.write_str(token)
         self.linelen = len(token)
 
-    def lexeme(self, token : str) -> None:
+    def lexeme(self, token: str) -> None:
         self.flush_line()
 
         if self.linelen == 0:
@@ -78,29 +86,29 @@ class PyReprEncoder(TIOEncoder):
             self.linelen += len(token)
         self.want_space = True
 
-    def comment(self, token : str) -> None:
+    def comment(self, token: str) -> None:
         self.lexeme("# " + token)
         self.flush_line(True)
 
-    def start(self, token : str) -> None:
+    def start(self, token: str) -> None:
         self.lexeme(token)
         self.current += self.indent
 
-    def delim(self, token : str) -> None:
+    def delim(self, token: str) -> None:
         self.want_space = False
         self.lexeme(token)
 
-    def stop(self, token : str) -> None:
+    def stop(self, token: str) -> None:
         self.current -= self.indent
         self.lexeme(token)
 
-    def encode_plain(self, obj : _t.Any) -> None:
+    def encode_plain(self, obj: _t.Any) -> None:
         self.lexeme(str(obj))
 
-    def encode_repr(self, obj : _t.Any) -> None:
+    def encode_repr(self, obj: _t.Any) -> None:
         self.lexeme(repr(obj))
 
-    def encode_list(self, obj : list[_t.Any]) -> None:
+    def encode_list(self, obj: list[_t.Any]) -> None:
         large = len(obj) > 2
         self.start("[")
         self.want_ln = large
@@ -114,7 +122,7 @@ class PyReprEncoder(TIOEncoder):
         self.want_ln = large
         self.stop("]")
 
-    def encode_dict(self, obj : dict[_t.Any, _t.Any]) -> None:
+    def encode_dict(self, obj: dict[_t.Any, _t.Any]) -> None:
         large = len(obj) > 1
         self.start("{")
         self.want_ln = large
@@ -131,7 +139,8 @@ class PyReprEncoder(TIOEncoder):
         self.want_ln = large
         self.stop("}")
 
-pyrepr_default_encoders : dict[type[_t.Any], _t.Callable[[PyReprEncoder, _t.Any], None]] = {
+
+pyrepr_default_encoders: dict[type[_t.Any], _t.Callable[[PyReprEncoder, _t.Any], None]] = {
     bool: PyReprEncoder.encode_plain,
     int: PyReprEncoder.encode_plain,
     float: PyReprEncoder.encode_plain,
@@ -142,7 +151,8 @@ pyrepr_default_encoders : dict[type[_t.Any], _t.Callable[[PyReprEncoder, _t.Any]
     dict: PyReprEncoder.encode_dict,
 }
 
-def pyrepr_dumps(obj : _t.Any, *args : _t.Any, **kwargs : _t.Any) -> bytes:
+
+def pyrepr_dumps(obj: _t.Any, *args: _t.Any, **kwargs: _t.Any) -> bytes:
     encoder = PyReprEncoder(_io.BytesIO(), *args, **kwargs)
     encoder.encode(obj)
-    return encoder.fobj.getvalue() # type: ignore
+    return encoder.fobj.getvalue()  # type: ignore

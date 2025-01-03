@@ -24,17 +24,19 @@
 
 import typing as _t
 
+
 class CatastrophicFailure(Exception):
-    def __init__(self, what : str, *args : _t.Any) -> None:
+    def __init__(self, what: str, *args: _t.Any) -> None:
         super().__init__()
         self.description = what % args
 
     def __str__(self) -> str:
         return self.description
 
-    def elaborate(self, what : str, *args : _t.Any) -> _t.Any:
+    def elaborate(self, what: str, *args: _t.Any) -> _t.Any:
         self.description = what % args + ": " + self.description
         return self
+
 
 class Failure(CatastrophicFailure):
     pass

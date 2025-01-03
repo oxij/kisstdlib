@@ -32,10 +32,11 @@ ByteString = _t.Union[bytes, bytearray, memoryview]
 # ideally, this should be `_t.NewType("ShutdownState", int)`, but then `~` and
 # `|` operations wouldn't work
 ShutdownState = int
-SHUT_NONE  = ShutdownState(0)
-SHUT_READ  = ShutdownState(1)
+SHUT_NONE = ShutdownState(0)
+SHUT_READ = ShutdownState(1)
 SHUT_WRITE = ShutdownState(2)
-SHUT_BOTH  = ShutdownState(3)
+SHUT_BOTH = ShutdownState(3)
+
 
 class MinimalIO(metaclass=_abc.ABCMeta):
     def __repr__(self) -> str:
@@ -51,7 +52,7 @@ class MinimalIO(metaclass=_abc.ABCMeta):
         raise NotImplementedError()
 
     @_abc.abstractmethod
-    def shutdown(self, what : ShutdownState) -> None:
+    def shutdown(self, what: ShutdownState) -> None:
         raise NotImplementedError()
 
     @property
@@ -59,43 +60,47 @@ class MinimalIO(metaclass=_abc.ABCMeta):
     def shutdown_state(self) -> ShutdownState:
         raise NotImplementedError()
 
+
 class MinimalIOReader(MinimalIO):
     @_abc.abstractmethod
-    def read_some_bytes(self, size : int) -> bytes:
+    def read_some_bytes(self, size: int) -> bytes:
         raise NotImplementedError()
 
-    def read_all_bytes(self, chunk_size : int = MEGABYTE) -> bytes:
-        data : list[bytes] = []
+    def read_all_bytes(self, chunk_size: int = MEGABYTE) -> bytes:
+        data: list[bytes] = []
         while True:
             res = self.read_some_bytes(chunk_size)
             rlen = len(res)
-            if rlen == 0: break
+            if rlen == 0:
+                break
             data.append(res)
         return b"".join(data)
 
-    def read_exactly_bytes(self, size : int) -> bytes:
-        data : list[bytes] = []
+    def read_exactly_bytes(self, size: int) -> bytes:
+        data: list[bytes] = []
         total = 0
         while total < size:
             res = self.read_some_bytes(size - total)
             rlen = len(res)
-            if rlen == 0: break
+            if rlen == 0:
+                break
             data.append(res)
             total += rlen
         return b"".join(data)
 
-    def read_bytes(self, size : int | None = None) -> bytes:
+    def read_bytes(self, size: int | None = None) -> bytes:
         if size is None:
             return self.read_all_bytes()
         else:
             return self.read_exactly_bytes(size)
 
+
 class MinimalIOWriter(MinimalIO):
     @_abc.abstractmethod
-    def write_some_bytes(self, data : ByteString) -> int:
+    def write_some_bytes(self, data: ByteString) -> int:
         raise NotImplementedError()
 
-    def write_bytes(self, data : ByteString) -> None:
+    def write_bytes(self, data: ByteString) -> None:
         done = 0
         view = memoryview(data)
         datalen = len(data)

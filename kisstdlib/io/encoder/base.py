@@ -25,15 +25,18 @@ import typing as _t
 
 from ..wrapper import *
 
-class TIOEncoder(TIOWrappedWriter):
-    default : _t.Callable[[_t.Any, _t.Any], None]
 
-    def __init__(self,
-                 fobj : _t.Any,
-                 eol : bytes = b"\n",
-                 encoding : str = _sys.getdefaultencoding(),
-                 encoders : dict[type[_t.Any], _t.Callable[[_t.Any, _t.Any], None]] = {},
-                 default : _t.Callable[[_t.Any, _t.Any], None] | None = None) -> None:
+class TIOEncoder(TIOWrappedWriter):
+    default: _t.Callable[[_t.Any, _t.Any], None]
+
+    def __init__(
+        self,
+        fobj: _t.Any,
+        eol: bytes = b"\n",
+        encoding: str = _sys.getdefaultencoding(),
+        encoders: dict[type[_t.Any], _t.Callable[[_t.Any, _t.Any], None]] = {},
+        default: _t.Callable[[_t.Any, _t.Any], None] | None = None,
+    ) -> None:
         super().__init__(fobj, eol, encoding)
         self.encoders = encoders.copy()
         if default is None:
@@ -41,16 +44,16 @@ class TIOEncoder(TIOWrappedWriter):
         else:
             self.default = default
 
-    def not_implemented(self, obj : _t.Any) -> None:
+    def not_implemented(self, obj: _t.Any) -> None:
         raise NotImplementedError("don't know how to encode %s", type(obj))
 
-    def _find_encoder(self, obj_type : _t.Any) -> _t.Any:
+    def _find_encoder(self, obj_type: _t.Any) -> _t.Any:
         for typ, enc in self.encoders.items():
             if issubclass(obj_type, typ):
                 return enc
         return self.default
 
-    def encode(self, obj : _t.Any) -> None:
+    def encode(self, obj: _t.Any) -> None:
         typ = type(obj)
         try:
             enc = self.encoders[typ]
@@ -59,7 +62,8 @@ class TIOEncoder(TIOWrappedWriter):
             self.encoders[typ] = enc
         enc(self, obj)
 
-tio_default_encoders : dict[type[_t.Any], _t.Callable[[TIOWrappedWriter, _t.Any], None]] = {
+
+tio_default_encoders: dict[type[_t.Any], _t.Callable[[TIOWrappedWriter, _t.Any], None]] = {
     bool: TIOEncoder.write_strable,
     int: TIOEncoder.write_strable,
     float: TIOEncoder.write_strable,
@@ -67,7 +71,7 @@ tio_default_encoders : dict[type[_t.Any], _t.Callable[[TIOWrappedWriter, _t.Any]
     bytes: TIOEncoder.write_bytes,
 }
 
-tio_default_encoders_ln : dict[type[_t.Any], _t.Callable[[TIOWrappedWriter, _t.Any], None]] = {
+tio_default_encoders_ln: dict[type[_t.Any], _t.Callable[[TIOWrappedWriter, _t.Any], None]] = {
     bool: TIOEncoder.write_strable_ln,
     int: TIOEncoder.write_strable_ln,
     float: TIOEncoder.write_strable_ln,

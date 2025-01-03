@@ -22,20 +22,21 @@
 
 import logging as _logging
 
-class CounterHandler(_logging.NullHandler):
-    errors : int
-    warnings : int
-    infos : int
-    debugs : int
 
-    def __init__(self, level : int = _logging.DEBUG) -> None:
+class CounterHandler(_logging.NullHandler):
+    errors: int
+    warnings: int
+    infos: int
+    debugs: int
+
+    def __init__(self, level: int = _logging.DEBUG) -> None:
         super().__init__(level)
         self.errors = 0
         self.warnings = 0
         self.infos = 0
         self.debugs = 0
 
-    def handle(self, record : _logging.LogRecord) -> bool:
+    def handle(self, record: _logging.LogRecord) -> bool:
         if record.levelno >= _logging.ERROR:
             self.errors += 1
         elif record.levelno >= _logging.WARNING:

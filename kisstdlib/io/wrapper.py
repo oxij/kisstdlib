@@ -29,11 +29,12 @@ from .base import *
 
 _logger = _logging.getLogger("kisstd")
 
-class MinimalIOWrapper(MinimalIO):
-    fobj : _t.Any
-    fileno : int | None
 
-    def __init__(self, fobj : _t.Any) -> None:
+class MinimalIOWrapper(MinimalIO):
+    fobj: _t.Any
+    fileno: int | None
+
+    def __init__(self, fobj: _t.Any) -> None:
         self.fobj = fobj
         # _socket.socket's fileno() will return -1 after
         # .close() and poll needs an actual value to unsubscribe
@@ -56,16 +57,16 @@ class MinimalIOWrapper(MinimalIO):
 
     @property
     def isatty(self) -> bool:
-        return self.fobj.isatty() # type: ignore
+        return self.fobj.isatty()  # type: ignore
 
     def close(self) -> None:
         self.fobj.close()
 
     @property
     def closed(self) -> bool:
-        return self.fobj.closed # type: ignore
+        return self.fobj.closed  # type: ignore
 
-    def shutdown(self, what : ShutdownState) -> None:
+    def shutdown(self, what: ShutdownState) -> None:
         raise NotImplementedError("MinimalIOWrapper can't be shutdown")
 
     @property
@@ -78,55 +79,60 @@ class MinimalIOWrapper(MinimalIO):
     def __enter__(self) -> _t.Any:
         return self
 
-    def __exit__(self, exc_type : _t.Any, exc_value : _t.Any, exc_tb : _t.Any) -> None:
+    def __exit__(self, exc_type: _t.Any, exc_value: _t.Any, exc_tb: _t.Any) -> None:
         self.close()
 
+
 class TIOWrapper(MinimalIOWrapper):
-    def __init__(self, fobj : _t.Any, eol : bytes = b"\n", encoding : str = _sys.getdefaultencoding()) -> None:
+    def __init__(
+        self, fobj: _t.Any, eol: bytes = b"\n", encoding: str = _sys.getdefaultencoding()
+    ) -> None:
         super().__init__(fobj)
         self.encoding = encoding
         self.eol = eol
 
+
 class TIOWrappedReader(TIOWrapper, MinimalIOReader):
-    def read_some_bytes(self, size : int) -> bytes:
-        return self.fobj.read(size) # type: ignore
+    def read_some_bytes(self, size: int) -> bytes:
+        return self.fobj.read(size)  # type: ignore
+
 
 class TIOWrappedWriter(TIOWrapper, MinimalIOWriter):
-    def write_some_bytes(self, data : ByteString) -> int:
-        return self.fobj.write(data) # type: ignore
+    def write_some_bytes(self, data: ByteString) -> int:
+        return self.fobj.write(data)  # type: ignore
 
     def flush(self) -> None:
         self.fobj.flush()
 
-    def write_bytes_ln(self, data : ByteString) -> None:
+    def write_bytes_ln(self, data: ByteString) -> None:
         self.write_bytes(data)
         self.write_bytes(self.eol)
 
-    def write_str(self, data : str) -> None:
+    def write_str(self, data: str) -> None:
         assert self.encoding is not None
         self.write_bytes(data.encode(self.encoding))
 
-    def write_str_ln(self, data : str) -> None:
+    def write_str_ln(self, data: str) -> None:
         self.write_str(data)
         self.write_bytes(self.eol)
 
-    def write_strable(self, data : _t.Any) -> None:
+    def write_strable(self, data: _t.Any) -> None:
         self.write_str(str(data))
 
-    def write_strable_ln(self, data : _t.Any) -> None:
+    def write_strable_ln(self, data: _t.Any) -> None:
         self.write_strable(data)
         self.write_bytes(self.eol)
 
-    def write(self, data : str | ByteString) -> None:
+    def write(self, data: str | ByteString) -> None:
         if isinstance(data, str):
             self.write_str(data)
         else:
             self.write_bytes(data)
 
-    def write_ln(self, data : str | ByteString) -> None:
+    def write_ln(self, data: str | ByteString) -> None:
         self.write(data)
         self.write_bytes(self.eol)
 
-    def __exit__(self, exc_type : _t.Any, exc_value : _t.Any, exc_tb : _t.Any) -> None:
+    def __exit__(self, exc_type: _t.Any, exc_value: _t.Any, exc_tb: _t.Any) -> None:
         self.flush()
         self.close()
