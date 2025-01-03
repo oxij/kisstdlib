@@ -113,12 +113,12 @@ class PyReprEncoder(TIOEncoder):
         self.start("[")
         self.want_ln = large
         first = True
-        for i in range(0, len(obj)):
+        for o in obj:
             if not first:
                 self.delim(",")
                 self.want_ln = large
             first = False
-            self.encode(obj[i])
+            self.encode(o)
         self.want_ln = large
         self.stop("]")
 

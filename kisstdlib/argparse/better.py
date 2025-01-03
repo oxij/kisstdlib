@@ -77,8 +77,7 @@ class MarkdownBetterHelpFormatter(BetterHelpFormatter):
         # determine the required width and the entry label
         action_header = self._format_action_invocation(action)
 
-        tup = self._current_indent, "", "`" + action_header + "`"
-        action_header = "%*s- %s\n" % tup
+        action_header = f"{' ' * self._current_indent}- `{action_header}`\n"
 
         # collect the pieces of the action help
         parts = [action_header]
@@ -88,9 +87,9 @@ class MarkdownBetterHelpFormatter(BetterHelpFormatter):
             first = True
             for line in self._expand_help(action).splitlines():
                 if first:
-                    parts.append("%*s: %s\n" % (self._current_indent, "", line))
+                    parts.append(f"{' ' * self._current_indent}: {line}\n")
                 else:
-                    parts.append("%*s  %s\n" % (self._current_indent, "", line))
+                    parts.append(f"{' ' * self._current_indent}  {line}\n")
                 first = False
 
         # or add a newline if the description doesn't end with one
@@ -104,14 +103,14 @@ class MarkdownBetterHelpFormatter(BetterHelpFormatter):
         # return a single string
         return self._join_parts(parts)
 
-    class _Section(HelpFormatter._Section):
+    class _Section(HelpFormatter._Section):  # pylint: disable=protected-access
         def format_help(self) -> str:
             if self.parent is not None:
-                self.formatter._indent()
-            join = self.formatter._join_parts
+                self.formatter._indent()  # pylint: disable=protected-access
+            join = self.formatter._join_parts  # pylint: disable=protected-access
             item_help = join([func(*args) for func, args in self.items])
             if self.parent is not None:
-                self.formatter._dedent()
+                self.formatter._dedent()  # pylint: disable=protected-access
 
             # return nothing if the section was empty
             if not item_help:
@@ -119,7 +118,7 @@ class MarkdownBetterHelpFormatter(BetterHelpFormatter):
 
             # add the heading if the section was non-empty
             if self.heading is not SUPPRESS and self.heading is not None:
-                heading = "%*s- %s:\n" % (self.formatter._current_indent, "", self.heading)
+                heading = f"{' ' * self.formatter._current_indent}- {self.heading}:\n"  # pylint: disable=protected-access
             else:
                 heading = ""
 
@@ -136,15 +135,15 @@ class BetterArgumentParser(ArgumentParser):
 
     formatter_class: type[BetterHelpFormatter]
 
-    def __init__(
+    def __init__(  # pylint: disable=dangerous-default-value
         self,
+        *args: _t.Any,
         prog: str | None = None,
         version: str | None = None,
         add_version: bool = False,  # we set these two to False by default
         add_help: bool = False,  # so that subparsers don't get them enabled by default
         additional_sections: list[_t.Callable[[BetterHelpFormatter], None]] = [],
         formatter_class: type[BetterHelpFormatter] = BetterHelpFormatter,
-        *args: _t.Any,
         **kwargs: _t.Any,
     ) -> None:
         super().__init__(prog, *args, formatter_class=formatter_class, add_help=False, **kwargs)  # type: ignore
@@ -185,8 +184,8 @@ class BetterArgumentParser(ArgumentParser):
     def set_formatter_class(self, formatter_class: type[BetterHelpFormatter]) -> None:
         self.formatter_class = formatter_class
         if hasattr(self._subparsers, "_group_actions"):
-            for grp in self._subparsers._group_actions:  # type: ignore
-                for choice, e in grp.choices.items():  # type: ignore
+            for grp in self._subparsers._group_actions:  # type: ignore # pylint: disable=protected-access
+                for _choice, e in grp.choices.items():  # type: ignore
                     if e.formatter_class != formatter_class:
                         e.formatter_class = formatter_class
 
@@ -201,18 +200,20 @@ class BetterArgumentParser(ArgumentParser):
         formatter.add_text(self.description)
 
         if hasattr(self, "_action_groups"):
-            for action_group in self._action_groups:
+            for action_group in self._action_groups:  # pylint: disable=protected-access
                 formatter.start_section(action_group.title)
                 formatter.add_text(action_group.description)
-                formatter.add_arguments(action_group._group_actions)
+                formatter.add_arguments(
+                    action_group._group_actions  # pylint: disable=protected-access
+                )
                 formatter.end_section()
 
         res: str = "# " + formatter.format_help()
 
         if hasattr(self._subparsers, "_group_actions"):
             seen = set()
-            for grp in self._subparsers._group_actions:  # type: ignore
-                for choice, e in grp.choices.items():  # type: ignore
+            for grp in self._subparsers._group_actions:  # type: ignore # pylint: disable=protected-access
+                for _choice, e in grp.choices.items():  # type: ignore
                     if e in seen:
                         continue
                     seen.add(e)

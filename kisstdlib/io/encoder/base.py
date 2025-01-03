@@ -31,7 +31,7 @@ from ..wrapper import *
 class TIOEncoder(TIOWrappedWriter):
     default: _t.Callable[[_t.Any, _t.Any], None]
 
-    def __init__(
+    def __init__(  # pylint: disable=dangerous-default-value
         self,
         fobj: _t.Any,
         eol: bytes = b"\n",

@@ -138,7 +138,7 @@ def walk_orderly(
         inc = include_directories(path, complete, elements)
         if inc is None:
             return
-        elif inc:
+        if inc:
             yield path, True
 
     for epath, eis_dir in elements:
@@ -159,7 +159,7 @@ def walk_orderly(
 def as_include_directories(f: IncludeFilesFunc[_t.AnyStr]) -> IncludeDirectoriesFunc[_t.AnyStr]:
     """`convert walk_orderly(..., include_files, ...)` filter to `include_directories` filter"""
 
-    def func(path: _t.AnyStr, complete: bool, elements: list[tuple[_t.AnyStr, bool]]) -> bool:
+    def func(path: _t.AnyStr, _complete: bool, _elements: list[tuple[_t.AnyStr, bool]]) -> bool:
         return f(path)
 
     return func
@@ -188,7 +188,7 @@ def with_extension_not_in(
 
 
 def not_empty_directories(
-    path: _t.AnyStr, complete: bool, elements: list[tuple[_t.AnyStr, bool]]
+    _path: _t.AnyStr, complete: bool, elements: list[tuple[_t.AnyStr, bool]]
 ) -> bool:
     """`walk_orderly(..., include_directories, ...)` filter that makes it print only non-empty directories"""
     if len(elements) == 0:
@@ -197,7 +197,7 @@ def not_empty_directories(
 
 
 def leaf_directories(
-    path: _t.AnyStr, complete: bool, elements: list[tuple[_t.AnyStr, bool]]
+    _path: _t.AnyStr, complete: bool, elements: list[tuple[_t.AnyStr, bool]]
 ) -> bool:
     """`walk_orderly(..., include_directories, ...)` filter that makes it print leaf directories only, i.e. only directories without sub-directories"""
     if complete and all(map(lambda x: not x[1], elements)):

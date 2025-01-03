@@ -55,7 +55,7 @@ class MinimalIOWrapper(MinimalIO):
             desc = "fd=" + str(self.fileno)
         else:
             desc = "obj=" + str(id(self.fobj))
-        return "<%s %s %s closed=%s>" % (self.__class__.__name__, hex(id(self)), desc, self.closed)
+        return f"<{self.__class__.__name__} {hex(id(self))} {desc} closed={self.closed}>"
 
     @property
     def isatty(self) -> bool:
@@ -75,8 +75,7 @@ class MinimalIOWrapper(MinimalIO):
     def shutdown_state(self) -> ShutdownState:
         if self.closed:
             return SHUT_BOTH
-        else:
-            return SHUT_NONE
+        return SHUT_NONE
 
     def __enter__(self) -> _t.Any:
         return self

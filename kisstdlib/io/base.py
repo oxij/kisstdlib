@@ -42,7 +42,7 @@ SHUT_BOTH = ShutdownState(3)
 
 class MinimalIO(metaclass=_abc.ABCMeta):
     def __repr__(self) -> str:
-        return "<%s %s>" % (self.__class__.__name__, hex(id(self)))
+        return f"<{self.__class__.__name__} {hex(id(self))}>"
 
     @_abc.abstractmethod
     def close(self) -> None:
@@ -93,8 +93,7 @@ class MinimalIOReader(MinimalIO):
     def read_bytes(self, size: int | None = None) -> bytes:
         if size is None:
             return self.read_all_bytes()
-        else:
-            return self.read_exactly_bytes(size)
+        return self.read_exactly_bytes(size)
 
 
 class MinimalIOWriter(MinimalIO):
