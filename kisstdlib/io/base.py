@@ -29,7 +29,9 @@ MEGABYTE = 1024 * 1024
 # anything that can be `write`n
 ByteString = _t.Union[bytes, bytearray, memoryview]
 
-ShutdownState = int # _t.NewType("ShutdownState", int), ideally, but then ~ and | operations won't work
+# ideally, this should be `_t.NewType("ShutdownState", int)`, but then `~` and
+# `|` operations wouldn't work
+ShutdownState = int
 SHUT_NONE  = ShutdownState(0)
 SHUT_READ  = ShutdownState(1)
 SHUT_WRITE = ShutdownState(2)
