@@ -42,7 +42,7 @@ def walk_orderly(
     handle_error: _t.Callable[..., None] | None = None,
     path_is_file_maybe: bool = True,
 ) -> _t.Iterable[tuple[_t.AnyStr, bool]]:
-    """Similar to os.walk, but produces an iterator over plain file paths, allows
+    """Similar to `os.walk`, but produces an iterator over paths, allows
     non-directories as input (which will just output a single element), and
     the output is guaranteed to be ordered if `ordering` is not `None`.
     """
