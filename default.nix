@@ -1,6 +1,6 @@
 { pkgs ? import <nixpkgs> {}
 , lib ? pkgs.lib
-, debug ? false
+, developer ? false
 }:
 
 with pkgs.python3Packages;
@@ -29,10 +29,10 @@ buildPythonApplication (rec {
     setuptools
     sortedcontainers
   ];
-} // lib.optionalAttrs debug {
+} // lib.optionalAttrs developer {
   nativeBuildInputs = [
-    mypy
-    pytest
+    build twine pip mypy pytest black pylint
+    pkgs.pandoc
   ];
 
   preBuild = "find . ; mypy";
