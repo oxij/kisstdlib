@@ -27,7 +27,7 @@ import io as _io
 import typing as _t
 import sys as _sys
 
-from .base import TIOEncoder
+from .io.encoder import TIOEncoder
 
 
 class PyReprEncoder(TIOEncoder):

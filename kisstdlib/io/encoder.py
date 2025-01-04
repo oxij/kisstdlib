@@ -25,7 +25,7 @@
 import sys as _sys
 import typing as _t
 
-from ..wrapper import *
+from .wrapper import *
 
 
 class TIOEncoder(TIOWrappedWriter):
