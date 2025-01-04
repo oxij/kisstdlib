@@ -34,7 +34,7 @@ _logger = _logging.getLogger("kisstd")
 
 class MinimalIOWrapper(MinimalIO):
     fobj: _t.Any
-    fileno: int | None
+    fdno: int | None
 
     def __init__(self, fobj: _t.Any) -> None:
         self.fobj = fobj
@@ -42,24 +42,20 @@ class MinimalIOWrapper(MinimalIO):
         # .close() and poll needs an actual value to unsubscribe
         # properly so we have to keep a copy here
         try:
-            self.fileno = fobj.fileno()
+            self.fdno = fobj.fileno()
         except OSError:
-            self.fileno = None
+            self.fdno = None
         _logger.debug("init %s", self)
 
     def __del__(self) -> None:
         _logger.debug("del %s", self)
 
     def __repr__(self) -> str:
-        if self.fileno is not None:
-            desc = "fd=" + str(self.fileno)
+        if self.fdno is not None:
+            desc = "fd=" + str(self.fdno)
         else:
-            desc = "obj=" + str(id(self.fobj))
+            desc = "obj=" + hex(id(self.fobj))
         return f"<{self.__class__.__name__} {hex(id(self))} {desc} closed={self.closed}>"
-
-    @property
-    def isatty(self) -> bool:
-        return self.fobj.isatty()  # type: ignore
 
     def close(self) -> None:
         self.fobj.close()
@@ -82,6 +78,12 @@ class MinimalIOWrapper(MinimalIO):
 
     def __exit__(self, exc_type: _t.Any, exc_value: _t.Any, exc_tb: _t.Any) -> None:
         self.close()
+
+    def fileno(self) -> int:
+        return self.fdno if self.fdno is not None else -1
+
+    def isatty(self) -> bool:
+        return self.fobj.isatty()  # type: ignore
 
 
 class TIOWrapper(MinimalIOWrapper):
