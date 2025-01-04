@@ -1,6 +1,6 @@
-# Copyright (c) 2022-2023 Jan Malakhovski <oxij@oxij.org>
+# Copyright (c) 2022-2025 Jan Malakhovski <oxij@oxij.org>
 #
-# This file is a part of kisstdlib project.
+# This file is a part of `kisstdlib` project.
 #
 # This file can be distributed under the terms of the MIT-style license given
 # below or Python Software Foundation License version 2 (PSF-2.0) as published

@@ -1,7 +1,8 @@
-# This file is a part of kisstdlib project.
-#
-# Copyright (c) 2018-2024 Jan Malakhovski <oxij@oxij.org>
+# Copyright (c) 2018-2025 Jan Malakhovski <oxij@oxij.org>
 # Copyright (c) 2002 Lars Gustaebel <lars@gustaebel.de>
+#
+# This file is a part of `kisstdlib` project.
+# Some code here was borrowed from Python stdlib's `tarfile.py`.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
