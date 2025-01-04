@@ -20,12 +20,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Exceptions with printable descriptions."""
+"""`Exceptions` with printable and i18n-able descriptions."""
 
 import typing as _t
 
 
 class CatastrophicFailure(Exception):
+    """An `Exception` with printable and i18n-able description."""
+
     def __init__(self, what: str, *args: _t.Any) -> None:
         super().__init__()
         self.description = what % args
@@ -39,4 +41,4 @@ class CatastrophicFailure(Exception):
 
 
 class Failure(CatastrophicFailure):
-    pass
+    """A non-catastrophic `CatastrophicFailure`."""
