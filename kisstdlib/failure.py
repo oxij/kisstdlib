@@ -28,15 +28,31 @@ import typing as _t
 class CatastrophicFailure(Exception):
     """An `Exception` with printable and i18n-able description."""
 
-    def __init__(self, what: str, *args: _t.Any) -> None:
+    info: list[tuple[str, tuple[_t.Any, ...]]]
+
+    def __init__(self, what: _t.Any, *args: _t.Any) -> None:
         super().__init__()
-        self.description = what % args
+        if isinstance(what, CatastrophicFailure):
+            self.info = what.info
+        else:
+            self.info = [(what, args)]
+
+    def get_message(self, gettext: _t.Callable[[str], str], separator: str = ": ") -> str:
+        res = []
+        for what, args in self.info:
+            try:
+                t = gettext(what) % args
+            except Exception:
+                t = f"{repr(what)} % {repr(args)}"
+            res.append(t)
+        res.reverse()
+        return separator.join(res)
 
     def __str__(self) -> str:
-        return self.description
+        return self.get_message(lambda x: x)
 
     def elaborate(self, what: str, *args: _t.Any) -> _t.Any:
-        self.description = what % args + ": " + self.description
+        self.info.append((what, args))
         return self
 
 
