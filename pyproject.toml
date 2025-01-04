@@ -40,6 +40,13 @@ module = [
 ]
 ignore_missing_imports = true
 
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-s -ra -v"
+testpaths = [
+    "kisstdlib/**/*.py",
+]
+
 [tool.black]
 line-length = 100
 

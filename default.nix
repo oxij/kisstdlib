@@ -35,6 +35,6 @@ buildPythonApplication (rec {
     pkgs.pandoc
   ];
 
-  preBuild = "find . ; mypy";
+  preBuild = "find . ; black --check . && mypy && pytest && pylint .";
   postInstall = "find $out";
 })
