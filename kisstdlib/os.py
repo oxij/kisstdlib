@@ -20,8 +20,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Filesystem walking."""
+"""Extensions for the standard `os` module."""
 
+import enum as _enum
 import errno as _errno
 import os as _os
 import os.path as _op
@@ -32,19 +33,26 @@ IncludeFilesFunc = _t.Callable[[_t.AnyStr], bool]
 IncludeDirectoriesFunc = _t.Callable[[_t.AnyStr, bool, list[tuple[_t.AnyStr, bool]]], bool | None]
 
 
+class WalkOrder(_enum.Enum):
+    NONE = 0
+    SORT = 1
+    REVERSE = 2
+
+
 def walk_orderly(
     path: _t.AnyStr,
     *,
     include_files: bool | IncludeFilesFunc[_t.AnyStr] = True,
     include_directories: bool | IncludeDirectoriesFunc[_t.AnyStr] = True,
     follow_symlinks: bool = True,
-    ordering: bool | None = True,
+    order: WalkOrder = WalkOrder.SORT,
     handle_error: _t.Callable[..., None] | None = None,
     path_is_file_maybe: bool = True,
 ) -> _t.Iterable[tuple[_t.AnyStr, bool]]:
     """Similar to `os.walk`, but produces an iterator over paths, allows
-    non-directories as input (which will just output a single element), and
-    the output is guaranteed to be ordered if `ordering` is not `None`.
+    non-directories as input (which will just output a single
+    element), provides convenient filtering and error handling, and
+    the output is guaranteed to be ordered if `order` is not `NONE`.
     """
 
     if path_is_file_maybe:
@@ -128,8 +136,8 @@ def walk_orderly(
 
                 elements.append((entry.path, entry_is_dir))
 
-    if ordering is not None:
-        elements.sort(reverse=not ordering)
+    if order != WalkOrder.NONE:
+        elements.sort(reverse=order == WalkOrder.REVERSE)
 
     if isinstance(include_directories, bool):
         if include_directories:
@@ -148,7 +156,7 @@ def walk_orderly(
                 include_files=include_files,
                 include_directories=include_directories,
                 follow_symlinks=follow_symlinks,
-                ordering=ordering,
+                order=order,
                 handle_error=handle_error,
                 path_is_file_maybe=False,
             )
@@ -187,7 +195,7 @@ def with_extension_not_in(
     return pred
 
 
-def not_empty_directories(
+def nonempty_directories(
     _path: _t.AnyStr, complete: bool, elements: list[tuple[_t.AnyStr, bool]]
 ) -> bool:
     """`walk_orderly(..., include_directories, ...)` filter that makes it print only non-empty directories"""
@@ -205,11 +213,11 @@ def leaf_directories(
     return False
 
 
-def not_empty_leaf_directories(
+def nonempty_leaf_directories(
     path: _t.AnyStr, complete: bool, elements: list[tuple[_t.AnyStr, bool]]
 ) -> bool:
     """`walk_orderly(..., include_directories, ...)` filter that makes it print only non-empty leaf directories, i.e. non-empty directories without sub-directories"""
-    if not_empty_directories(path, complete, elements) and leaf_directories(
+    if nonempty_directories(path, complete, elements) and leaf_directories(
         path, complete, elements
     ):
         return True
