@@ -63,6 +63,30 @@ class MinimalIO(metaclass=_abc.ABCMeta):
         raise NotImplementedError()
 
 
+IncompleteResultType = _t.TypeVar("IncompleteResultType")
+
+
+class IncompleteResultError(Exception, _t.Generic[IncompleteResultType]):
+    """En `Exception` signifying an opeartion did not complete, but did
+    produce a partial result.
+    """
+
+    def __init__(self, data: IncompleteResultType) -> None:
+        super().__init__()
+        self.data = data
+
+
+class IncompleteReadError(IncompleteResultError[bytes]):
+    """When a `read` operation was not complete. `.data` stores the chunk that was
+    read successfully.
+    """
+
+
+class IncompleteWriteError(IncompleteResultError[bytes]):
+    """When a `write` operation was not complete. `.data` stores the leftover
+    unwritten chunk."""
+
+
 class MinimalIOReader(MinimalIO):
     @_abc.abstractmethod
     def read_some_bytes(self, size: int) -> bytes:
@@ -78,6 +102,11 @@ class MinimalIOReader(MinimalIO):
             data.append(res)
         return b"".join(data)
 
+    def read_bytes(self, size: int | None = None) -> bytes:
+        if size is None:
+            return self.read_all_bytes()
+        return self.read_some_bytes(size)
+
     def read_exactly_bytes(self, size: int) -> bytes:
         data: list[bytes] = []
         total = 0
@@ -85,15 +114,10 @@ class MinimalIOReader(MinimalIO):
             res = self.read_some_bytes(size - total)
             rlen = len(res)
             if rlen == 0:
-                break
+                raise IncompleteReadError(b"".join(data))
             data.append(res)
             total += rlen
         return b"".join(data)
-
-    def read_bytes(self, size: int | None = None) -> bytes:
-        if size is None:
-            return self.read_all_bytes()
-        return self.read_exactly_bytes(size)
 
 
 class MinimalIOWriter(MinimalIO):
@@ -106,7 +130,10 @@ class MinimalIOWriter(MinimalIO):
         view = memoryview(data)
         datalen = len(data)
         while done < datalen:
-            done += self.write_some_bytes(view[done:])
+            res = self.write_some_bytes(view[done:])
+            if res == 0:
+                raise IncompleteWriteError(data[done:])
+            done += res
 
     @_abc.abstractmethod
     def flush(self) -> None:
