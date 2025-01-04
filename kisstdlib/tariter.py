@@ -31,7 +31,7 @@ The file object will be read once, without seeking, which is not true for `tarfi
 import dataclasses as _dc
 import typing as _t
 
-from .exceptions import *
+from .failure import *
 
 BUFFER_SIZE = 16 * 1024**2
 
