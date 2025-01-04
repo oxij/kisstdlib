@@ -34,7 +34,7 @@ _logger = _logging.getLogger("kisstd")
 
 class MinimalIOWrapper(MinimalIO):
     fobj: _t.Any
-    fdno: int | None
+    fdno: FDNo | None
 
     def __init__(self, fobj: _t.Any) -> None:
         self.fobj = fobj
@@ -42,7 +42,7 @@ class MinimalIOWrapper(MinimalIO):
         # .close() and poll needs an actual value to unsubscribe
         # properly so we have to keep a copy here
         try:
-            self.fdno = fobj.fileno()
+            self.fdno = FDNo(fobj.fileno())
         except OSError:
             self.fdno = None
         _logger.debug("init %s", self)

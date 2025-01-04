@@ -26,9 +26,9 @@ import abc as _abc
 import sys as _sys
 import typing as _t
 
-MEGABYTE = 1024 * 1024
-
-# anything that can be `write`n
+# file descriptor number
+FDNo = _t.NewType("FDNo", int)
+# anything that can be `write`ed to
 ByteString = _t.Union[bytes, bytearray, memoryview]
 
 # ideally, this should be `_t.NewType("ShutdownState", int)`, but then `~` and
@@ -38,6 +38,8 @@ SHUT_NONE = ShutdownState(0)
 SHUT_READ = ShutdownState(1)
 SHUT_WRITE = ShutdownState(2)
 SHUT_BOTH = ShutdownState(3)
+
+MEGABYTE = 1024 * 1024
 
 
 class MinimalIO(metaclass=_abc.ABCMeta):
