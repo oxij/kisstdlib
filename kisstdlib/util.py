@@ -43,6 +43,10 @@ def map_optionals(f: _t.Callable[[InType], list[OutType]], x: InType | None) -> 
     return f(x)
 
 
+def first(x: tuple[InType, ...]) -> InType:
+    return x[0]
+
+
 def str_Exception(exc: Exception) -> str:
     fobj = _io.StringIO()
     _traceback.print_exception(type(exc), exc, exc.__traceback__, 100, fobj)
