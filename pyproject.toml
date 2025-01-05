@@ -19,6 +19,9 @@ keywords = [
     "stdlib",
 ]
 requires-python = ">=3.10"
+[project.scripts]
+"describe-dir" = "kisstdlib_bin.describe_dir:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["kisstdlib*"]
