@@ -12,6 +12,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "License :: OSI Approved :: Python Software Foundation License",
+    "License :: OSI Approved :: BSD License",
 ]
 keywords = [
     "sys",
@@ -45,6 +46,7 @@ minversion = "6.0"
 addopts = "-s -ra -v"
 testpaths = [
     "kisstdlib/**/*.py",
+    "example/**/*.py",
 ]
 
 [tool.black]
