@@ -31,9 +31,13 @@ The file object will be read once, without seeking, which is not true for `tarfi
 import dataclasses as _dc
 import typing as _t
 
-from .failure import *
+from .parsing import ParseError
 
 BUFFER_SIZE = 16 * 1024**2
+
+
+class InvalidHeader(ParseError):
+    pass
 
 
 def nts(s: bytes, encoding: str, errors: str) -> str:
@@ -42,14 +46,6 @@ def nts(s: bytes, encoding: str, errors: str) -> str:
     if p != -1:
         s = s[:p]
     return s.decode(encoding, errors)
-
-
-class ParsingError(Failure):
-    pass
-
-
-class InvalidHeader(ParsingError):
-    pass
 
 
 def nti(s: bytes) -> int:
@@ -130,7 +126,7 @@ def yield_tar_headers(
     while True:
         buf = fobj.read(512)
         if len(buf) != 512:
-            raise ParsingError("unexpected EOF")
+            raise ParseError("unexpected EOF")
 
         path = nts(buf[0:100], encoding, errors)
         size = nti(buf[124:136])
@@ -169,11 +165,11 @@ def yield_tar_headers(
 
             pax_data = fobj.read(size)
             if len(pax_data) != size:
-                raise ParsingError("unexpected EOF")
+                raise ParseError("unexpected EOF")
 
             pax_leftovers = fobj.read(leftovers)
             if len(pax_leftovers) != leftovers:
-                raise ParsingError("unexpected EOF")
+                raise ParseError("unexpected EOF")
 
             pax_prefix = b"".join([buf, pax_data, pax_leftovers])
             parsed_headers = parse_pax_headers(pax_data)
@@ -286,5 +282,5 @@ def iter_tar_headers(
         while fsize > 0:
             data = fobj.read(min(fsize, BUFFER_SIZE))
             if len(data) == 0:
-                raise ParsingError("unexpected EOF")
+                raise ParseError("unexpected EOF")
             fsize -= len(data)
