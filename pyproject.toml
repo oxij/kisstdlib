@@ -1,6 +1,12 @@
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["kisstdlib*"]
+namespaces = true
+[tool.setuptools.package-data]
+"kisstdlib" = ["py.typed"]
 [project]
 name = "kisstdlib"
 version = "0.0.4"
@@ -24,13 +30,10 @@ dependencies = [
 ]
 [project.scripts]
 "describe-dir" = "kisstdlib_bin.describe_dir:main"
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["kisstdlib*"]
-namespaces = true
-[tool.setuptools.package-data]
-"kisstdlib" = ["py.typed"]
+[project.urls]
+"Homepage" = "https://oxij.org/software/kisstdlib/"
+"GitHub" = "https://github.com/oxij/kisstdlib"
+"Support Development" = "https://oxij.org/#support"
 
 [tool.mypy]
 python_version = "3.10"
