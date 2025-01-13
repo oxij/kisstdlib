@@ -370,11 +370,8 @@ def atomic_make_file(
     _os.makedirs(dirname, exist_ok=True)
     make_dst(dst_part)
 
-    if dsync is None:
-        fsync_path(dst_part)
-
-    dirfd = _os.open(dirname, _os.O_RDONLY | _os.O_DIRECTORY)
     if _have_fcntl:
+        dirfd = _os.open(dirname, _os.O_RDONLY | _os.O_DIRECTORY)
         _fcntl.flock(dirfd, _fcntl.LOCK_EX)
 
     try:
@@ -383,15 +380,18 @@ def atomic_make_file(
             raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
 
         if dsync is None:
+            fsync_path(dst_part)
             _os.replace(dst_part, dst_path)
-            _os.fsync(dirfd)
+            if _have_fcntl:
+                _os.fsync(dirfd)
         else:
             dsync.replaces.append((dst_part, dst_path))
-            dsync.dirs.add(dirname)
+            if _have_fcntl:
+                dsync.dirs.add(dirname)
     finally:
         if _have_fcntl:
             _fcntl.flock(dirfd, _fcntl.LOCK_UN)
-        _os.close(dirfd)
+            _os.close(dirfd)
 
 
 def atomic_copy2(
