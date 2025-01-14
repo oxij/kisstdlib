@@ -58,3 +58,11 @@ class CatastrophicFailure(Exception):
 
 class Failure(CatastrophicFailure):
     """A non-catastrophic `CatastrophicFailure`."""
+
+
+class AssertionFailure(CatastrophicFailure, AssertionError):
+    """`AssertionError`-equivalent `CatastrophicFailure`."""
+
+
+class ParsingFailure(Failure, ValueError):
+    """A `Failure` of parsing something."""

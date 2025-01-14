@@ -171,7 +171,7 @@ def parse_Timestamp(value: str, *, utc: bool = False) -> tuple[tuple[Timestamp, 
                     es += 60
                     ending = False
         else:
-            raise _p.ParseError("failed to parse `%s` as a timestamp", value)
+            raise _p.ParsingFailure("failed to parse `%s` as a timestamp", value)
 
     if rs is not None:
         r, rp = int(rs), len(rs)
@@ -190,7 +190,7 @@ def timestamp(value: str, start: bool = True, *, utc: bool = False) -> Timestamp
     """A simple wrapper over `parse_Timestamp`."""
     (sres, eres), left = parse_Timestamp(value, utc=utc)
     if len(left) > 0:
-        raise _p.ParseError("failed to parse `%s` as a timestamp", value)
+        raise _p.ParsingFailure("failed to parse `%s` as a timestamp", value)
     return sres if start else eres
 
 
@@ -364,22 +364,22 @@ def parse_Timerange(value: str, *, utc: bool = False) -> tuple[Timerange, str]:
         if not stop:
             try:
                 p.regex(timerange_delimiter_re)
-            except _p.ParseError:
+            except _p.ParsingFailure:
                 pass
             else:
                 p.opt_regex(timerange_pre_re)
                 _, end = p.chomp(parse_Timestamp, utc=utc)
                 p.opt_regex(timerange_post_re)
         return Timerange(start, end), p.leftovers
-    except _p.ParseError as exc:
-        raise _p.ParseError("failed to parse `%s` as a time interval", value) from exc
+    except _p.ParsingFailure as exc:
+        raise _p.ParsingFailure("failed to parse `%s` as a time interval", value) from exc
 
 
 def timerange(value: str, utc: bool = False) -> Timerange:
     """A simple wrapper over `parse_Timerange`."""
     res, left = parse_Timerange(value, utc=utc)
     if len(left) > 0:
-        raise _p.ParseError("failed to parse `%s` as a time interval", value)
+        raise _p.ParsingFailure("failed to parse `%s` as a time interval", value)
     return res
 
 

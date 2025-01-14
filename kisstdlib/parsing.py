@@ -25,7 +25,7 @@
 import re as _re
 import typing as _t
 
-from .failure import Failure
+from .failure import ParsingFailure
 
 word_re = _re.compile(r"(\S+)")
 natural_re = _re.compile(r"([0-9]+)")
@@ -33,10 +33,6 @@ integer_re = _re.compile(r"(-?[0-9]+)")
 decimal_re = _re.compile(r"(-?[0-9]+(.[0-9]+)?)")
 whitespace_re = _re.compile(r"\s+")
 opt_whitespace_re = _re.compile(r"(\s*)")
-
-
-class ParseError(Failure, ValueError):
-    pass
 
 
 ParsedValueType = _t.TypeVar("ParsedValueType")
@@ -63,7 +59,7 @@ class Parser:
     def eof(self) -> None:
         if self.at_eof():
             return
-        raise ParseError(
+        raise ParsingFailure(
             "while parsing %s: expected EOF, got %s", repr(self.buffer), repr(self.leftovers)
         )
 
@@ -87,7 +83,7 @@ class Parser:
     def ensure_have(self, n: int) -> None:
         if self.have_at_least(n):
             return
-        raise ParseError(
+        raise ParsingFailure(
             "while parsing %s: expected %d more characters, got EOF", repr(self.buffer), n
         )
 
@@ -114,7 +110,7 @@ class Parser:
     def string(self, s: str) -> None:
         if self.opt_string(s):
             return
-        raise ParseError(
+        raise ParsingFailure(
             "while parsing %s: expected %s, got %s",
             repr(self.buffer),
             repr(s),
@@ -137,7 +133,7 @@ class Parser:
     def string_in(self, ss: list[str]) -> None:
         if self.opt_string_in(ss):
             return
-        raise ParseError(
+        raise ParsingFailure(
             "while parsing %s: expected one of %s, got %s",
             repr(self.buffer),
             repr(ss),
@@ -168,7 +164,7 @@ class Parser:
     ) -> tuple[str | _t.Any, ...]:
         m = regexp.match(self.buffer, self.pos)
         if m is None:
-            raise ParseError(
+            raise ParsingFailure(
                 "while parsing %s: expected %s, got %s",
                 repr(self.buffer),
                 repr(regexp),
@@ -176,7 +172,7 @@ class Parser:
             )
         pos = m.span()[1]
         if pos == self.pos and not allow_empty:
-            raise ParseError(
+            raise ParsingFailure(
                 "while parsing %s: matched nothing via %s, buffer is %s",
                 repr(self.buffer),
                 repr(regexp),
