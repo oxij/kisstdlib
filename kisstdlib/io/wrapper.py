@@ -70,8 +70,8 @@ class MinimalIOWrapper(MinimalIO):
     @property
     def shutdown_state(self) -> ShutdownState:
         if self.closed:
-            return SHUT_BOTH
-        return SHUT_NONE
+            return ShutdownState.SHUT_BOTH
+        return ShutdownState.SHUT_NONE
 
     def __enter__(self) -> _t.Any:
         return self
