@@ -266,7 +266,7 @@ def fsync_maybe(fd: int) -> None:
 
 def fsync_path(path: str | bytes, flags: int = 0) -> None:
     """Run `os.fsync` on a given `path`."""
-    fd = _os.open(path, _os.O_RDONLY | flags)
+    fd = _os.open(path, _os.O_RDWR | flags)
     try:
         _os.fsync(fd)
     finally:
