@@ -269,6 +269,9 @@ def fsync_path(path: str | bytes, flags: int = 0) -> None:
     fd = _os.open(path, _os.O_RDWR | flags)
     try:
         _os.fsync(fd)
+    except OSError as exc:
+        exc.filename = path
+        raise exc
     finally:
         _os.close(fd)
 
