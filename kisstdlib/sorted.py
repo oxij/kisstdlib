@@ -57,19 +57,6 @@ def nearer_to_than(ideal: NumericType, value: NumericType, other: NumericType) -
     return abs(ideal - value) < abs(ideal - other)  # type: ignore
 
 
-def test_nearer_to_than() -> None:
-    assert nearer_to_than(1, 0, 0) is None
-    assert nearer_to_than(0, 10, 100)
-    assert nearer_to_than(0, 100, 10) is False
-
-    inf: Decimal | float
-    for inf in [Decimal("+inf"), _math.inf]:  # type: ignore
-        assert nearer_to_than(inf, 1, 0)
-        assert nearer_to_than(-inf, 0, 1)
-        assert nearer_to_than(inf, 0, 1) is False
-        assert nearer_to_than(-inf, 1, 0) is False
-
-
 KeyType = _t.TypeVar("KeyType")
 ValueType = _t.TypeVar("ValueType")
 

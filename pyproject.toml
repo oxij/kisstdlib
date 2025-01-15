@@ -56,6 +56,7 @@ addopts = "-s -ra -v"
 testpaths = [
     "kisstdlib/**/*.py",
     "example/**/*.py",
+    "test/**/*.py",
 ]
 
 [tool.black]
