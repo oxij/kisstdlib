@@ -33,14 +33,9 @@ import stat as _stat
 import sys as _sys
 import typing as _t
 
-
-_have_fcntl = False
-try:
+_posix = _sys.platform != "win32"
+if _posix:
     import fcntl as _fcntl
-except ImportError:
-    pass
-else:
-    _have_fcntl = True
 
 
 def fsdecode_maybe(x: str | bytes) -> str:
@@ -266,7 +261,7 @@ def fsync_maybe(fd: int) -> None:
 
 def fsync_path(path: str | bytes, flags: int = 0) -> None:
     """Run `os.fsync` on a given `path`."""
-    fd = _os.open(path, _os.O_RDWR | flags)
+    fd = _os.open(path, (_os.O_RDONLY | _os.O_CLOEXEC if _posix else _os.O_RDWR) | flags)
     try:
         _os.fsync(fd)
     except OSError as exc:
@@ -305,8 +300,9 @@ class DeferredSync:
             self.files = set()
 
         if len(self.dirs) > 0:
-            for path in self.dirs:
-                fsync_path(path, _os.O_DIRECTORY)
+            if _posix:
+                for path in self.dirs:
+                    fsync_path(path, _os.O_DIRECTORY)
             self.dirs = set()
 
     def finish(self) -> None:
@@ -339,12 +335,14 @@ def make_file(
     _os.makedirs(dirname, exist_ok=True)
     make_dst(dst_path)
 
-    if dsync is None:
-        fsync_path(dst_path)
-        fsync_path(dirname, _os.O_DIRECTORY)
-    else:
+    if dsync is not None:
         dsync.files.add(dst_path)
         dsync.dirs.add(dirname)
+        return
+
+    fsync_path(dst_path)
+    if _posix:
+        fsync_path(dirname, _os.O_DIRECTORY)
 
 
 def atomic_make_file(
@@ -373,7 +371,12 @@ def atomic_make_file(
     _os.makedirs(dirname, exist_ok=True)
     make_dst(dst_part)
 
-    if _have_fcntl:
+    if dsync is not None:
+        dsync.replaces.append((dst_part, dst_path))
+        dsync.dirs.add(dirname)
+        return
+
+    if _posix:
         dirfd = _os.open(dirname, _os.O_RDONLY | _os.O_DIRECTORY)
         _fcntl.flock(dirfd, _fcntl.LOCK_EX)
 
@@ -382,17 +385,12 @@ def atomic_make_file(
         if not allow_overwrites and _os.path.lexists(dst_path):
             raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
 
-        if dsync is None:
-            fsync_path(dst_part)
-            _os.replace(dst_part, dst_path)
-            if _have_fcntl:
-                _os.fsync(dirfd)
-        else:
-            dsync.replaces.append((dst_part, dst_path))
-            if _have_fcntl:
-                dsync.dirs.add(dirname)
+        fsync_path(dst_part)
+        _os.replace(dst_part, dst_path)
+        if _posix:
+            _os.fsync(dirfd)
     finally:
-        if _have_fcntl:
+        if _posix:
             _fcntl.flock(dirfd, _fcntl.LOCK_UN)
             _os.close(dirfd)
 
