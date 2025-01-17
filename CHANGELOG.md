@@ -6,7 +6,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 Also, at the bottom of this file there is a [TODO list](#todo) with planned future changes.
 
-## [v0.0.6] - 2025-01-17
+## [v0.0.7] - 2025-01-17
+
+### Fixed
+
+- Fixed `fsync`ing of directories on Linux.
+  The previous Windows support fix broke it.
+
+## [v0.0.6] - 2025-01-17 [YANKED]
 
 ### Changed
 
@@ -65,6 +72,7 @@ Also, at the bottom of this file there is a [TODO list](#todo) with planned futu
 
 - Initial release.
 
+[v0.0.7]: https://github.com/oxij/kisstdlib/compare/v0.0.6...v0.0.7
 [v0.0.6]: https://github.com/oxij/kisstdlib/compare/v0.0.5...v0.0.6
 [v0.0.5]: https://github.com/oxij/kisstdlib/compare/v0.0.4...v0.0.5
 [v0.0.4]: https://github.com/oxij/kisstdlib/compare/v0.0.3...v0.0.4
