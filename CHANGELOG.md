@@ -6,6 +6,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 Also, at the bottom of this file there is a [TODO list](#todo) with planned future changes.
 
+## [v0.0.6] - 2025-01-17
+
+### Changed
+
+- Improved the API a bit.
+- Improved error handling.
+
+### Fixed
+
+- Improved Windows support.
+
 ## [v0.0.5] - 2025-01-13
 
 ### Added
@@ -54,6 +65,7 @@ Also, at the bottom of this file there is a [TODO list](#todo) with planned futu
 
 - Initial release.
 
+[v0.0.6]: https://github.com/oxij/kisstdlib/compare/v0.0.5...v0.0.6
 [v0.0.5]: https://github.com/oxij/kisstdlib/compare/v0.0.4...v0.0.5
 [v0.0.4]: https://github.com/oxij/kisstdlib/compare/v0.0.3...v0.0.4
 [v0.0.3]: https://github.com/oxij/kisstdlib/compare/v0.0.2...v0.0.3
