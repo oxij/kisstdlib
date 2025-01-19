@@ -49,7 +49,7 @@ import sys as _sys
 import typing as _t
 
 import kisstdlib.argparse.better as _argparse
-import kisstdlib.os as _kos
+import kisstdlib.fs as _kfs
 import kisstdlib.time as _ktime
 
 from kisstdlib.io.stdio import *
@@ -105,7 +105,7 @@ def main() -> None:
 
     seen: dict[tuple[int, int], tuple[bytes, int, bytes]] = {}
     for i, dirpath in enumerate(argvb):
-        for fpath, _ in _kos.walk_orderly(dirpath):
+        for fpath, _ in _kfs.walk_orderly(dirpath):
             abs_path = _op.abspath(fpath)
             rpath = _op.relpath(fpath, dirpath)
             apath = _op.join(_os.fsencode(str(i)), rpath) if len(argvb) > 1 else rpath

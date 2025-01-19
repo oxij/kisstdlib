@@ -14,16 +14,16 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 
-"""Test `kisstdlib.os.walk_orderly`."""
+"""Test `kisstdlib.fs.walk_orderly`."""
 
 import logging
 
-from kisstdlib.os import *
+from kisstdlib.fs import *
 
 
 def test_walk_orderly() -> None:
     have = False
     for n, _ in walk_orderly("./example", handle_error=logging.error):
-        if n == "./example/os_walk_orderly.py":
+        if n == "./example/fs_walk_orderly.py":
             have = True
     assert have
