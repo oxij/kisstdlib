@@ -20,26 +20,112 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Most basic types and definitions."""
+"""Most basic things."""
 
 import abc as _abc
-import sys as _sys
 import enum as _enum
+import io as _io
+import sys as _sys
 import typing as _t
 
-MEGABYTE = 1024 * 1024
+# common byte sizes
+KiB = 1024
+MiB = 1024 * KiB
+GiB = 1024 * MiB
+
+# bytes-like object
+BytesLike = _t.Union[bytes, bytearray, memoryview]
 
 # file descriptor number
 FDNo = _t.NewType("FDNo", int)
-# anything that can be `write`ed to
-ByteString = _t.Union[bytes, bytearray, memoryview]
 
 
 class ShutdownState(_enum.Flag):
+    """`.shutdown` state"""
+
     SHUT_NONE = 0
     SHUT_READ = 1
     SHUT_WRITE = 2
     SHUT_BOTH = 3
+
+
+# incomplete operation results
+IncompleteResultType = _t.TypeVar("IncompleteResultType")
+
+
+class IncompleteResultError(Exception, _t.Generic[IncompleteResultType]):
+    """En `Exception` signifying an opeartion did not complete, but did
+    produce a partial result.
+    """
+
+    def __init__(self, data: IncompleteResultType) -> None:
+        super().__init__()
+        self.data = data
+
+
+class IncompleteReadError(IncompleteResultError[bytes]):
+    """When a `read` operation was not complete. `.data` stores the chunk that was
+    read successfully.
+    """
+
+
+class IncompleteWriteError(IncompleteResultError[bytes]):
+    """When a `write` operation was not complete. `.data` stores the leftover
+    unwritten chunk."""
+
+
+def read_as_much_as(read_func: _t.Callable[[int], bytes | None], size: int) -> bytes:
+    """Use `read_func` to read as much as `size` bytes of data."""
+    data: list[bytes] = []
+    total = 0
+    while total < size:
+        res = read_func(size - total)
+        if not res:
+            return b"".join(data)
+        data.append(res)
+        total += len(res)
+    return b"".join(data)
+
+
+def read_exactly(read_func: _t.Callable[[int], bytes | None], size: int) -> bytes:
+    """Use `read_func` to read exactly `size` bytes of data, raise `IncompleteResultError` if that fails."""
+    res = read_as_much_as(read_func, size)
+    if len(res) < size:
+        raise IncompleteReadError(res)
+    return res
+
+
+def write_all(write_func: _t.Callable[[BytesLike], int | None], data: BytesLike) -> None:
+    """Use `write_func` to write all of given `data`, raise `IncompleteWriteError` if that fails."""
+    view = memoryview(data)
+    done = 0
+    datalen = len(data)
+    while done < datalen:
+        res = write_func(view[done:])
+        if not res:
+            raise IncompleteWriteError(data[done:])
+        done += res
+
+
+def same_fileobj_data(a: _io.IOBase, b: _io.IOBase, chunk_size: int = 8 * MiB) -> bool:
+    """Check if content data of two `io.IOBase` objects are equal.
+    The result is unspecified if either argument is in non-blocking mode.
+    """
+    a_read = a.read
+    b_read = b.read
+    while True:
+        ares = read_as_much_as(a_read, chunk_size)
+        bres = read_as_much_as(b_read, chunk_size)
+        if ares != bres:
+            return False
+        if len(ares) == 0:
+            return True
+
+
+def fileobj_data_equals(f: _io.IOBase, data: bytes) -> bool:
+    """Check if content data of the given `io.IOBase` object is equal to `data`."""
+    buf = _io.BytesIO(data)
+    return same_fileobj_data(f, buf)
 
 
 class MinimalIO(metaclass=_abc.ABCMeta):
@@ -65,36 +151,12 @@ class MinimalIO(metaclass=_abc.ABCMeta):
         raise NotImplementedError()
 
 
-IncompleteResultType = _t.TypeVar("IncompleteResultType")
-
-
-class IncompleteResultError(Exception, _t.Generic[IncompleteResultType]):
-    """En `Exception` signifying an opeartion did not complete, but did
-    produce a partial result.
-    """
-
-    def __init__(self, data: IncompleteResultType) -> None:
-        super().__init__()
-        self.data = data
-
-
-class IncompleteReadError(IncompleteResultError[bytes]):
-    """When a `read` operation was not complete. `.data` stores the chunk that was
-    read successfully.
-    """
-
-
-class IncompleteWriteError(IncompleteResultError[bytes]):
-    """When a `write` operation was not complete. `.data` stores the leftover
-    unwritten chunk."""
-
-
 class MinimalIOReader(MinimalIO):
     @_abc.abstractmethod
     def read_some_bytes(self, size: int) -> bytes:
         raise NotImplementedError()
 
-    def read_all_bytes(self, chunk_size: int = MEGABYTE) -> bytes:
+    def read_all_bytes(self, chunk_size: int = 8 * MiB) -> bytes:
         data: list[bytes] = []
         while True:
             res = self.read_some_bytes(chunk_size)
@@ -110,32 +172,16 @@ class MinimalIOReader(MinimalIO):
         return self.read_some_bytes(size)
 
     def read_exactly_bytes(self, size: int) -> bytes:
-        data: list[bytes] = []
-        total = 0
-        while total < size:
-            res = self.read_some_bytes(size - total)
-            rlen = len(res)
-            if rlen == 0:
-                raise IncompleteReadError(b"".join(data))
-            data.append(res)
-            total += rlen
-        return b"".join(data)
+        return read_exactly(self.read_some_bytes, size)
 
 
 class MinimalIOWriter(MinimalIO):
     @_abc.abstractmethod
-    def write_some_bytes(self, data: ByteString) -> int:
+    def write_some_bytes(self, data: BytesLike) -> int:
         raise NotImplementedError()
 
-    def write_bytes(self, data: ByteString) -> None:
-        done = 0
-        view = memoryview(data)
-        datalen = len(data)
-        while done < datalen:
-            res = self.write_some_bytes(view[done:])
-            if res == 0:
-                raise IncompleteWriteError(data[done:])
-            done += res
+    def write_bytes(self, data: BytesLike) -> None:
+        return write_all(self.write_some_bytes, data)
 
     @_abc.abstractmethod
     def flush(self) -> None:

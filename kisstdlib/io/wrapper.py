@@ -101,13 +101,13 @@ class TIOWrappedReader(TIOWrapper, MinimalIOReader):
 
 
 class TIOWrappedWriter(TIOWrapper, MinimalIOWriter):
-    def write_some_bytes(self, data: ByteString) -> int:
+    def write_some_bytes(self, data: BytesLike) -> int:
         return self.fobj.write(data)  # type: ignore
 
     def flush(self) -> None:
         self.fobj.flush()
 
-    def write_bytes_ln(self, data: ByteString) -> None:
+    def write_bytes_ln(self, data: BytesLike) -> None:
         self.write_bytes(data)
         self.write_bytes(self.eol)
 
@@ -126,13 +126,13 @@ class TIOWrappedWriter(TIOWrapper, MinimalIOWriter):
         self.write_strable(data)
         self.write_bytes(self.eol)
 
-    def write(self, data: str | ByteString) -> None:
+    def write(self, data: str | BytesLike) -> None:
         if isinstance(data, str):
             self.write_str(data)
         else:
             self.write_bytes(data)
 
-    def write_ln(self, data: str | ByteString) -> None:
+    def write_ln(self, data: str | BytesLike) -> None:
         self.write(data)
         self.write_bytes(self.eol)
 
