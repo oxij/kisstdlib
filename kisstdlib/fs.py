@@ -22,6 +22,7 @@
 
 """Extensions for the standard `os` and `shutil` modules."""
 
+import collections.abc as _cabc
 import dataclasses as _dc
 import enum as _enum
 import errno as _errno
@@ -201,7 +202,7 @@ def as_include_directories(f: IncludeFilesFunc[_t.AnyStr]) -> IncludeDirectories
     return func
 
 
-def with_extension_in(exts: list[str | bytes] | set[str | bytes]) -> IncludeFilesFunc[_t.AnyStr]:
+def with_extension_in(exts: _cabc.Collection[str | bytes]) -> IncludeFilesFunc[_t.AnyStr]:
     """`walk_orderly(..., include_files, ...)` (or `include_directories`) filter that makes it only include files that have one of the given extensions"""
 
     def pred(path: _t.AnyStr) -> bool:
@@ -211,9 +212,7 @@ def with_extension_in(exts: list[str | bytes] | set[str | bytes]) -> IncludeFile
     return pred
 
 
-def with_extension_not_in(
-    exts: list[str | bytes] | set[str | bytes],
-) -> IncludeFilesFunc[_t.AnyStr]:
+def with_extension_not_in(exts: _cabc.Collection[str | bytes]) -> IncludeFilesFunc[_t.AnyStr]:
     """`walk_orderly(..., include_files, ...)` (or `include_directories`) filter that makes it only include files that do not have any of the given extensions"""
 
     def pred(path: _t.AnyStr) -> bool:
