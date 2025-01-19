@@ -29,6 +29,7 @@ import typing as _t
 # placeholder types
 InType = _t.TypeVar("InType")
 OutType = _t.TypeVar("OutType")
+ExtraType = _t.TypeVar("ExtraType")
 
 
 def first(x: tuple[InType, ...]) -> InType:
@@ -39,6 +40,26 @@ def first(x: tuple[InType, ...]) -> InType:
 def identity(x: InType) -> InType:
     """Identity function."""
     return x
+
+
+def compose_calls(pipe: list[_t.Callable[[InType], InType]]) -> _t.Callable[[InType], InType]:
+    def sub(x: InType) -> InType:
+        for func in pipe:
+            x = func(x)
+        return x
+
+    return sub
+
+
+def compose_env_calls(
+    pipe: list[_t.Callable[[ExtraType, InType], InType]]
+) -> _t.Callable[[ExtraType, InType], InType]:
+    def sub(env: ExtraType, x: InType) -> InType:
+        for func in pipe:
+            x = func(env, x)
+        return x
+
+    return sub
 
 
 def map_optional(f: _t.Callable[[InType], OutType], x: InType | None) -> OutType | None:
@@ -53,6 +74,20 @@ def map_optionals(f: _t.Callable[[InType], list[OutType]], x: InType | None) -> 
     if x is None:
         return []
     return f(x)
+
+
+def getattr_rec(obj: _t.Any, names: list[str]) -> _t.Any:
+    """Recursively apply `gettatr` or `dict.get`."""
+    if len(names) == 0:
+        return obj
+
+    name, *rest = names
+    if hasattr(obj, name):
+        return getattr_rec(getattr(obj, name), rest)
+    if isinstance(obj, dict) and name in obj:
+        return getattr_rec(obj[name], rest)
+
+    raise AttributeError(name=name, obj=obj)
 
 
 def str_Exception(exc: Exception) -> str:
