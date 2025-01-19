@@ -22,29 +22,37 @@
 
 """Random utility functions."""
 
-
 import io as _io
 import traceback as _traceback
 import typing as _t
 
+# placeholder types
 InType = _t.TypeVar("InType")
 OutType = _t.TypeVar("OutType")
 
 
+def first(x: tuple[InType, ...]) -> InType:
+    """Get the first element of a given tuple."""
+    return x[0]
+
+
+def identity(x: InType) -> InType:
+    """Identity function."""
+    return x
+
+
 def map_optional(f: _t.Callable[[InType], OutType], x: InType | None) -> OutType | None:
+    """Map value under `Optional[InType]`."""
     if x is None:
         return None
     return f(x)
 
 
 def map_optionals(f: _t.Callable[[InType], list[OutType]], x: InType | None) -> list[OutType]:
+    """Turn `Optional[InType]` into a possibly empty list."""
     if x is None:
         return []
     return f(x)
-
-
-def first(x: tuple[InType, ...]) -> InType:
-    return x[0]
 
 
 def str_Exception(exc: Exception) -> str:
