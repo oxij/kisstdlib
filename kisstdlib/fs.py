@@ -34,6 +34,8 @@ import stat as _stat
 import sys as _sys
 import typing as _t
 
+from .io.base import *
+
 _posix = _sys.platform != "win32"
 if _posix:
     import fcntl as _fcntl
@@ -51,6 +53,24 @@ def fsencode_maybe(x: str | bytes) -> bytes:
     if isinstance(x, str):
         return _os.fsencode(x)
     return x
+
+
+def read_file_maybe(path: str | bytes) -> bytes | None:
+    """Return contents of the given file path, or `None` if it does not exist."""
+    try:
+        with open(path, "rb") as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
+
+
+def file_data_equals(path: str | bytes, data: bytes) -> bool:
+    """Check if contents of the given file `path` is equal to `data`."""
+    try:
+        with open(path, "rb") as f:
+            return fileobj_data_equals(f, data)
+    except FileNotFoundError:
+        return False
 
 
 IncludeFilesFunc = _t.Callable[[_t.AnyStr], bool]
