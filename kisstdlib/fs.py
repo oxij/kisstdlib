@@ -26,6 +26,7 @@ import collections.abc as _cabc
 import dataclasses as _dc
 import enum as _enum
 import errno as _errno
+import hashlib as _hashlib
 import io as _io
 import os as _os
 import os.path as _op
@@ -35,6 +36,7 @@ import sys as _sys
 import typing as _t
 
 from .io.base import *
+from .time import Timestamp as _Timestamp
 
 _posix = _sys.platform != "win32"
 if _posix:
@@ -269,6 +271,100 @@ def nonempty_leaf_directories(
     ):
         return True
     return False
+
+
+def _quote_path(x: str) -> str:
+    return x.replace("\\", "\\\\").replace("\n", "\\n")
+
+
+def _hex_sha256_of(path: str | bytes) -> str:
+    BUFFER_SIZE = 8 * MiB
+    with open(path, "rb") as f:
+        fhash = _hashlib.sha256()
+        while True:
+            data = f.read(BUFFER_SIZE)
+            if len(data) == 0:
+                break
+            fhash.update(data)
+        return fhash.hexdigest()
+
+
+def describe_walks(
+    paths: list[_t.AnyStr],
+    show_mode: bool = True,
+    show_mtime: bool = True,
+    mtime_precision: int = 9,
+    hash_len: int = 64,
+) -> _t.Iterator[list[str]]:
+    """Produce a simple description of walks of given `paths`.
+    See `describe-dir` script.
+    """
+    seen: dict[tuple[int, int], tuple[_t.AnyStr, int, str]] = {}
+    for i, dirpath in enumerate(paths):
+        for fpath, _ in walk_orderly(dirpath, follow_symlinks=False):
+            abs_path = _op.abspath(fpath)
+            rpath = _op.relpath(fpath, dirpath)
+            apath: str = _quote_path(
+                (str(i) + _op.sep if len(paths) > 1 else "") + fsdecode_maybe(rpath)
+            )
+
+            stat = _os.lstat(abs_path)
+            ino = (stat.st_dev, stat.st_ino)
+            try:
+                habs_path, hi, hapath = seen[ino]
+            except KeyError:
+                seen[ino] = (abs_path, i, apath)
+            else:
+                if hi == i:
+                    # within the same `dirpath`
+                    dirname = _op.dirname(abs_path)
+                    target = _quote_path(fsdecode_maybe(_op.relpath(habs_path, dirname)))
+                    yield [apath, "ref", "=>", target]
+                else:
+                    yield [apath, "ref", "==>", hapath]
+                continue
+
+            if show_mtime:
+                mtime = [
+                    "mtime",
+                    "["
+                    + _Timestamp.from_ns(stat.st_mtime_ns).format(
+                        precision=mtime_precision, utc=True
+                    )
+                    + "]",
+                ]
+            else:
+                mtime = []
+            size = stat.st_size
+            if show_mode:
+                mode = ["mode", oct(_stat.S_IMODE(stat.st_mode))[2:]]
+            else:
+                mode = []
+            if _stat.S_ISDIR(stat.st_mode):
+                yield [apath, "dir"] + mode + mtime
+            elif _stat.S_ISREG(stat.st_mode):
+                sha256 = _hex_sha256_of(abs_path)[:hash_len]
+                yield [apath, "reg"] + mode + mtime + ["size", str(size), "sha256", sha256]  # fmt: skip
+            elif _stat.S_ISLNK(stat.st_mode):
+                symlink = _os.readlink(abs_path)
+                arrow = "->"
+                if (
+                    isinstance(symlink, bytes)
+                    and symlink.startswith(b"/")
+                    or isinstance(symlink, str)
+                    and symlink.startswith("/")
+                ):
+                    # absolute symlink
+                    symlink = _op.realpath(abs_path)
+                    arrow = "/->"
+                yield [apath, "sym"] + mode + mtime + [arrow, _quote_path(fsdecode_maybe(symlink))]  # fmt: skip
+            else:
+                yield [apath, "???"] + mode + mtime + ["size", str(size)]
+
+
+def describe_path(path: _t.AnyStr) -> _t.Iterator[list[str]]:
+    """Produce a very simple description of walks of given `paths`, suitable for tests."""
+    return describe_walks([path], False, False, 0, 8)
 
 
 def fsync_maybe(fd: int) -> None:

@@ -41,49 +41,10 @@ zfile.jpg => content/zfile-hardlink.jpg
 
 Most useful for making fixed-output tests for programs that produces filesystem trees."""
 
-import hashlib as _hashlib
-import os as _os
-import os.path as _op
-import stat as _stat
 import sys as _sys
-import typing as _t
 
 import kisstdlib.argparse.better as _argparse
-import kisstdlib.fs as _kfs
-import kisstdlib.time as _ktime
-
-from kisstdlib.io.stdio import *
-
-
-def any_to_bytes(s: _t.Any) -> bytes:
-    if isinstance(s, bytes):
-        return s
-    if isinstance(s, str):
-        return _os.fsencode(s)
-    try:
-        return _os.fsencode(str(s))
-    except Exception:
-        pass
-    return _os.fsencode(repr(s))
-
-
-def printbin(*ls: _t.Any) -> None:
-    res = b" ".join(map(any_to_bytes, ls)).replace(b"\\", b"\\\\").replace(b"\n", b"\\n")
-    stdout.write_bytes_ln(res)
-
-
-BUFFER_SIZE = 4 * 1024 * 1024
-
-
-def hex_sha256_of(path: bytes) -> str:
-    with open(path, "rb") as f:
-        fhash = _hashlib.sha256()
-        while True:
-            data = f.read(BUFFER_SIZE)
-            if len(data) == 0:
-                break
-            fhash.update(data)
-        return fhash.hexdigest()
+from kisstdlib.fs import describe_walks
 
 
 def main() -> None:
@@ -93,64 +54,19 @@ def main() -> None:
         add_help=True,
         formatter_class=_argparse.MarkdownBetterHelpFormatter,
     )
-    parser.add_argument("--no-mtime", dest="mtime", action="store_false", help="ignore mtimes")
-    parser.add_argument(
-        "--precision", type=int, default=0, help="time precision (as a power of 10); default: `0`"
+    # fmt: off
+    parser.add_argument("--no-mode", dest="show_mode", action="store_false", help="ignore file modes")
+    parser.add_argument("--no-mtime", dest="show_mtime", action="store_false", help="ignore mtimes")
+    parser.add_argument("--precision", dest="mtime_precision", type=int, default=0,
+        help="time precision (as a power of 10); default: `0`",
     )
-    parser.add_argument("path", metavar="PATH", nargs="*", type=str, help="input directories")
+    parser.add_argument("paths", metavar="PATH", nargs="*", type=str, help="input directories")
+    # fmt: on
+
     args = parser.parse_args(_sys.argv[1:])
 
-    argvb = [_os.fsencode(a) for a in args.path]
-    argvb.sort()
-
-    seen: dict[tuple[int, int], tuple[bytes, int, bytes]] = {}
-    for i, dirpath in enumerate(argvb):
-        for fpath, _ in _kfs.walk_orderly(dirpath):
-            abs_path = _op.abspath(fpath)
-            rpath = _op.relpath(fpath, dirpath)
-            apath = _op.join(_os.fsencode(str(i)), rpath) if len(argvb) > 1 else rpath
-
-            stat = _os.lstat(abs_path)
-            ino = (stat.st_dev, stat.st_ino)
-            try:
-                habs_path, hi, hapath = seen[ino]
-            except KeyError:
-                seen[ino] = (abs_path, i, apath)
-            else:
-                if hi == i:
-                    # within the same root `dirpath`
-                    printbin(apath, "=>", _op.relpath(habs_path, abs_path))
-                else:
-                    printbin(apath, "==>", hapath)
-                continue
-
-            if args.mtime:
-                mtime = (
-                    "["
-                    + _ktime.Timestamp.from_ns(stat.st_mtime_ns).format(
-                        precision=args.precision, utc=True
-                    )
-                    + "]"
-                )
-            else:
-                mtime = "no"
-            size = stat.st_size
-            mode = oct(_stat.S_IMODE(stat.st_mode))[2:]
-            if _stat.S_ISDIR(stat.st_mode):
-                printbin(apath, "dir", "mode", mode, "mtime", mtime)
-            elif _stat.S_ISREG(stat.st_mode):
-                sha256 = hex_sha256_of(abs_path)
-                printbin(apath, "reg", "mode", mode, "mtime", mtime, "size", size, "sha256", sha256)
-            elif _stat.S_ISLNK(stat.st_mode):
-                symlink = _os.readlink(abs_path)
-                arrow = "->"
-                if symlink.startswith(b"/"):
-                    # absolute symlink
-                    symlink = _op.relpath(_op.realpath(abs_path), abs_path)
-                    arrow = "/->"
-                printbin(apath, "lnk", "mode", mode, "mtime", mtime, arrow, symlink)
-            else:
-                printbin(apath, "???", "mode", mode, "mtime", mtime, "size", size)
+    for desc in describe_walks(hash_len=64, **args.__dict__):
+        print(*desc)
 
 
 if __name__ == "__main__":
