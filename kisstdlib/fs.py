@@ -183,8 +183,13 @@ def walk_orderly(
                 handle_error=handle_error,
                 path_is_file_maybe=False,
             )
-        else:
-            yield epath, False
+            continue
+        if isinstance(include_files, bool):
+            if not include_files:
+                continue
+        elif not include_files(epath):
+            continue
+        yield epath, False
 
 
 def as_include_directories(f: IncludeFilesFunc[_t.AnyStr]) -> IncludeDirectoriesFunc[_t.AnyStr]:
