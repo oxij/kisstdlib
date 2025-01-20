@@ -24,7 +24,7 @@ keywords = [
     "sys",
     "stdlib",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "sortedcontainers==2.4.*",
 ]
@@ -36,7 +36,7 @@ dependencies = [
 "Support Development" = "https://oxij.org/#support"
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 implicit_reexport = true
 explicit_package_bases = true
