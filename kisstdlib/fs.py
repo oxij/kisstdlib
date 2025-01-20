@@ -401,7 +401,15 @@ def fsync_maybe(fd: int) -> None:
 
 def fsync_path(path: str | bytes, flags: int = 0) -> None:
     """Run `os.fsync` on a given `path`."""
-    fd = _os.open(path, (_os.O_RDONLY | _os.O_CLOEXEC if _POSIX else _os.O_RDWR) | flags)
+    oflags = _os.O_RDONLY | _os.O_NOFOLLOW | _os.O_CLOEXEC if _POSIX else _os.O_RDWR
+    try:
+        fd = _os.open(path, oflags | flags)
+    except OSError as exc:
+        if exc.errno == _errno.ELOOP:
+            # ignore symlinks; doing it this way insead of `stat`ing the path to
+            # ensure atomicity
+            return
+        raise
     try:
         _os.fsync(fd)
     except OSError as exc:
