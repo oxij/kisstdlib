@@ -25,6 +25,8 @@
 import abc as _abc
 import enum as _enum
 import io as _io
+import logging as _logging
+import os as _os
 import sys as _sys
 import typing as _t
 
@@ -35,6 +37,12 @@ GiB = 1024 * MiB
 
 # bytes-like object
 BytesLike = _t.Union[bytes, bytearray, memoryview]
+
+_POSIX = _os.name == "posix"
+if _POSIX:
+    import fcntl as _fcntl
+
+_logger = _logging.getLogger("kisstdlib")
 
 # file descriptor number
 FDNo = _t.NewType("FDNo", int)
@@ -186,3 +194,54 @@ class MinimalIOWriter(MinimalIO):
     @_abc.abstractmethod
     def flush(self) -> None:
         raise NotImplementedError()
+
+
+class MinimalFDWrapper(MinimalIO):
+    fdno: FDNo | None = None
+    closed: bool = False
+    flocked: bool = False
+
+    def __init__(self, fdno: FDNo | None) -> None:
+        self.fdno = fdno
+        _logger.debug("init %s", self)
+
+    def __del__(self) -> None:
+        _logger.debug("del %s", self)
+        self.close()
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} {hex(id(self))} fdno={self.fdno}>"
+
+    def close(self) -> None:
+        if not self.closed and self.fdno is not None:
+            _os.close(self.fdno)
+        self.closed = True
+        self.flocked = False
+
+    def shutdown(self, what: ShutdownState) -> None:
+        raise NotImplementedError(f"{self.__class__.__name__} can't be shutdown")
+
+    @property
+    def shutdown_state(self) -> ShutdownState:
+        if self.closed:
+            return ShutdownState.SHUT_BOTH
+        return ShutdownState.SHUT_NONE
+
+    def flock(self) -> None:
+        assert not self.closed
+        if self.fdno is not None and _POSIX:
+            _fcntl.flock(self.fdno, _fcntl.LOCK_EX)
+        self.flocked = True
+
+    def unflock(self) -> None:
+        assert not self.closed
+        assert self.flocked
+        if self.fdno is not None and _POSIX:
+            _fcntl.flock(self.fdno, _fcntl.LOCK_UN)
+        self.flocked = False
+
+    def __enter__(self) -> _t.Any:
+        return self
+
+    def __exit__(self, exc_type: _t.Any, exc_value: _t.Any, exc_tb: _t.Any) -> None:
+        self.close()
