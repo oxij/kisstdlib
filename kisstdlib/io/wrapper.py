@@ -29,7 +29,7 @@ import typing as _t
 
 from .base import *
 
-_logger = _logging.getLogger("kisstd")
+_logger = _logging.getLogger("kisstdlib")
 
 
 class MinimalIOWrapper(MinimalIO):
@@ -52,9 +52,9 @@ class MinimalIOWrapper(MinimalIO):
 
     def __repr__(self) -> str:
         if self.fdno is not None:
-            desc = "fd=" + str(self.fdno)
+            desc = "fdno=" + str(self.fdno)
         else:
-            desc = "obj=" + hex(id(self.fobj))
+            desc = "fobj=" + hex(id(self.fobj))
         return f"<{self.__class__.__name__} {hex(id(self))} {desc} closed={self.closed}>"
 
     def close(self) -> None:
@@ -65,7 +65,7 @@ class MinimalIOWrapper(MinimalIO):
         return self.fobj.closed  # type: ignore
 
     def shutdown(self, what: ShutdownState) -> None:
-        raise NotImplementedError("MinimalIOWrapper can't be shutdown")
+        raise NotImplementedError(f"{self.__class__.__name__} can't be shutdown")
 
     @property
     def shutdown_state(self) -> ShutdownState:
