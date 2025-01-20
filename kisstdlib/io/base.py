@@ -245,3 +245,14 @@ class MinimalFDWrapper(MinimalIO):
 
     def __exit__(self, exc_type: _t.Any, exc_value: _t.Any, exc_tb: _t.Any) -> None:
         self.close()
+
+
+class Directory(MinimalFDWrapper):
+    path: str | bytes
+
+    def __init__(self, path: str | bytes) -> None:
+        self.path = _os.path.abspath(path)
+        if _POSIX:
+            super().__init__(FDNo(_os.open(path, _os.O_RDONLY | _os.O_CLOEXEC | _os.O_DIRECTORY)))
+        else:
+            super().__init__(None)
