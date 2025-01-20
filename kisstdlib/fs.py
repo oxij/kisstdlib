@@ -924,10 +924,14 @@ def atomic_move(
     dst_path: _t.AnyStr,
     allow_overwrites: bool = False,
     *,
-    follow_symlinks: bool = True,
+    follow_symlinks: bool = False,
     dsync: DeferredSync[_t.AnyStr] | None = None,
 ) -> None:
-    """Atomically move `src_path` to `dst_path`."""
+    """Atomically move `src_path` to `dst_path`.
+
+    Note that `follow_symlinks` is set to `False` by default for this function
+    so that the result would be similar to that of `mv(1)` util.
+    """
 
     src_dir, _ = dirname_dot(src_path)
 
