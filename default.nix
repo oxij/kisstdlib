@@ -35,6 +35,6 @@ buildPythonApplication (rec {
     pkgs.pandoc
   ];
 
-  preBuild = "find . ; black --check . && mypy && pytest && pylint .";
+  preBuild = "find . ; ./sanity.sh --check";
   postInstall = "find $out";
 })
