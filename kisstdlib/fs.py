@@ -36,6 +36,7 @@ import stat as _stat
 import sys as _sys
 import typing as _t
 
+from .base import identity as _identity
 from .io.base import *
 from .io.base import _POSIX
 from .time import Timestamp as _Timestamp
@@ -285,7 +286,7 @@ def nonempty_leaf_directories(
     return False
 
 
-def _quote_path(x: str) -> str:
+def _escape_path(x: str) -> str:
     return x.replace("\\", "\\\\").replace("\n", "\\n")
 
 
@@ -303,83 +304,84 @@ def _hex_sha256_of(path: str | bytes) -> str:
 
 def describe_walks(
     paths: list[_t.AnyStr],
-    show_mode: bool = False,
-    show_mtime: bool = False,
-    mtime_precision: int = 9,
-    hash_len: int | None = None,
+    *,
+    numbers: bool | None = None,
+    literal: bool = False,
+    modes: bool = False,
+    mtimes: bool = False,
+    sizes: bool = True,
+    relative_hardlinks: bool = False,
+    follow_symlinks: bool = False,
+    time_precision: int = 9,
+    hash_length: int | None = None,
 ) -> _t.Iterator[list[str]]:
     """Produce a simple description of walks of given `paths`.
     See `describe-subtree` script.
     """
+    escape: _t.Callable[[str], str] = _identity if literal else _escape_path  # type: ignore
     seen: dict[tuple[int, int], tuple[_t.AnyStr, int, str]] = {}
     for i, dirpath in enumerate(paths):
-        for fpath, _ in walk_orderly(dirpath, follow_symlinks=False):
+        for fpath, _ in walk_orderly(dirpath, follow_symlinks=follow_symlinks):
             abs_path = _op.abspath(fpath)
-            rpath = _op.relpath(fpath, dirpath)
-            apath: str = _quote_path(
-                (str(i) + _op.sep if len(paths) > 1 else "") + fsdecode_maybe(rpath)
-            )
+            rpath = fsdecode_maybe(_op.relpath(fpath, dirpath))
+            epath: str
+            if numbers is False or numbers is None and len(paths) == 1:
+                epath = escape(rpath)
+            else:
+                epath = str(i)
+                if rpath != ".":
+                    epath += _op.sep + escape(rpath)
 
-            stat = _os.lstat(abs_path)
+            stat = _os.stat(abs_path, follow_symlinks=follow_symlinks)
             ino = (stat.st_dev, stat.st_ino)
             try:
-                habs_path, hi, hapath = seen[ino]
+                habs_path, hi, hepath = seen[ino]
             except KeyError:
-                seen[ino] = (abs_path, i, apath)
+                pass
             else:
-                if hi == i:
+                if relative_hardlinks and hi == i:
                     # within the same `dirpath`
                     dirname = _op.dirname(abs_path)
-                    target = _quote_path(fsdecode_maybe(_op.relpath(habs_path, dirname)))
-                    yield [apath, "ref", "=>", target]
+                    target = escape(fsdecode_maybe(_op.relpath(habs_path, dirname)))
+                    yield [epath, "ref", "=>", target]
                 else:
-                    yield [apath, "ref", "==>", hapath]
+                    yield [epath, "ref", "==>", hepath]
                 continue
+            finally:
+                seen[ino] = (abs_path, i, epath)
 
-            if show_mtime:
-                mtime = [
+            emtime = (
+                [
                     "mtime",
                     "["
                     + _Timestamp.from_ns(stat.st_mtime_ns).format(
-                        precision=mtime_precision, utc=True
+                        precision=time_precision, utc=True
                     )
                     + "]",
                 ]
-            else:
-                mtime = []
-            size = stat.st_size
-            if show_mode:
-                mode = ["mode", oct(_stat.S_IMODE(stat.st_mode))[2:]]
-            else:
-                mode = []
+                if mtimes
+                else []
+            )
+            esize = ["size", str(stat.st_size)] if sizes else []
+            emode = ["mode", oct(_stat.S_IMODE(stat.st_mode))[2:]] if modes else []
             if _stat.S_ISDIR(stat.st_mode):
-                yield [apath, "dir"] + mode + mtime
+                yield [epath, "dir"] + emode + emtime
             elif _stat.S_ISREG(stat.st_mode):
                 sha256 = _hex_sha256_of(abs_path)
-                if hash_len is not None:
-                    sha256 = sha256[:hash_len]
-                yield [apath, "reg"] + mode + mtime + ["size", str(size), "sha256", sha256]  # fmt: skip
+                if hash_length is not None:
+                    sha256 = sha256[:hash_length]
+                yield [epath, "reg"] + emode + emtime + esize + ["sha256", sha256]  # fmt: skip
             elif _stat.S_ISLNK(stat.st_mode):
-                symlink = _os.readlink(abs_path)
-                arrow = "->"
-                if (
-                    isinstance(symlink, bytes)
-                    and symlink.startswith(b"/")
-                    or isinstance(symlink, str)
-                    and symlink.startswith("/")
-                ):
-                    # absolute symlink
-                    symlink = _op.realpath(abs_path)
-                    arrow = "/->"
-                yield [apath, "sym"] + mode + mtime + [arrow, _quote_path(fsdecode_maybe(symlink))]  # fmt: skip
+                esymlink = escape(fsdecode_maybe(_os.readlink(abs_path)))
+                yield [epath, "sym"] + emode + emtime + ["->", esymlink]
             else:
-                yield [apath, "???"] + mode + mtime + ["size", str(size)]
+                yield [epath, "???"] + emode + emtime + esize
 
 
 def describe_path(path: _t.AnyStr, *args: _t.Any, **kwargs: _t.Any) -> _t.Iterator[list[str]]:
     """Produce a very simple description of walks of given `paths`, suitable for tests."""
-    if "hash_len" not in kwargs:
-        kwargs["hash_len"] = 8
+    if "hash_length" not in kwargs:
+        kwargs["hash_length"] = 8
     return describe_walks([path], *args, **kwargs)
 
 

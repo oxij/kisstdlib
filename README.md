@@ -26,31 +26,24 @@ However, this project already provides some useful thin-wrapper programs over `k
 
 ## describe-subtree
 
-Produce a recursive deterministic textual description of given input files
-and/or directories.
+Produce a recursive deterministic textual description of given input files and/or directories.
 
-I.e., given an input directory, this will produce an easily `diff`able output
-describing what the input consists of, e.g.:
+I.e., given an input directory, this will produce an easily `diff`able output describing what the input consists of, e.g.:
 
 ```
 . dir mode 700 mtime [2025-01-01 00:00:00]
-afile.jpg reg mode 600 mtime [2025-01-01 00:01:00] size 4096 sha256
-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+afile.jpg reg mode 600 mtime [2025-01-01 00:01:00] size 4096 sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 content dir mode 700 mtime [2025-01-01 00:03:00]
 content/afile-hardlink.jpg => ../afile.jpg
-content/afile-symlink.jpg lnk mode 777 mtime [2025-01-01 00:59:59] ->
-../afile.jpg
-content/zfile-hardlink.jpg reg mode 600 mtime [2025-01-01 00:02:00] size 256
-sha256 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+content/afile-symlink.jpg lnk mode 777 mtime [2025-01-01 00:59:59] -> ../afile.jpg
+content/zfile-hardlink.jpg reg mode 600 mtime [2025-01-01 00:02:00] size 256 sha256 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 unix-socket ??? mode 600 mtime [2025-01-01 01:00:00] size 0
 zfile.jpg => content/zfile-hardlink.jpg
 ```
 
-(For hardlinks, the first file encountered in lexicographic walk order is
-taken as the "original", while all others are rendered as hardlinks.)
+(For hardlinks, the first file encountered in lexicographic walk order is taken as the "original", while all others are rendered as hardlinks.)
 
-Most useful for making fixed-output tests for programs that produces
-filesystem trees.
+Most useful for making fixed-output tests for programs that produces filesystem trees.
 
 - positional arguments:
   - `PATH`
@@ -59,9 +52,26 @@ filesystem trees.
 - options:
   - `-h, --help`
   : show this help message and exit
-  - `--mode`
-  : show file modes in the output
-  - `--mtime`
-  : show file mtimes in the output
-  - `--precision MTIME_PRECISION`
-  : time precision (as a power of 10); default: `0`
+  - `--markdown`
+  : show help messages formatted in Markdown
+  - `--numbers`
+  : emit number prefixes even with a single input `PATH`
+  - `--literal`
+  : emit paths without escaping them even when they contain special symbols
+  - `--modes`
+  : emit file modes
+  - `--mtimes`
+  : emit file mtimes
+  - `--no-sizes`
+  : do not emit file sizes
+  - `--full`
+  : an alias for `--mtimes --modes`
+  - `--relative, --relative-hardlinks`
+  : emit relative paths when emitting `ref`s
+  - `-L, --dereference, --follow-symlinks`
+  : follow all symbolic links; replaces all `sym` elements of the output with description of symlink targets
+  - `--time-precision INT`
+  : time precision (as a negative power of 10); default: `0`, which means seconds, set to `9` for nanosecond precision
+  - `--hash-length INT`
+  : cut hashes by taking their prefixes of this many characters; default: print them whole
+

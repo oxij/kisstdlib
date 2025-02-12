@@ -42,30 +42,73 @@ zfile.jpg => content/zfile-hardlink.jpg
 Most useful for making fixed-output tests for programs that produces filesystem trees."""
 
 import sys as _sys
+from gettext import gettext
 
 from kisstdlib.argparse_ext import *
 from kisstdlib.fs import describe_walks
 
 
 def main() -> None:
+    _ = gettext
+
+    # fmt: off
     parser = BetterArgumentParser(
         prog="describe-subtree",
         description=__doc__,
-        add_help=True,
         formatter_class=MarkdownBetterHelpFormatter,
     )
-    # fmt: off
-    parser.add_argument("--mode", dest="show_mode", action="store_true", help="show file modes in the output")
-    parser.add_argument("--mtime", dest="show_mtime", action="store_true", help="show file mtimes in the output")
-    parser.add_argument("--precision", dest="mtime_precision", type=int, default=0,
-        help="time precision (as a power of 10); default: `0`",
+    parser.add_argument("-h", "--help", action="store_true",
+        help=_("show this help message and exit"),
+    )
+    parser.add_argument("--markdown", action="store_true",
+        help=_("show help messages formatted in Markdown"),
+    )
+
+    parser.add_argument("--numbers", dest="numbers", action="store_true",
+        help="emit number prefixes even with a single input `PATH`",
+    )
+    parser.add_argument("--literal", dest="literal", action="store_true",
+        help="emit paths without escaping them even when they contain special symbols",
+    )
+    parser.add_argument("--modes", dest="modes", action="store_true", help="emit file modes")
+    parser.add_argument("--mtimes", dest="mtimes", action="store_true", help="emit file mtimes")
+    parser.add_argument(
+        "--no-sizes", dest="sizes", action="store_false", help="do not emit file sizes"
+    )
+    parser.add_argument("--full", dest="full", action="store_true", help="an alias for `--mtimes --modes`")
+    parser.add_argument("--relative", "--relative-hardlinks", dest="relative_hardlinks", action="store_true",
+        help="emit relative paths when emitting `ref`s",
+    )
+    parser.add_argument("-L", "--dereference", "--follow-symlinks", dest="follow_symlinks", action="store_true",
+        help="follow all symbolic links; replaces all `sym` elements of the output with description of symlink targets",
+    )
+    parser.add_argument("--time-precision", metavar="INT", dest="time_precision", type=int, default=0,
+        help="time precision (as a negative power of 10); default: `0`, which means seconds, set to `9` for nanosecond precision",
+    )
+    parser.add_argument("--hash-length", metavar="INT", dest="hash_length", type=int, default=None,
+        help="cut hashes by taking their prefixes of this many characters; default: print them whole",
     )
     parser.add_argument("paths", metavar="PATH", nargs="*", type=str, help="input directories")
     # fmt: on
 
-    args = parser.parse_args(_sys.argv[1:])
+    cargs = parser.parse_args(_sys.argv[1:])
 
-    for desc in describe_walks(hash_len=64, **args.__dict__):
+    if cargs.full:
+        cargs.modes = True
+        cargs.mtimes = True
+
+    if cargs.help:
+        if cargs.markdown:
+            print(parser.format_help(8192))
+        else:
+            print(parser.format_help())
+        _sys.exit(0)
+
+    del cargs.full
+    del cargs.help
+    del cargs.markdown
+
+    for desc in describe_walks(**cargs.__dict__):
         print(*desc)
 
 

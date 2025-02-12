@@ -39,13 +39,11 @@ def atomic1(sync: bool, tmp_path: str) -> None:
         if dsync is not None:
             gs: list[list[str]] = []
             dsync.copy().commit(True, gs)
-            if es != gs:
-                raise CatastrophicFailure("expected `%s`, got `%s`", es, gs)
+            assert es == gs
 
         if ed is not None:
             gd = list(describe_path("."))
-            if ed != gd:
-                raise CatastrophicFailure("expected `%s`, got `%s`", ed, gd)
+            assert ed == gd
 
     atomic_write(b"test a", "test.a", dsync=dsync)
     atomic_write(b"test b", "test.b", dsync=dsync)
@@ -223,13 +221,13 @@ def atomic1(sync: bool, tmp_path: str) -> None:
             ["a/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
             ["b", "dir"],
             ["b/test.c", "reg", "size", "6", "sha256", "806b51ad"],
-            ["test.a", "ref", "=>", "a/test.a"],
+            ["test.a", "ref", "==>", "a/test.a"],
             ["test.b", "reg", "size", "6", "sha256", "6346935e"],
             ["test.c", "sym", "->", "b/test.c"],
             ["x", "dir"],
             ["x/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
             ["x/test.c", "reg", "size", "6", "sha256", "806b51ad"],
-            ["x/test.c.lnk", "ref", "=>", "../test.c"],
+            ["x/test.c.lnk", "ref", "==>", "test.c"],
             ["x/test.c.sym", "sym", "->", "b/test.c"],
         ],
     )
@@ -272,7 +270,7 @@ def atomic1(sync: bool, tmp_path: str) -> None:
             ["a/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
             ["b", "dir"],
             ["b/test.c", "reg", "size", "6", "sha256", "806b51ad"],
-            ["test.a", "ref", "=>", "a/test.a"],
+            ["test.a", "ref", "==>", "a/test.a"],
             ["test.b", "reg", "size", "6", "sha256", "6346935e"],
             ["x", "dir"],
             ["x/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
@@ -282,26 +280,26 @@ def atomic1(sync: bool, tmp_path: str) -> None:
             ["y", "dir"],
             ["y/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
             ["y/test.c", "reg", "size", "6", "sha256", "806b51ad"],
-            ["y/test.c.lnk", "ref", "=>", "../x/test.c.lnk"],
+            ["y/test.c.lnk", "ref", "==>", "x/test.c.lnk"],
             ["y/test.c.sym", "sym", "->", "b/test.c"],
             ["z", "dir"],
-            ["z/test.c", "ref", "=>", "../x/test.c.lnk"],
+            ["z/test.c", "ref", "==>", "y/test.c.lnk"],
         ],
     )
 
     atomic_symlink("/home", "y/home")
 
     # to test `describe_walks` with multiple paths
-    w = list(describe_walks(["x", "y"], hash_len=8))
+    w = list(describe_walks(["x", "y"], hash_length=8))
     # print(repr(w))
     assert w == [
-        ["0/.", "dir"],
+        ["0", "dir"],
         ["0/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
         ["0/test.c", "reg", "size", "6", "sha256", "806b51ad"],
         ["0/test.c.lnk", "sym", "->", "b/test.c"],
         ["0/test.c.sym", "sym", "->", "b/test.c"],
-        ["1/.", "dir"],
-        ["1/home", "sym", "/->", "/home"],
+        ["1", "dir"],
+        ["1/home", "sym", "->", "/home"],
         ["1/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
         ["1/test.c", "reg", "size", "6", "sha256", "806b51ad"],
         ["1/test.c.lnk", "ref", "==>", "0/test.c.lnk"],

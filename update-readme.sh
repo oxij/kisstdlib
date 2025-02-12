@@ -16,7 +16,6 @@ for i in 0 1; do
     python3 -m kisstdlib_bin.describe_subtree --help --markdown | sed '
 s/^\(#\+\) /#\1 /
 s/^\(#\+\) \(describe-subtree[^A-Z[({]*\) [A-Z[({].*/\1 \2/
-/\[PATH \.\.\.\]/ d
 '
 } > README.new
 mv README.new README.md
