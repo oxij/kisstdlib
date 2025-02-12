@@ -43,16 +43,16 @@ Most useful for making fixed-output tests for programs that produces filesystem 
 
 import sys as _sys
 
-import kisstdlib.argparse.better as _argparse
+from kisstdlib.argparse_ext import *
 from kisstdlib.fs import describe_walks
 
 
 def main() -> None:
-    parser = _argparse.BetterArgumentParser(
+    parser = BetterArgumentParser(
         prog="describe-dir",
         description=__doc__,
         add_help=True,
-        formatter_class=_argparse.MarkdownBetterHelpFormatter,
+        formatter_class=MarkdownBetterHelpFormatter,
     )
     # fmt: off
     parser.add_argument("--no-mode", dest="show_mode", action="store_false", help="ignore file modes")

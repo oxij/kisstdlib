@@ -26,36 +26,33 @@
 
 """Extensions for the standard `argparse` module."""
 
+import textwrap as _textwrap
 import typing as _t
 from argparse import *
-from gettext import gettext as _
+from gettext import gettext as _gettext
 
 
 class BetterHelpFormatter(HelpFormatter):
-    """Like argparse.HelpFormatter, but with better formatting.
-    Also, it adds `add_code` function.
+    """Like `argparse.HelpFormatter`, but with better formatting. Also, adds
+    `add_code` function.
     """
 
     def _fill_text(self, text: str, width: int, indent: str) -> str:
-        import textwrap
-
         res = []
         for line in text.splitlines():
             if line == "":
                 res.append(line)
                 continue
 
-            for sub in textwrap.wrap(line, width - len(indent)):
+            for sub in _textwrap.wrap(line, width - len(indent)):
                 sub = indent + sub
                 res.append(sub)
         return "\n".join(res)
 
     def _split_lines(self, text: str, width: int) -> list[str]:
-        import textwrap
-
         res = []
         for line in text.splitlines():
-            res += textwrap.wrap(line, width)
+            res += _textwrap.wrap(line, width)
         return res
 
     def add_code(self, text: str) -> None:
@@ -63,7 +60,7 @@ class BetterHelpFormatter(HelpFormatter):
 
 
 class MarkdownBetterHelpFormatter(BetterHelpFormatter):
-    """BetterHelpFormatter that outputs stuff formatted in Markdown"""
+    """`BetterHelpFormatter` that outputs stuff formatted in Markdown"""
 
     def add_code(self, text: str) -> None:
         self.add_text("```\n" + text.strip() + "\n```")
@@ -135,7 +132,7 @@ class BetterArgumentParser(ArgumentParser):
 
     formatter_class: type[BetterHelpFormatter]
 
-    def __init__(  # pylint: disable=dangerous-default-value
+    def __init__(
         self,
         *args: _t.Any,
         prog: str | None = None,
@@ -178,7 +175,7 @@ class BetterArgumentParser(ArgumentParser):
                 default_prefix * 2 + "help",
                 action="help",
                 default=SUPPRESS,
-                help=_("show this help message and exit"),
+                help=_gettext("show this help message and exit"),
             )
 
     def set_formatter_class(self, formatter_class: type[BetterHelpFormatter]) -> None:
