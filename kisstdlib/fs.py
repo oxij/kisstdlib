@@ -315,8 +315,8 @@ def describe_walks(
     time_precision: int = 9,
     hash_length: int | None = None,
 ) -> _t.Iterator[list[str]]:
-    """Produce a simple description of walks of given `paths`.
-    See `describe-subtree` script.
+    """Produce a simple `find .`+`stat`-like description of walks of given `paths`.
+    See `describe-subtree` script for more info.
     """
     escape: _t.Callable[[str], str] = _identity if literal else _escape_path  # type: ignore
     seen: dict[tuple[int, int], tuple[_t.AnyStr, int, str]] = {}
