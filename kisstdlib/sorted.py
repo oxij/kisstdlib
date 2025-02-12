@@ -32,7 +32,7 @@ from decimal import Decimal
 
 from sortedcontainers import SortedList, SortedKeyList, SortedDict  # pylint: disable=unused-import
 
-import kisstdlib.util as _ku
+import kisstdlib.base as _kb
 
 NumericType = _t.TypeVar("NumericType", bound=Decimal | float | int)
 
@@ -87,7 +87,7 @@ class SortedIndex(
         iobjs = self.get(key, None)
         if iobjs is None:
             # first time seeing this `key`
-            self[key] = SortedKeyList([(order, value)], key=_ku.first)
+            self[key] = SortedKeyList([(order, value)], key=_kb.first)
             self.size += 1
         elif ideal is not None:
             if nearer_to_than(ideal, order, iobjs[0][0]):
@@ -111,7 +111,7 @@ class SortedIndex(
             # unavailable
             return
 
-        left = _bisect.bisect_left(iobjs, start, key=_ku.first)
+        left = _bisect.bisect_left(iobjs, start, key=_kb.first)
         for i in range(left, len(iobjs)):
             cur = iobjs[i]
             if start <= cur[0] < end:
@@ -140,7 +140,7 @@ class SortedIndex(
             return
         # else: # nearest to `ideal`
 
-        right = _bisect.bisect_right(iobjs, ideal, key=_ku.first)
+        right = _bisect.bisect_right(iobjs, ideal, key=_kb.first)
         if right == 0:
             yield from iter(iobjs)
             return
