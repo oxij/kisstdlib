@@ -5,7 +5,7 @@
 <li><a href="#parts-and-pieces" id="toc-parts-and-pieces">Parts and pieces</a></li>
 <li><a href="#usage" id="toc-usage">Usage</a>
 <ul>
-<li><a href="#describe-dir" id="toc-describe-dir">describe-dir</a></li>
+<li><a href="#describe-subtree" id="toc-describe-subtree">describe-subtree</a></li>
 </ul></li>
 </ul>
 </details>
@@ -24,7 +24,7 @@ However, this project already provides some useful thin-wrapper programs over `k
 
 # Usage
 
-## describe-dir
+## describe-subtree
 
 Produce a recursive deterministic textual description of given input files
 and/or directories.

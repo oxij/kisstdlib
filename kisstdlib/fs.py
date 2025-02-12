@@ -309,7 +309,7 @@ def describe_walks(
     hash_len: int = 64,
 ) -> _t.Iterator[list[str]]:
     """Produce a simple description of walks of given `paths`.
-    See `describe-dir` script.
+    See `describe-subtree` script.
     """
     seen: dict[tuple[int, int], tuple[_t.AnyStr, int, str]] = {}
     for i, dirpath in enumerate(paths):

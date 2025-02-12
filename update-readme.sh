@@ -13,9 +13,9 @@ for i in 0 1; do
     sed -n "/# What is/,/# Usage/ p" README.md
     echo
 
-    python3 -m kisstdlib_bin.describe_dir --help --markdown | sed '
+    python3 -m kisstdlib_bin.describe_subtree --help --markdown | sed '
 s/^\(#\+\) /#\1 /
-s/^\(#\+\) \(describe-dir[^A-Z[({]*\) [A-Z[({].*/\1 \2/
+s/^\(#\+\) \(describe-subtree[^A-Z[({]*\) [A-Z[({].*/\1 \2/
 /\[PATH \.\.\.\]/ d
 '
 } > README.new

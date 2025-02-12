@@ -49,7 +49,7 @@ from kisstdlib.fs import describe_walks
 
 def main() -> None:
     parser = BetterArgumentParser(
-        prog="describe-dir",
+        prog="describe-subtree",
         description=__doc__,
         add_help=True,
         formatter_class=MarkdownBetterHelpFormatter,
