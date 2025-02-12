@@ -292,7 +292,7 @@ def atomic1(sync: bool, tmp_path: str) -> None:
     atomic_symlink("/home", "y/home")
 
     # to test `describe_walks` with multiple paths
-    w = list(describe_walks(["x", "y"], show_mode=False, show_mtime=False, hash_len=8))
+    w = list(describe_walks(["x", "y"], hash_len=8))
     # print(repr(w))
     assert w == [
         ["0/.", "dir"],

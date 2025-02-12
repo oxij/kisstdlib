@@ -303,10 +303,10 @@ def _hex_sha256_of(path: str | bytes) -> str:
 
 def describe_walks(
     paths: list[_t.AnyStr],
-    show_mode: bool = True,
-    show_mtime: bool = True,
+    show_mode: bool = False,
+    show_mtime: bool = False,
     mtime_precision: int = 9,
-    hash_len: int = 64,
+    hash_len: int | None = None,
 ) -> _t.Iterator[list[str]]:
     """Produce a simple description of walks of given `paths`.
     See `describe-subtree` script.
@@ -355,7 +355,9 @@ def describe_walks(
             if _stat.S_ISDIR(stat.st_mode):
                 yield [apath, "dir"] + mode + mtime
             elif _stat.S_ISREG(stat.st_mode):
-                sha256 = _hex_sha256_of(abs_path)[:hash_len]
+                sha256 = _hex_sha256_of(abs_path)
+                if hash_len is not None:
+                    sha256 = sha256[:hash_len]
                 yield [apath, "reg"] + mode + mtime + ["size", str(size), "sha256", sha256]  # fmt: skip
             elif _stat.S_ISLNK(stat.st_mode):
                 symlink = _os.readlink(abs_path)
@@ -374,9 +376,11 @@ def describe_walks(
                 yield [apath, "???"] + mode + mtime + ["size", str(size)]
 
 
-def describe_path(path: _t.AnyStr) -> _t.Iterator[list[str]]:
+def describe_path(path: _t.AnyStr, *args: _t.Any, **kwargs: _t.Any) -> _t.Iterator[list[str]]:
     """Produce a very simple description of walks of given `paths`, suitable for tests."""
-    return describe_walks([path], False, False, 0, 8)
+    if "hash_len" not in kwargs:
+        kwargs["hash_len"] = 8
+    return describe_walks([path], *args, **kwargs)
 
 
 def unlink_maybe(path: str | bytes) -> None:

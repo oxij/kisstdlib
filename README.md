@@ -59,9 +59,9 @@ filesystem trees.
 - options:
   - `-h, --help`
   : show this help message and exit
-  - `--no-mode`
-  : ignore file modes
-  - `--no-mtime`
-  : ignore mtimes
+  - `--mode`
+  : show file modes in the output
+  - `--mtime`
+  : show file mtimes in the output
   - `--precision MTIME_PRECISION`
   : time precision (as a power of 10); default: `0`

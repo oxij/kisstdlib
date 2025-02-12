@@ -55,8 +55,8 @@ def main() -> None:
         formatter_class=MarkdownBetterHelpFormatter,
     )
     # fmt: off
-    parser.add_argument("--no-mode", dest="show_mode", action="store_false", help="ignore file modes")
-    parser.add_argument("--no-mtime", dest="show_mtime", action="store_false", help="ignore mtimes")
+    parser.add_argument("--mode", dest="show_mode", action="store_true", help="show file modes in the output")
+    parser.add_argument("--mtime", dest="show_mtime", action="store_true", help="show file mtimes in the output")
     parser.add_argument("--precision", dest="mtime_precision", type=int, default=0,
         help="time precision (as a power of 10); default: `0`",
     )
