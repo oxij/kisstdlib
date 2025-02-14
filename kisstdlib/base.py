@@ -188,11 +188,6 @@ def truediv_(x: Number, y: Number) -> Number:
 ### Simple functions
 
 
-def first(x: tuple[AType, ...]) -> AType:
-    """Get the first element of a given tuple."""
-    return x[0]
-
-
 def identity(x: AType, /) -> AType:
     """Identity function."""
     return x

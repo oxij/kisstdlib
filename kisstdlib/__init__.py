@@ -19,3 +19,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
+"""Re-exports allowing to simply use `from kisstdlib import *` in most simple programs."""
+
+from .base import *
+from .itertools_ext import *
