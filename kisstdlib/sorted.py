@@ -25,28 +25,14 @@
 import bisect as _bisect
 import collections.abc as _abc
 import dataclasses as _dc
-import math as _math
 import typing as _t
-
-from decimal import Decimal
 
 from sortedcontainers import SortedList, SortedKeyList, SortedDict  # pylint: disable=unused-import
 
-import kisstdlib.base as _kb
-
-NumericType = _t.TypeVar("NumericType", bound=Decimal | float | int)
+from kisstdlib.base import fst as _fst, AnyNumber, is_infinite
 
 
-def is_infinite(value: NumericType) -> bool:
-    return (
-        hasattr(value, "is_infinite")
-        and value.is_infinite()
-        or isinstance(value, float)
-        and _math.isinf(value)
-    )
-
-
-def nearer_to_than(ideal: NumericType, value: NumericType, other: NumericType) -> bool | None:
+def nearer_to_than(ideal: AnyNumber, value: AnyNumber, other: AnyNumber) -> bool | None:
     """Check whether `value` is nearer to `ideal` than `other`.
     Return `None` if `other` and `value` are the same.
     """
@@ -62,11 +48,11 @@ ValueType = _t.TypeVar("ValueType")
 
 
 class SortedIndex(
-    dict[KeyType, SortedList[tuple[NumericType, ValueType]]],
-    _t.Generic[KeyType, NumericType, ValueType],
+    dict[KeyType, SortedList[tuple[AnyNumber, ValueType]]],
+    _t.Generic[KeyType, AnyNumber, ValueType],
 ):
     """Essentially,
-    `dict[KeyType, SortedList[tuple[NumericType, ValueType]]]`
+    `dict[KeyType, SortedList[tuple[AnyNumber, ValueType]]]`
      with some uselful indexing-relevant operations on top.
     """
 
@@ -75,7 +61,7 @@ class SortedIndex(
         self.size = 0
 
     def insert(
-        self, key: KeyType, order: NumericType, value: ValueType, ideal: NumericType | None = None
+        self, key: KeyType, order: AnyNumber, value: ValueType, ideal: AnyNumber | None = None
     ) -> bool:
         """`self[key].add((order, value))`, except when `ideal` init param is set, the
         `SortedList` will only store a single `value`, the one for
@@ -87,7 +73,7 @@ class SortedIndex(
         iobjs = self.get(key, None)
         if iobjs is None:
             # first time seeing this `key`
-            self[key] = SortedKeyList([(order, value)], key=_kb.first)
+            self[key] = SortedKeyList([(order, value)], key=_fst)
             self.size += 1
         elif ideal is not None:
             if nearer_to_than(ideal, order, iobjs[0][0]):
@@ -101,8 +87,8 @@ class SortedIndex(
         return True
 
     def iter_from_to(
-        self, key: KeyType, start: NumericType, end: NumericType
-    ) -> _t.Iterator[tuple[NumericType, ValueType]]:
+        self, key: KeyType, start: AnyNumber, end: AnyNumber
+    ) -> _t.Iterator[tuple[AnyNumber, ValueType]]:
         """Iterate `self[key]` `list` values from `start` (including) to `end` (not including)."""
 
         try:
@@ -111,7 +97,7 @@ class SortedIndex(
             # unavailable
             return
 
-        left = _bisect.bisect_left(iobjs, start, key=_kb.first)
+        left = _bisect.bisect_left(iobjs, start, key=_fst)
         for i in range(left, len(iobjs)):
             cur = iobjs[i]
             if start <= cur[0] < end:
@@ -120,8 +106,8 @@ class SortedIndex(
                 return
 
     def iter_from_nearest(
-        self, key: KeyType, ideal: NumericType
-    ) -> _t.Iterator[tuple[NumericType, ValueType]]:
+        self, key: KeyType, ideal: AnyNumber
+    ) -> _t.Iterator[tuple[AnyNumber, ValueType]]:
         """Iterate `self[key]` `list` values in order of closeness to `ideal`."""
 
         try:
@@ -140,7 +126,7 @@ class SortedIndex(
             return
         # else: # nearest to `ideal`
 
-        right = _bisect.bisect_right(iobjs, ideal, key=_kb.first)
+        right = _bisect.bisect_right(iobjs, ideal, key=_fst)
         if right == 0:
             yield from iter(iobjs)
             return
@@ -180,9 +166,9 @@ class SortedIndex(
     def iter_nearest(
         self,
         key: KeyType,
-        ideal: NumericType,
-        predicate: _t.Callable[[NumericType, ValueType], bool] | None = None,
-    ) -> _t.Iterator[tuple[NumericType, ValueType]]:
+        ideal: AnyNumber,
+        predicate: _t.Callable[[AnyNumber, ValueType], bool] | None = None,
+    ) -> _t.Iterator[tuple[AnyNumber, ValueType]]:
         if predicate is None:
             yield from self.iter_from_nearest(key, ideal)
         else:
@@ -193,9 +179,9 @@ class SortedIndex(
     def get_nearest(
         self,
         key: KeyType,
-        ideal: NumericType,
-        predicate: _t.Callable[[NumericType, ValueType], bool] | None = None,
-    ) -> tuple[NumericType, ValueType] | None:
+        ideal: AnyNumber,
+        predicate: _t.Callable[[AnyNumber, ValueType], bool] | None = None,
+    ) -> tuple[AnyNumber, ValueType] | None:
         """Of `self[key]` `list` values satisfying `predicate`, get one closest to `ideal`."""
         for e in self.iter_nearest(key, ideal, predicate):
             return e

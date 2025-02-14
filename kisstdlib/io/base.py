@@ -30,15 +30,8 @@ import os as _os
 import sys as _sys
 import typing as _t
 
-# common byte sizes
-KiB = 1024
-MiB = 1024 * KiB
-GiB = 1024 * MiB
+from ..base import POSIX as _POSIX, BytesLike, KiB, MiB, GiB  # pylint: disable=unused-import
 
-# bytes-like object
-BytesLike = _t.Union[bytes, bytearray, memoryview]
-
-_POSIX = _os.name == "posix"
 if _POSIX:
     import fcntl as _fcntl
 

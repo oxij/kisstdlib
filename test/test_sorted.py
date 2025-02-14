@@ -23,6 +23,7 @@
 """Testing `sorted` module."""
 
 import math as _math
+from decimal import Decimal
 from kisstdlib.sorted import *
 
 

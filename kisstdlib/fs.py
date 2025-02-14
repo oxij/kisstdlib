@@ -36,9 +36,8 @@ import stat as _stat
 import sys as _sys
 import typing as _t
 
-from .base import identity as _identity
+from .base import POSIX as _POSIX, identity as _identity
 from .io.base import *
-from .io.base import _POSIX
 from .time import Timestamp as _Timestamp
 
 
