@@ -450,7 +450,7 @@ def describe_forest(
 
 
 def unlink_maybe(path: str | bytes) -> None:
-    """Try to `os.unlink` and ignore errors."""
+    """Try to `os.unlink` and ignore `Exception`s."""
     try:
         _os.unlink(path)
     except Exception:
@@ -469,7 +469,7 @@ def fsync_maybe(fd: int) -> None:
         raise
 
 
-def fsync_path(path: str | bytes, flags: int = 0) -> None:
+def fsync_file(path: str | bytes, flags: int = 0) -> None:
     """Run `os.fsync` on a given `path`."""
     oflags = _os.O_RDONLY | _os.O_NOFOLLOW | _os.O_CLOEXEC if _POSIX else _os.O_RDWR
     try:
@@ -489,7 +489,7 @@ def fsync_path(path: str | bytes, flags: int = 0) -> None:
         _os.close(fd)
 
 
-def unlink_many_paths(
+def unlink_many(
     paths: _t.Iterable[_t.AnyStr], exceptions: list[Exception] | None = None
 ) -> list[_t.AnyStr]:
     """`os.unlink` many paths, optionally collecting exceptions.
@@ -506,7 +506,7 @@ def unlink_many_paths(
     return left
 
 
-def fsync_many_paths(
+def fsync_many_files(
     paths: _t.Iterable[_t.AnyStr], flags: int = 0, exceptions: list[Exception] | None = None
 ) -> list[_t.AnyStr]:
     """`os.fsync` many paths, optionally collecting exceptions.
@@ -515,7 +515,7 @@ def fsync_many_paths(
     left = []
     for path in paths:
         try:
-            fsync_path(path, flags)
+            fsync_file(path, flags)
         except Exception as exc:
             if exceptions is not None:
                 exceptions.append(exc)
@@ -628,7 +628,7 @@ after="""
         if self._after is not None:
             self._after.clear()
         if self.tmp_file:
-            unlink_many_paths(self.tmp_file)
+            unlink_many(self.tmp_file)
         self.reset()
 
     def commit(
@@ -647,7 +647,7 @@ after="""
             simulate += [["unlink", fsdecode_maybe(f)] for f in sorted(self.unlink_file)]
             self.unlink_file = set()
         elif self.unlink_file:
-            self.unlink_file = set(unlink_many_paths(sorted(self.unlink_file), exceptions))
+            self.unlink_file = set(unlink_many(sorted(self.unlink_file), exceptions))
 
         if strict and exceptions:
             return exceptions
@@ -669,7 +669,7 @@ after="""
                 simulate += [["fsync", fsdecode_maybe(f)] for f in sorted(self.fsync_file)]
                 self.fsync_file = set()
             elif self.fsync_file:
-                fsync_file_left.update(fsync_many_paths(sorted(self.fsync_file), 0, exceptions))
+                fsync_file_left.update(fsync_many_files(sorted(self.fsync_file), 0, exceptions))
                 self.fsync_file = set()
 
             if strict and exceptions:
@@ -731,7 +731,7 @@ after="""
                 simulate += [["fsync_win", fsdecode_maybe(f)] for f in sorted(self.fsync_file)]
                 self.fsync_file = set()
             elif self.fsync_file:
-                fsync_file_left.update(fsync_many_paths(sorted(self.fsync_file), 0, exceptions))
+                fsync_file_left.update(fsync_many_files(sorted(self.fsync_file), 0, exceptions))
                 self.fsync_file = set()
 
             if simulate is not None:
@@ -739,7 +739,7 @@ after="""
                 self.fsync_dir = set()
             elif self.fsync_dir:
                 if _POSIX:
-                    fsync_dir_left.update(fsync_many_paths(sorted(self.fsync_dir), _os.O_DIRECTORY, exceptions))  # fmt: skip
+                    fsync_dir_left.update(fsync_many_files(sorted(self.fsync_dir), _os.O_DIRECTORY, exceptions))  # fmt: skip
                 self.fsync_dir = set()
 
             if simulate is not None:
@@ -747,7 +747,7 @@ after="""
                 self.fsync_dir2 = set()
             elif self.fsync_dir2:
                 if _POSIX:
-                    fsync_dir2_left.update(fsync_many_paths(sorted(self.fsync_dir2), _os.O_DIRECTORY, exceptions))  # fmt: skip
+                    fsync_dir2_left.update(fsync_many_files(sorted(self.fsync_dir2), _os.O_DIRECTORY, exceptions))  # fmt: skip
                 self.fsync_dir2 = set()
 
             if strict and exceptions:
@@ -805,12 +805,12 @@ def atomic_rename(
     rename(src_path, dst_path, allow_overwrites, makedirs=False, dst_dir=dst_dir)
 
     if _POSIX:
-        fsync_path(dst_dir, _os.O_DIRECTORY)
+        fsync_file(dst_dir, _os.O_DIRECTORY)
         if src_dir != dst_dir:
-            fsync_path(src_dir, _os.O_DIRECTORY)
+            fsync_file(src_dir, _os.O_DIRECTORY)
     else:
         # on Windows, some docs claim, this helps
-        fsync_path(dst_path)
+        fsync_file(dst_path)
 
 
 def make_file(
@@ -839,7 +839,7 @@ def make_file(
         return
 
     if _POSIX:
-        fsync_path(dst_dir, _os.O_DIRECTORY)
+        fsync_file(dst_dir, _os.O_DIRECTORY)
 
 
 def atomic_make_file(
@@ -885,7 +885,7 @@ def atomic_make_file(
         raise
 
     if _POSIX:
-        fsync_path(dst_dir, _os.O_DIRECTORY)
+        fsync_file(dst_dir, _os.O_DIRECTORY)
         # NB: src_dir == dst_dir
 
 
@@ -1018,7 +1018,7 @@ def atomic_move(
     _os.unlink(src_path)
 
     if _POSIX:
-        fsync_path(src_dir, _os.O_DIRECTORY)
+        fsync_file(src_dir, _os.O_DIRECTORY)
 
 
 def atomic_write(
