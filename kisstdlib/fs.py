@@ -373,7 +373,7 @@ def _hex_sha256_of(path: str | bytes) -> str:
         return fhash.hexdigest()
 
 
-def describe_walks(
+def describe_forest(
     paths: list[_t.AnyStr],
     *,
     numbers: bool | None = None,
@@ -447,13 +447,6 @@ def describe_walks(
                 yield [epath, "sym"] + emode + emtime + ["->", esymlink]
             else:
                 yield [epath, "???"] + emode + emtime + esize
-
-
-def describe_path(path: _t.AnyStr, *args: _t.Any, **kwargs: _t.Any) -> _t.Iterator[list[str]]:
-    """Produce a very simple description of walks of given `paths`, suitable for tests."""
-    if "hash_length" not in kwargs:
-        kwargs["hash_length"] = 8
-    return describe_walks([path], *args, **kwargs)
 
 
 def unlink_maybe(path: str | bytes) -> None:

@@ -118,7 +118,7 @@ Though, if you are testing `rsync` or some such, feel free to use other options 
 
 See `devscript` directory in `kisstdlib`'s repository for examples of some shell machinery that uses this to implement arbitrary-program fixed-output tests, which is a nice and simple way to test programs by testing their outputs against outputs of different versions of themselves.
 
-Also, internally, this programs is actually a thin wrapper over `describe_walks` function of `kisstdlib.fs` Python module, which can be used with `pytest` or some such.
+Also, internally, this programs is actually a thin wrapper over `describe_forest` function of `kisstdlib.fs` Python module, which can be used with `pytest` or some such.
 
 - positional arguments:
   - `PATH`

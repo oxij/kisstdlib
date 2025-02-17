@@ -42,7 +42,7 @@ def atomic1(sync: bool, tmp_path: str) -> None:
             assert es == gs
 
         if ed is not None:
-            gd = list(describe_path("."))
+            gd = list(describe_forest(["."], hash_length=8))
             assert ed == gd
 
     atomic_write(b"test a", "test.a", dsync=dsync)
@@ -289,8 +289,8 @@ def atomic1(sync: bool, tmp_path: str) -> None:
 
     atomic_symlink("/home", "y/home")
 
-    # to test `describe_walks` with multiple paths
-    w = list(describe_walks(["x", "y"], hash_length=8))
+    # to test `describe_forest` with multiple paths
+    w = list(describe_forest(["x", "y"], hash_length=8))
     # print(repr(w))
     assert w == [
         ["0/", "dir"],
