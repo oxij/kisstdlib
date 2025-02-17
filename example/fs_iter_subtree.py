@@ -23,7 +23,7 @@ from kisstdlib.fs import *
 
 def test_iter_subtree() -> None:
     have = False
-    for n, _ in iter_subtree("./example", handle_error=logging.error):
+    for n, _ns, _nd in iter_subtree("./example", handle_error=logging.error):
         if n == "./example/fs_iter_subtree.py":
             have = True
     assert have

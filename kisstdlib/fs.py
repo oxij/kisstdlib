@@ -40,6 +40,9 @@ from .base import POSIX as _POSIX, identity as _identity
 from .io.base import *
 from .time import Timestamp as _Timestamp
 
+sep = _op.sep
+sepb = _os.fsencode(_op.sep)
+
 
 def fsdecode_maybe(x: str | bytes) -> str:
     """Apply `os.fsdecode` if `bytes`."""
@@ -88,7 +91,9 @@ def file_data_equals(path: str | bytes, data: bytes) -> bool:
 
 
 IncludeFilesFunc = _t.Callable[[_t.AnyStr], bool]
-IncludeDirectoriesFunc = _t.Callable[[_t.AnyStr, bool, list[tuple[_t.AnyStr, bool]]], bool | None]
+IncludeDirectoriesFunc = _t.Callable[
+    [_t.AnyStr, _t.AnyStr, bool, list[tuple[_t.AnyStr, _t.AnyStr, bool]]], bool | None
+]
 
 
 class WalkOrder(_enum.Enum):
@@ -105,15 +110,59 @@ def iter_subtree(
     follow_symlinks: bool = True,
     order: WalkOrder = WalkOrder.SORT,
     handle_error: _t.Callable[..., None] | None = None,
-    path_is_file_maybe: bool = True,
-) -> _t.Iterator[tuple[_t.AnyStr, bool]]:
-    """Similar to `os.walk`, but produces an iterator over paths, allows
-    non-directories as input (which will just output a single
-    element), provides convenient filtering and error handling, and
-    the output is guaranteed to be ordered if `order` is not `NONE`.
+    path_sep: _t.AnyStr | None = None,
+) -> _t.Iterator[tuple[_t.AnyStr, _t.AnyStr, bool]]:
+    """Similar to `os.walk`, but produces an iterator over
+
+    `tuple[path, path + sep if is_dir else path, is_dir]`
+
+    elements, allows non-directories as input (which will just output a single
+    element), provides convenient filtering and error handling, and the output
+    is guaranteed to be ordered if `order` is not `WalkOrder.NONE`.
+
+    The output is sorted by the second element of the tuple. I.e., it respects
+    the `sep` separator, i.e. directories are sorted as if they have it appended
+    at the end:
+
+    ```
+    example*not
+    example.dot
+    example
+    example/a
+    example/aa
+    example/b
+    example/c
+    ```
+
+    and not
+
+    ```
+    example
+    example/a
+    example/aa
+    example/b
+    example/c
+    example*not
+    example.dot
+    ```
+
+    or
+
+    ```
+    example
+    example*not
+    example.dot
+    example/a
+    example/aa
+    example/b
+    example/c
+    ```
+
+    because otherwise `list(map(first, iter_subtree(..., include_directories=False)))`
+    won't actually be sorted.
     """
 
-    if path_is_file_maybe:
+    if path_sep is None:
         try:
             fstat = _os.stat(path, follow_symlinks=follow_symlinks)
         except OSError as exc:
@@ -135,8 +184,10 @@ def iter_subtree(
                     return
             elif not include_files(path):
                 return
-            yield path, False
+            yield path, path, False
             return
+
+        path_sep = path + (sep if isinstance(path, str) else sepb)
 
     try:
         scandir_it = _os.scandir(path)
@@ -154,7 +205,7 @@ def iter_subtree(
         raise
 
     complete = True
-    elements: list[tuple[_t.AnyStr, bool]] = []
+    elements: list[tuple[_t.AnyStr, _t.AnyStr, bool]] = []
 
     with scandir_it:
         while True:
@@ -192,22 +243,29 @@ def iter_subtree(
                         continue
                     raise
 
-                elements.append((entry.path, entry_is_dir))
+                epath_sep: _t.AnyStr = entry.path
+                if entry_is_dir:
+                    if isinstance(epath_sep, str):
+                        epath_sep += sep
+                    else:
+                        epath_sep += sepb
+                elements.append((entry.path, epath_sep, entry_is_dir))
 
     if order != WalkOrder.NONE:
-        elements.sort(reverse=order == WalkOrder.REVERSE)
+        elements.sort(key=lambda x: x[1], reverse=order == WalkOrder.REVERSE)
 
     if isinstance(include_directories, bool):
         if include_directories:
-            yield path, True
+            yield path, path_sep, True
     else:
-        inc = include_directories(path, complete, elements)
+        inc = include_directories(path, path_sep, complete, elements)
         if inc is None:
             return
         if inc:
-            yield path, True
+            yield path, path_sep, True
 
-    for epath, eis_dir in elements:
+    for el in elements:
+        epath, epath_sep, eis_dir = el
         if eis_dir:
             yield from iter_subtree(
                 epath,
@@ -216,7 +274,7 @@ def iter_subtree(
                 follow_symlinks=follow_symlinks,
                 order=order,
                 handle_error=handle_error,
-                path_is_file_maybe=False,
+                path_sep=epath_sep,
             )
             continue
         if isinstance(include_files, bool):
@@ -224,13 +282,18 @@ def iter_subtree(
                 continue
         elif not include_files(epath):
             continue
-        yield epath, False
+        yield el
 
 
 def as_include_directories(f: IncludeFilesFunc[_t.AnyStr]) -> IncludeDirectoriesFunc[_t.AnyStr]:
     """`convert iter_subtree(..., include_files, ...)` filter to `include_directories` filter"""
 
-    def func(path: _t.AnyStr, _complete: bool, _elements: list[tuple[_t.AnyStr, bool]]) -> bool:
+    def func(
+        path: _t.AnyStr,
+        _path_sep: _t.AnyStr,
+        _complete: bool,
+        _elements: list[tuple[_t.AnyStr, _t.AnyStr, bool]],
+    ) -> bool:
         return f(path)
 
     return func
@@ -257,7 +320,10 @@ def with_extension_not_in(exts: _cabc.Collection[str | bytes]) -> IncludeFilesFu
 
 
 def nonempty_directories(
-    _path: _t.AnyStr, complete: bool, elements: list[tuple[_t.AnyStr, bool]]
+    _path: _t.AnyStr,
+    _path_sep: _t.AnyStr,
+    complete: bool,
+    elements: list[tuple[_t.AnyStr, _t.AnyStr, bool]],
 ) -> bool:
     """`iter_subtree(..., include_directories, ...)` filter that makes it print only non-empty directories"""
     if len(elements) == 0:
@@ -266,20 +332,26 @@ def nonempty_directories(
 
 
 def leaf_directories(
-    _path: _t.AnyStr, complete: bool, elements: list[tuple[_t.AnyStr, bool]]
+    _path: _t.AnyStr,
+    _path_sep: _t.AnyStr,
+    complete: bool,
+    elements: list[tuple[_t.AnyStr, _t.AnyStr, bool]],
 ) -> bool:
     """`iter_subtree(..., include_directories, ...)` filter that makes it print leaf directories only, i.e. only directories without sub-directories"""
-    if complete and all(map(lambda x: not x[1], elements)):
+    if complete and all(map(lambda x: not x[2], elements)):
         return True
     return False
 
 
 def nonempty_leaf_directories(
-    path: _t.AnyStr, complete: bool, elements: list[tuple[_t.AnyStr, bool]]
+    path: _t.AnyStr,
+    path_sep: _t.AnyStr,
+    complete: bool,
+    elements: list[tuple[_t.AnyStr, _t.AnyStr, bool]],
 ) -> bool:
     """`iter_subtree(..., include_directories, ...)` filter that makes it print only non-empty leaf directories, i.e. non-empty directories without sub-directories"""
-    if nonempty_directories(path, complete, elements) and leaf_directories(
-        path, complete, elements
+    if nonempty_directories(path, path_sep, complete, elements) and leaf_directories(
+        path, path_sep, complete, elements
     ):
         return True
     return False
@@ -320,7 +392,7 @@ def describe_walks(
     escape: _t.Callable[[str], str] = _identity if literal else _escape_path  # type: ignore
     seen: dict[tuple[int, int], tuple[_t.AnyStr, int, str]] = {}
     for i, dirpath in enumerate(paths):
-        for fpath, _ in iter_subtree(dirpath, follow_symlinks=follow_symlinks):
+        for fpath, _eps, _edir in iter_subtree(dirpath, follow_symlinks=follow_symlinks):
             abs_path = _op.abspath(fpath)
             rpath = fsdecode_maybe(_op.relpath(fpath, dirpath))
             epath: str
@@ -329,7 +401,7 @@ def describe_walks(
             else:
                 epath = str(i)
                 if rpath != ".":
-                    epath += _op.sep + escape(rpath)
+                    epath += sep + escape(rpath)
 
             stat = _os.stat(abs_path, follow_symlinks=follow_symlinks)
             ino = (stat.st_dev, stat.st_ino)
@@ -364,7 +436,7 @@ def describe_walks(
             esize = ["size", str(stat.st_size)] if sizes else []
             emode = ["mode", oct(_stat.S_IMODE(stat.st_mode))[2:]] if modes else []
             if _stat.S_ISDIR(stat.st_mode):
-                yield [epath, "dir"] + emode + emtime
+                yield [epath + sep, "dir"] + emode + emtime
             elif _stat.S_ISREG(stat.st_mode):
                 sha256 = _hex_sha256_of(abs_path)
                 if hash_length is not None:
