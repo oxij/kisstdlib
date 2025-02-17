@@ -28,6 +28,34 @@ from kisstdlib.failure import *
 from kisstdlib.fs import *
 
 
+def test_iter_subtree(tmp_path: str) -> None:
+    os.chdir(tmp_path)
+
+    def touch(path: str) -> None:
+        with open(path, "wb") as f:
+            f.close()
+
+    os.makedirs("example")
+    touch("example/a")
+    touch("example/aa")
+    touch("example/b")
+    touch("example/c")
+    touch("example.dot")
+    touch("example*not")
+
+    w = list(map(lambda x: os.path.relpath(x[0], tmp_path), iter_subtree(".")))
+    assert w == [
+        ".",
+        "example*not",
+        "example.dot",
+        "example",
+        "example/a",
+        "example/aa",
+        "example/b",
+        "example/c",
+    ]
+
+
 def atomic1(sync: bool, tmp_path: str) -> None:
     os.chdir(tmp_path)
 
