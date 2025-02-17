@@ -500,9 +500,10 @@ def unlink_many(
         try:
             _os.unlink(path)
         except Exception as exc:
-            if exceptions is not None:
-                exceptions.append(exc)
+            if exceptions is None:
+                raise
             left.append(path)
+            exceptions.append(exc)
     return left
 
 
@@ -517,9 +518,10 @@ def fsync_many_files(
         try:
             fsync_file(path, flags)
         except Exception as exc:
-            if exceptions is not None:
-                exceptions.append(exc)
+            if exceptions is None:
+                raise
             left.append(path)
+            exceptions.append(exc)
     return left
 
 
