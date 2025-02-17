@@ -14,16 +14,34 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 
-"""Test `kisstdlib.fs.iter_subtree`."""
+"""An example demonstating `kisstdlib.fs:iter_subtree` usage."""
 
 import logging
+import os
+import sys
+import typing as _t
 
 from kisstdlib.fs import *
 
 
-def test_iter_subtree() -> None:
-    have = False
-    for n, _ns, _nd in iter_subtree("./example", handle_error=logging.error):
-        if n == "./example/fs_iter_subtree.py":
-            have = True
-    assert have
+def test_iter_subtree(tmpdir: _t.Any) -> None:
+    tmpdir = os.fspath(tmpdir)
+
+    print(".py files:")
+
+    for e in iter_subtree(
+        tmpdir,
+        include_directories=False,
+        include_files=with_extension_in([".py"]),
+        handle_error=logging.error,
+    ):
+        print(e)
+
+    print("leaf directories:")
+
+    for e in iter_subtree(tmpdir, include_directories=leaf_directories, include_files=False):
+        print(e)
+
+
+if __name__ == "__main__":
+    test_iter_subtree(sys.argv[1] if len(sys.argv) > 1 else ".")
