@@ -51,6 +51,9 @@ class CatastrophicFailure(Exception):
     def __str__(self) -> str:
         return self.get_message(lambda x: x)
 
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} {repr(str(self))}>"
+
     def elaborate(self, what: str, *args: _t.Any) -> _t.Any:
         self.info.append((what, args))
         return self
