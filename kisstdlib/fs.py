@@ -97,7 +97,7 @@ class WalkOrder(_enum.Enum):
     REVERSE = 2
 
 
-def walk_orderly(
+def iter_subtree(
     path: _t.AnyStr,
     *,
     include_files: bool | IncludeFilesFunc[_t.AnyStr] = True,
@@ -106,7 +106,7 @@ def walk_orderly(
     order: WalkOrder = WalkOrder.SORT,
     handle_error: _t.Callable[..., None] | None = None,
     path_is_file_maybe: bool = True,
-) -> _t.Iterable[tuple[_t.AnyStr, bool]]:
+) -> _t.Iterator[tuple[_t.AnyStr, bool]]:
     """Similar to `os.walk`, but produces an iterator over paths, allows
     non-directories as input (which will just output a single
     element), provides convenient filtering and error handling, and
@@ -209,7 +209,7 @@ def walk_orderly(
 
     for epath, eis_dir in elements:
         if eis_dir:
-            yield from walk_orderly(
+            yield from iter_subtree(
                 epath,
                 include_files=include_files,
                 include_directories=include_directories,
@@ -228,7 +228,7 @@ def walk_orderly(
 
 
 def as_include_directories(f: IncludeFilesFunc[_t.AnyStr]) -> IncludeDirectoriesFunc[_t.AnyStr]:
-    """`convert walk_orderly(..., include_files, ...)` filter to `include_directories` filter"""
+    """`convert iter_subtree(..., include_files, ...)` filter to `include_directories` filter"""
 
     def func(path: _t.AnyStr, _complete: bool, _elements: list[tuple[_t.AnyStr, bool]]) -> bool:
         return f(path)
@@ -237,7 +237,7 @@ def as_include_directories(f: IncludeFilesFunc[_t.AnyStr]) -> IncludeDirectories
 
 
 def with_extension_in(exts: _cabc.Collection[str | bytes]) -> IncludeFilesFunc[_t.AnyStr]:
-    """`walk_orderly(..., include_files, ...)` (or `include_directories`) filter that makes it only include files that have one of the given extensions"""
+    """`iter_subtree(..., include_files, ...)` (or `include_directories`) filter that makes it only include files that have one of the given extensions"""
 
     def pred(path: _t.AnyStr) -> bool:
         _, ext = _op.splitext(path)
@@ -247,7 +247,7 @@ def with_extension_in(exts: _cabc.Collection[str | bytes]) -> IncludeFilesFunc[_
 
 
 def with_extension_not_in(exts: _cabc.Collection[str | bytes]) -> IncludeFilesFunc[_t.AnyStr]:
-    """`walk_orderly(..., include_files, ...)` (or `include_directories`) filter that makes it only include files that do not have any of the given extensions"""
+    """`iter_subtree(..., include_files, ...)` (or `include_directories`) filter that makes it only include files that do not have any of the given extensions"""
 
     def pred(path: _t.AnyStr) -> bool:
         _, ext = _op.splitext(path)
@@ -259,7 +259,7 @@ def with_extension_not_in(exts: _cabc.Collection[str | bytes]) -> IncludeFilesFu
 def nonempty_directories(
     _path: _t.AnyStr, complete: bool, elements: list[tuple[_t.AnyStr, bool]]
 ) -> bool:
-    """`walk_orderly(..., include_directories, ...)` filter that makes it print only non-empty directories"""
+    """`iter_subtree(..., include_directories, ...)` filter that makes it print only non-empty directories"""
     if len(elements) == 0:
         return not complete
     return True
@@ -268,7 +268,7 @@ def nonempty_directories(
 def leaf_directories(
     _path: _t.AnyStr, complete: bool, elements: list[tuple[_t.AnyStr, bool]]
 ) -> bool:
-    """`walk_orderly(..., include_directories, ...)` filter that makes it print leaf directories only, i.e. only directories without sub-directories"""
+    """`iter_subtree(..., include_directories, ...)` filter that makes it print leaf directories only, i.e. only directories without sub-directories"""
     if complete and all(map(lambda x: not x[1], elements)):
         return True
     return False
@@ -277,7 +277,7 @@ def leaf_directories(
 def nonempty_leaf_directories(
     path: _t.AnyStr, complete: bool, elements: list[tuple[_t.AnyStr, bool]]
 ) -> bool:
-    """`walk_orderly(..., include_directories, ...)` filter that makes it print only non-empty leaf directories, i.e. non-empty directories without sub-directories"""
+    """`iter_subtree(..., include_directories, ...)` filter that makes it print only non-empty leaf directories, i.e. non-empty directories without sub-directories"""
     if nonempty_directories(path, complete, elements) and leaf_directories(
         path, complete, elements
     ):
@@ -320,7 +320,7 @@ def describe_walks(
     escape: _t.Callable[[str], str] = _identity if literal else _escape_path  # type: ignore
     seen: dict[tuple[int, int], tuple[_t.AnyStr, int, str]] = {}
     for i, dirpath in enumerate(paths):
-        for fpath, _ in walk_orderly(dirpath, follow_symlinks=follow_symlinks):
+        for fpath, _ in iter_subtree(dirpath, follow_symlinks=follow_symlinks):
             abs_path = _op.abspath(fpath)
             rpath = fsdecode_maybe(_op.relpath(fpath, dirpath))
             epath: str
