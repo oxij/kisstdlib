@@ -90,6 +90,20 @@ def file_data_equals(path: str | bytes, data: bytes) -> bool:
         return False
 
 
+def same_file_data(path1: str | bytes, path2: str | bytes) -> bool:
+    """Check if two given files have exactly the same content."""
+    with open(path1, "rb") as f1:
+        with open(path2, "rb") as f2:
+            return same_fileobj_data(f1, f2)
+
+
+def same_symlink_data(path1: str | bytes, path2: str | bytes) -> bool:
+    """Check if two given symlinks have exactly the same content."""
+    a = _os.readlink(fsencode_maybe(path1))
+    b = _os.readlink(fsencode_maybe(path2))
+    return a == b
+
+
 IncludeFilesFunc = _t.Callable[[_t.AnyStr], bool]
 IncludeDirectoriesFunc = _t.Callable[
     [_t.AnyStr, _t.AnyStr, bool, list[tuple[_t.AnyStr, _t.AnyStr, bool]]], bool | None
