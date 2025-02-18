@@ -32,6 +32,8 @@ import typing as _t
 import kisstdlib.failure as _f
 import kisstdlib.parsing as _p
 
+from kisstdlib.base import Number as _Number
+
 
 class Timevalue(_dec.Decimal):
     """Generic time value of arbitrary precision."""
@@ -80,7 +82,7 @@ class Timestamp(Timevalue):
             return "+inf"
 
         i = int(self)
-        r = self - i
+        r = _dec.Decimal(self) - i
         if fmt == "@":
             res = "@" + str(i)
         else:
@@ -89,6 +91,16 @@ class Timestamp(Timevalue):
             x = str(r)[2 : precision + 2]
             res += "." + x + "0" * (precision - len(x))
         return res
+
+    def __add__(self, value: _Number) -> "Timestamp":
+        if isinstance(value, float):
+            value = _dec.Decimal(value)
+        return Timestamp(_dec.Decimal.__add__(self, value))
+
+    def __sub__(self, value: _Number) -> "Timestamp":
+        if isinstance(value, float):
+            value = _dec.Decimal(value)
+        return Timestamp(_dec.Decimal.__sub__(self, value))
 
 
 at_timestamp_re = _re.compile(r"@(\d+)(?:\.(\d+))?")
