@@ -99,11 +99,12 @@ iso_timestamp_re = _re.compile(
 
 def parse_Timestamp(value: str, *, utc: bool = False) -> tuple[tuple[Timestamp, Timestamp], str]:
     """Parse a given string `value` into a pair of `Timestamp` values which
-    represent the start and the end (non-inclusive) of the continiuous time
-    interval for which all timestamps can be described as being part of
+    represent the inclusive start and the non-inclusive end of the continiuous
+    time interval for which all timestamps can be described as being part of
     given `value`.
 
     E.g.
+
     - `parse_Timestamp("2024") == (timestamp("2024-01-01 00:00:00"), timestamp("2025-01-01 00:00:00")), ""`
     - `parse_Timestamp("2024-12") == (timestamp("2024-12-01 00:00:00"), timestamp("2025-01-01 00:00:00")), ""`
     - `parse_Timestamp("2024-12-01 12:00:16") == (timestamp("2024-12-01 12:00:16"), timestamp("2024-12-01 12:00:17")), ""`
@@ -201,7 +202,7 @@ timerange_delimiter_re = _re.compile("--?")
 
 @_dc.dataclass
 class Timerange:
-    """Continious time interval between two `Timestamp` timestamps."""
+    """A continuous time interval between two `Timestamp`s."""
 
     start: Timestamp
     end: Timestamp
