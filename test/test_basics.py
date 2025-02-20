@@ -80,3 +80,11 @@ def test_basics() -> None:
         assert nth(1, l, None) == nth(1, t, None) == (l[1] if len(l) > 1 else None)
 
         l.pop()
+
+    assert list(diff_sorted([1, 3, 4], [2, 3, 5])) == [
+        Left(1),
+        Right(2),
+        (3, 3),
+        Left(4),
+        Right(5),
+    ]
