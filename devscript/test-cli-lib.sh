@@ -37,6 +37,21 @@ end() {
     echo ": $task_errors errors, $((now-task_started)) seconds"
 }
 
+finish() {
+    echo "total: $errors errors"
+    if ((errors > 0)); then
+        exit 1
+    fi
+}
+
+win32path() {
+    sed 's%/%\\%g; s%^%Z:%' <<< "$1"
+}
+
+win32path0_many() {
+    sed -z 's%/%\\%g; s%^%Z:%'
+}
+
 equal_file() {
     if ! diff -U 0 "$1" "$2"; then
         error "equal_file \`$1\` \`$2\` failed"
