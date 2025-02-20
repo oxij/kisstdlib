@@ -2,10 +2,9 @@
 #
 # A little shell library for testing CLI programs.
 #
-# This mainly exists for testing that a given command (which is invoked by a
-# function named `raw` here, which you are supposed to define in a script
-# sourcing this one) produces the same output between test invocations, i.e.
-# says the same between program versions.
+# This mainly exists for testing that given programs produce the same output
+# between test invocations. I.e., mainly, for testing that given programs
+# produce the same output at different versions.
 #
 # I.e., this is like integration tests, but for making sure the program plays
 # well with itself across versions.
@@ -35,112 +34,88 @@ start() {
 
 end() {
     local now=$(date +%s)
-    echo " $task_errors errors, $((now-task_started)) seconds"
+    echo ": $task_errors errors, $((now-task_started)) seconds"
 }
 
 equal_file() {
-    if ! diff -U 0 "$2" "$3"; then
-        error "$1: equal_file failed"
+    if ! diff -U 0 "$1" "$2"; then
+        error "equal_file \`$1\` \`$2\` failed"
     fi
 }
 
 equal_dir() {
-    if ! diff -U 0 <(describe-subtree "$2") <(describe-subtree "$3"); then
-        error "$1: equal_dir failed"
+    if ! diff -U 0 <(describe-subtree "$1") <(describe-subtree "$2"); then
+        error "equal_dir \`$1\` \`$2\` failed"
     fi
 }
 
-fixed_target() {
-    local target="$1"
-    local expected="$2.$target"
-    local got="$3/$target"
+fixed_file() {
+    local src="$1"
+    local got="$2"
+    shift 2
+    local bn="$(basename "$got")"
+    local expected="$src.$bn"
 
     if ! [[ -e "$expected" ]]; then
         cp "$got" "$expected"
-        echo " created $expected"
-    elif ! diff -U 0 "$expected" "$got"; then
+        echo " created \`$bn\` at \`$expected\`"
+    elif ! diff -U 0 "$expected" "$got" ; then
         cp "$got" "$expected.new"
-        error "$target: fixed_target failed"
+        error "fixed_file \`$bn\` failed"
     else
         rm -f "$expected.new"
     fi
 }
 
 fixed_dir() {
-    describe-subtree "$3/$1" > "$3/$1.describe-dir"
-    fixed_target "$1.describe-dir" "$2" "$3"
+    describe-subtree "$2" > "$2.describe-dir"
+    fixed_file "$1" "$2.describe-dir"
 }
 
-ok_raw() {
-    raw "$@"
+ok() {
+    "$@"
     code=$?
     if ((code != 0)); then
         die "$*: return code $code"
     fi
 }
 
-ok_separate() {
-    local target="$1"
-    local dst="$2"
-    shift 2
+ok_stdio2() {
+    local dst="$1"
+    shift 1
 
-    raw "$@" > "$dst/$target.stdout" 2> "$dst/$target.stderr"
+    "$@" &> "$dst"
     code=$?
     if ((code != 0)); then
-        cat "$dst/$target.stderr" >&2
-        die "$target: $*: return code $code"
+        cat "$dst" >&2
+        die "$*: return code $code"
     fi
 }
 
-ok_mixed() {
-    local target="$1"
-    local dst="$2"
-    shift 2
+ok_no_stderr() {
+    local tmp=$(mktemp --tmpdir test-cli-lib-stderr-XXXXXXXX)
 
-    raw "$@" &> "$dst/$target.out"
-    code=$?
-    if ((code != 0)); then
-        cat "$dst/$target.out" >&2
-        die "$target: $*: return code $code"
+    ok "$@" > /dev/null 2> "$tmp"
+    if [[ -s "$tmp" ]]; then
+        cat "$tmp" >&2
+        error "$*: stderr is not empty"
     fi
-}
-
-no_stderr() {
-    local target="$1"
-    local dst="$2"
-    shift 2
-
-    ok_separate "$target" "$dst" "$@"
-    if [[ -s "$dst/$target.stderr" ]]; then
-        cat "$dst/$target.stderr" >&2
-        error "$target: $*: stderr is not empty"
-    fi
-}
-
-fixed_output() {
-    local target="$1"
-    local src="$2"
-    local dst="$3"
-    shift 3
-
-    ok_mixed "$target" "$dst" "$@"
-    sed -i "s%$dst/%./%g" "$dst/$target.out"
-    fixed_target "$target.out" "$src" "$dst"
+    rm -r "$tmp"
 }
 
 # temp dir
-td=
+tmpdir=
 # temp pid
-tpid=
+tmppid=
 
-set_temp() {
-    td=$(mktemp --tmpdir -d hoardy-web-test-cli-XXXXXXXX)
-    td=$(readlink -f "$td")
+set_tmpdir() {
+    tmpdir=$(mktemp --tmpdir -d test-cli-lib-dir-XXXXXXXX)
+    tmpdir=$(readlink -f "$tmpdir")
 }
 
 atexit_cleanup() {
-    [[ -n "$td" ]] && rm -rf "$td"
-    [[ -n "$tpid" ]] && kill -9 "$tpid"
+    [[ -n "$tmpdir" ]] && rm -rf "$tmpdir"
+    [[ -n "$tmppid" ]] && kill -9 "$tmppid"
 }
 
 umask 077
