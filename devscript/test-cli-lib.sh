@@ -52,6 +52,30 @@ win32path0_many() {
     sed -z 's%/%\\%g; s%^%Z:%'
 }
 
+make_regular() {
+    local dst="$1"
+    local time="$2"
+    local content="$3"
+
+    echo -n "$content" > "$dst.part"
+    mv "$dst.part" "$dst"
+    touch -d "$time" "$dst"
+}
+
+make_symlink() {
+    local dst="$1"
+    local time="$2"
+    local target="$3"
+
+    ln -s "$target" "$dst.part"
+    mv "$dst.part" "$dst"
+    touch -h -d "$time" "$dst"
+}
+
+set_subtree_dir_mtimes() {
+    find "$1" -type d -exec touch -h -d "$2" {} \;
+}
+
 equal_file() {
     if ! diff -U 0 "$1" "$2"; then
         error "equal_file \`$1\` \`$2\` failed"
@@ -116,6 +140,17 @@ ok_no_stderr() {
         error "$*: stderr is not empty"
     fi
     rm -r "$tmp"
+}
+
+any_stdio2() {
+    local dst="$1"
+    shift 1
+
+    "$@" &> "$dst"
+    code=$?
+    if ((code != 0)); then
+        echo "# \$? == $code" >> "$dst"
+    fi
 }
 
 # temp dir
