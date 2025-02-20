@@ -26,7 +26,19 @@ import typing as _t
 
 from itertools import *
 
-from .base import Missing, MISSING, Number, AType as _AType, add_ as _add_
+from .base import (
+    Missing,
+    MISSING,
+    Number,
+    Either,
+    Left,
+    Right,
+    AType as _AType,
+    BType as _BType,
+    CType as _CType,
+    add_ as _add_,
+    identity as _identity,
+)
 
 
 def count_(start: Number = 0, step: Number = 1) -> _t.Iterator[Number]:
@@ -104,3 +116,82 @@ def drop(n: int, iterable: _t.Iterable[_AType]) -> list[_AType]:
 
 
 # TODO: zip_defaults
+
+
+def _next_or_missing(iterator: _t.Iterator[_AType]) -> _AType | Missing:
+    """`next(iterator)` or `MISSING` if it's finished. This function violates
+    the intended usage of `Missing`, which is why it's hidden from view.
+    """
+    try:
+        return next(iterator)
+    except StopIteration:
+        return MISSING
+
+
+def diff_sorted(
+    a_iterable: _t.Iterable[_AType],
+    b_iterable: _t.Iterable[_BType],
+    a_key: _t.Callable[[_AType], _CType] = _identity,  # type: ignore
+    b_key: _t.Callable[[_BType], _CType] = _identity,  # type: ignore
+) -> _t.Iterator[Either[_AType, _BType] | tuple[_AType, _BType]]:
+    """Given two sorted iterables, produce an iterator over differences between
+    them.
+
+    `a_key` and `b_key` are used to map elements of corresponding iterables
+    before comparisons. Both are set to `identity` by default.
+
+    The resulting iterator yields `Left`s with elements of the first iterator
+    missing from the second, `Right`s for vice versa, and 2-element `tuple`s
+    with both elements when `a_key` and `b_key` produce equal values.
+    """
+
+    a_iter = iter(a_iterable)
+    b_iter = iter(b_iterable)
+
+    a_e_ = _next_or_missing(a_iter)
+    b_e_ = _next_or_missing(b_iter)
+
+    if a_e_ is not MISSING and b_e_ is not MISSING:
+        a_e = _t.cast(_AType, a_e_)
+        a_k = a_key(a_e)
+        b_e = _t.cast(_BType, b_e_)
+        b_k = b_key(b_e)
+
+        while True:
+            if a_k < b_k:  # type: ignore
+                yield Left(a_e)
+                a_e_ = _next_or_missing(a_iter)
+                if a_e_ is not MISSING:
+                    a_e = _t.cast(_AType, a_e_)
+                    a_k = a_key(a_e)
+                    continue
+            elif b_k < a_k:  # type: ignore
+                yield Right(b_e)
+                b_e_ = _next_or_missing(b_iter)
+                if b_e_ is not MISSING:
+                    b_e = _t.cast(_BType, b_e_)
+                    b_k = b_key(b_e)
+                    continue
+            else:
+                yield a_e, b_e
+                a_e_ = _next_or_missing(a_iter)
+                b_e_ = _next_or_missing(b_iter)
+                if a_e_ is not MISSING and b_e_ is not MISSING:
+                    a_e = _t.cast(_AType, a_e_)
+                    a_k = a_key(a_e)
+                    b_e = _t.cast(_BType, b_e_)
+                    b_k = b_key(b_e)
+                    continue
+            break
+
+    # yield leftovers
+
+    while a_e_ is not MISSING:
+        a_e = _t.cast(_AType, a_e_)
+        yield Left(a_e)
+        a_e_ = _next_or_missing(a_iter)
+
+    while b_e_ is not MISSING:
+        b_e = _t.cast(_BType, b_e_)
+        yield Right(b_e)
+        b_e_ = _next_or_missing(b_iter)
