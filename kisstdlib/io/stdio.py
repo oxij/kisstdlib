@@ -28,9 +28,17 @@ import typing as _t
 
 from .wrapper import *
 
-stdin = TIOWrappedReader(_os.fdopen(_sys.stdin.fileno(), "rb"))
-stdout = TIOWrappedWriter(_os.fdopen(_sys.stdout.fileno(), "wb"))
-stderr = TIOWrappedWriter(_os.fdopen(_sys.stderr.fileno(), "wb"))
+stdin = TIOWrappedReader(_sys.stdin.buffer)
+stdout = TIOWrappedWriter(_sys.stdout.buffer)
+stderr = TIOWrappedWriter(_sys.stderr.buffer)
+
+
+def setup_stdio() -> None:
+    """Make `kisstdlib.io.stdio` play nicely with `print` and manual writes to
+    `sys.stdout` and `sys.stderr`, at the cost of some performance.
+    """
+    _sys.stdout.reconfigure(write_through=True)  # type: ignore
+    _sys.stderr.reconfigure(write_through=True)  # type: ignore
 
 
 def _numlines(x: str | bytes) -> int:

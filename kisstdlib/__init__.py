@@ -24,3 +24,4 @@
 
 from .base import *
 from .itertools_ext import *
+from .io.stdio import *
