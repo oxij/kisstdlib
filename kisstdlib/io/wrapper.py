@@ -268,6 +268,18 @@ class TIOWrappedWriter(TIOWrapper, MinimalIOWriter):
         self.write_strable(data)
         self.write(self.eol)
 
+    ### Terminal size
+
+    @property
+    def terminal_size(self) -> _os.terminal_size:
+        fdno = self.fdno
+        if fdno is not None:
+            try:
+                return _os.get_terminal_size(fdno)
+            except OSError:
+                pass
+        return _os.terminal_size((80, 24))
+
     ### ANSI escape codes
 
     def ansi_reset(self) -> None:
