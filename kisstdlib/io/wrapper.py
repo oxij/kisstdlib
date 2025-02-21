@@ -26,6 +26,7 @@ import enum as _enum
 import logging as _logging
 import os as _os
 import sys as _sys
+import textwrap as _textwrap
 import typing as _t
 
 from .base import *
@@ -152,6 +153,42 @@ class ANSIMode(_enum.IntEnum):
     OVERLINE = 53
     SUPERSCRIPT = 73
     SUBSCRIPT = 74
+
+
+class ANSIBorder:
+    SINGLE = ("┌─┐", "└─┘", "│", "│")
+    ROUNDED = ("╭─╮", "╰─╯", "│", "│")
+
+    HEAVY = ("┏━┓", "┗━┛", "┃", "┃")
+    HEAVY_SINGLE = ("┍━┑", "┕━┙", "│", "│")
+    SINGLE_HEAVY = ("┎─┒", "┖─┚", "┃", "┃")
+
+    DOUBLE = ("╔═╗", "╚═╝", "║", "║")
+    DOUBLE_SINGLE = ("╒═╕", "╘═╛", "│", "│")
+    SINGLE_DOUBLE = ("╓─╖", "╙─╜", "║", "║")
+
+    OUTER_BLOCK = ("▛▀▜", "▙▄▟", "▌", "▐")
+    OUTER_BLOCK_B = ("▞▀▚", "▚▄▞", "▌", "▐")
+    INNER_BLOCK = ("▗▄▖", "▝▀▘", "▐", "▌")
+
+    LIGHT_SHADE = ("░░░", "░░░", "░", "░")
+    MEDIUM_SHADE = ("▒▒▒", "▒▒▒", "▒", "▒")
+    DARK_SHADE = ("▓▓▓", "▓▓▓", "▓", "▓")
+
+    DOTTED23 = ("┌╌┐", "└╌┘", "┆", "┆")
+    DOTTED23_HEAVY = ("┏╍┓", "┗╍┛", "┇", "┇")
+
+    DOTTED34 = ("┌┄┐", "└┄┘", "┊", "┊")
+    DOTTED34_HEAVY = ("┏┅┓", "┗┅┛", "┋", "┋")
+
+    DOTTED2 = ("┌╌┐", "└╌┘", "╎", "╎")
+    DOTTED2_HEAVY = ("┏╍┓", "┗╍┛", "╏", "╏")
+
+    DOTTED3 = ("┌┄┐", "└┄┘", "┆", "┆")
+    DOTTED3_HEAVY = ("┏┅┓", "┗┅┛", "┇", "┇")
+
+    DOTTED4 = ("┌┈┐", "└┈┘", "┊", "┊")
+    DOTTED4_HEAVY = ("┏┉┓", "┗┉┛", "┋", "┋")
 
 
 class TIOWrappedWriter(TIOWrapper, MinimalIOWriter):
@@ -465,3 +502,197 @@ class TIOWrappedWriter(TIOWrapper, MinimalIOWriter):
         if not self.ansi:
             return
         return self.write_str(f"\x1b[{line + 1};{column + 1}H")
+
+    def ansi_hline(
+        self,
+        fill: str,
+        x: int,
+        y: int,
+        ex: int,
+        n: int = 1,
+        margin: int = 0,
+        shift: int = 0,
+    ) -> None:
+        """Draw a horizontal line. Draws `n` lines `(x, y + i) -> (ex, y + i)` filled
+        with `fill` shifted `shift` characters each new line.
+
+        Setting `margin` draws first and last `margin` characters of `fill`
+        without repetition, repeating and shifting only the middle.
+
+        With `self.ansi == False`, do nothing.
+        """
+        if not self.ansi:
+            return
+        w = ex - x
+        l = len(fill) - 2 * margin
+        middle = margin
+        if l < 0:
+            l = 1
+            middle = len(fill) // 2
+        for j in range(0, n):
+            self.ansi_move_to(x, y + j)
+            res = []
+            for i in range(0, margin):
+                res.append(fill[(i + shift * j) % margin])
+            for i in range(0, w - 2 * margin):
+                res.append(fill[middle + (i + shift * j) % l])
+            for i in range(0, margin):
+                res.append(fill[-margin + (i + shift * j) % margin])
+            self.write_str("".join(res))
+
+    def ansi_vline(
+        self,
+        fill: str,
+        x: int,
+        y: int,
+        ey: int,
+        n: int = 1,
+        margin: int = 0,
+        shift: int = 0,
+    ) -> None:
+        """Draw a vertical line. Draws `n` lines `(x + i, y) -> (x + i, ey)` filled
+        with `fill` shifted `shift` characters each new line.
+
+        With `self.ansi == False`, do nothing.
+        """
+        if not self.ansi:
+            return
+        h = ey - y
+        l = len(fill) - 2 * margin
+        middle = margin
+        if l < 0:
+            l = 1
+            middle = len(fill) // 2
+        for i in range(0, margin):
+            self.ansi_move_to(x, y + i)
+            res = []
+            for j in range(0, n):
+                res.append(fill[(i + shift * j) % margin])
+            self.write_str("".join(res))
+        for i in range(0, h - margin):
+            self.ansi_move_to(x, y + i + margin)
+            res = []
+            for j in range(0, n):
+                res.append(fill[middle + (i + shift * j) % l])
+            self.write_str("".join(res))
+        for i in range(0, margin):
+            self.ansi_move_to(x, ey - i)
+            res = []
+            for j in range(0, n):
+                res.append(fill[-margin + (i + shift * j) % margin])
+            self.write_str("".join(res))
+
+    def ansi_rect(self, fill: str, x: int, y: int, ex: int, ey: int, shift: int = 0) -> None:
+        """Draw a rectangle `(x, y) -> (ex, ey)` filled with `fill` shifted `shift`
+        characters each new line.
+
+        Setting `margin` draws first and last `margin` characters of `fill`
+        without repetition, repeating and shifting only the middle.
+
+        With `self.ansi == False`, do nothing.
+        """
+        if not self.ansi:
+            return
+        self.ansi_hline(fill, x, y, ex, ey - y, 0, shift)
+
+    def ansi_box(
+        self,
+        border: tuple[str, str, str, str],
+        x: int,
+        y: int,
+        ex: int,
+        ey: int,
+        n: int = 1,
+        m: int = 1,
+    ) -> None:
+        """Draw a box `(x, y) -> (ex, ey)` with given `border` of `x`-width of `n` and
+        `y`-height of `m`.
+
+        With `self.ansi == False`, do nothing.
+        """
+        if not self.ansi:
+            return
+        self.ansi_hline(border[0], x, y, ex, m, n, 1)
+        self.ansi_hline(border[1], x, ey - m, ex, m, n, 1)
+        self.ansi_vline(border[2], x, y + m, ey - m, n, 0)
+        self.ansi_vline(border[3], ex - n, y + m, ey - m, n, 0)
+
+    def ansi_text(
+        self,
+        lines: _t.Iterable[str],
+        x: int,
+        y: int,
+        width: int,
+        fill: str = " ",
+        center: bool = True,
+    ) -> None:
+        """Draw given text lines starting from `(x, y)`, filling them to `width` with
+        `fill` character.
+
+        With `self.ansi == False`, simply print `lines` as-is.
+        """
+        if not self.ansi:
+            for line in lines:
+                self.write_str_ln(line)
+            return
+
+        for i, line in enumerate(lines):
+            self.ansi_move_to(x, y + i)
+            if center:
+                l = width - len(line)
+                ld2 = l // 2
+                self.write_str(fill * ld2 + line + fill * (l - ld2))
+            else:
+                self.write_str(line + fill * (width - len(line)))
+
+    def make_ansi_scroll_box(
+        self,
+        text: str,
+        border: tuple[str, str, str, str],
+        x: int,
+        y: int,
+        ex: int,
+        ey: int,
+        n: int = 1,
+        m: int = 1,
+        fill: str = " ",
+        center: bool = True,
+        *,
+        color: int = -1,
+        background: int = -1,
+        modes: int | list[int] = -1,
+        border_color: int = -1,
+        border_background: int = -1,
+        border_modes: int | list[int] = -1,
+    ) -> tuple[int, _t.Callable[[int], None]]:
+        """Generate a function drawing an `ansi_box(border, x, y, ex, ey, n, m)` with
+        `ansi_text` wrapping the `text` inside of it, as needed.
+
+        Returns a tuple of `frames, render` where the first element is the
+        number of scroll animation frames and the second is a function drawing
+        those animation frames.
+
+        I.e., if wrapped text is longer than box height, then the returned
+        `frames` will be `> 1` and calling `render(n)` for `0 <= n < frames`
+        will render `n`-th frame of an animation of the text being scrolled in
+        the box.
+
+        With `self.ansi == False`, simply print `text` as-is and return `0,
+        lambda n: None`.
+        """
+        if not self.ansi:
+            self.write_str_ln(text)
+            return 0, lambda n: None
+
+        width = ex - x - 2 * n
+        height = ey - y - 2 * m
+        lines = _textwrap.wrap(text, width)
+        overflow = len(lines) - height
+
+        def scroll(i: int) -> None:
+            self.ansi_set(border_color, border_background, border_modes)
+            self.ansi_box(border, x, y, ex, ey, n, m)
+            self.ansi_set(color, background, modes)
+            self.ansi_text(lines[i : height + i], x + n, y + m, width, fill, center)
+
+        return max(0, overflow) + 1, scroll
