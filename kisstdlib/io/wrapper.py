@@ -88,7 +88,11 @@ class MinimalIOWrapper(MinimalIO):
 
 class TIOWrapper(MinimalIOWrapper):
     def __init__(
-        self, fobj: _t.Any, eol: bytes = b"\n", encoding: str = _sys.getdefaultencoding()
+        self,
+        fobj: _t.Any,
+        *,
+        encoding: str = _sys.getdefaultencoding(),
+        eol: str | bytes = b"\n",
     ) -> None:
         super().__init__(fobj)
         self.encoding = encoding
@@ -101,30 +105,18 @@ class TIOWrappedReader(TIOWrapper, MinimalIOReader):
 
 
 class TIOWrappedWriter(TIOWrapper, MinimalIOWriter):
+    """A nice wrapper over writable IOBase, which supports both `str` and `bytes`
+    writing.
+    """
+
     def write_some_bytes(self, data: BytesLike) -> int:
         return self.fobj.write(data)  # type: ignore
 
     def flush(self) -> None:
         self.fobj.flush()
 
-    def write_bytes_ln(self, data: BytesLike) -> None:
-        self.write_bytes(data)
-        self.write_bytes(self.eol)
-
     def write_str(self, data: str) -> None:
-        assert self.encoding is not None
         self.write_bytes(data.encode(self.encoding))
-
-    def write_str_ln(self, data: str) -> None:
-        self.write_str(data)
-        self.write_bytes(self.eol)
-
-    def write_strable(self, data: _t.Any) -> None:
-        self.write_str(str(data))
-
-    def write_strable_ln(self, data: _t.Any) -> None:
-        self.write_strable(data)
-        self.write_bytes(self.eol)
 
     def write(self, data: str | BytesLike) -> None:
         if isinstance(data, str):
@@ -132,10 +124,21 @@ class TIOWrappedWriter(TIOWrapper, MinimalIOWriter):
         else:
             self.write_bytes(data)
 
+    def write_bytes_ln(self, data: BytesLike) -> None:
+        self.write_bytes(data)
+        self.write(self.eol)
+
+    def write_str_ln(self, data: str) -> None:
+        self.write_str(data)
+        self.write(self.eol)
+
     def write_ln(self, data: str | BytesLike) -> None:
         self.write(data)
-        self.write_bytes(self.eol)
+        self.write(self.eol)
 
-    def __exit__(self, exc_type: _t.Any, exc_value: _t.Any, exc_tb: _t.Any) -> None:
-        self.flush()
-        self.close()
+    def write_strable(self, data: _t.Any) -> None:
+        self.write_str(str(data))
+
+    def write_strable_ln(self, data: _t.Any) -> None:
+        self.write_strable(data)
+        self.write(self.eol)

@@ -37,16 +37,18 @@ class PyReprEncoder(TIOEncoder):
         indent: int = 2,
         starting_indent: int = 0,
         width: int | None = None,
+        *,
         encoding: str = _sys.getdefaultencoding(),
+        eol: str | bytes = b"\n",
         encoders: dict[type[_t.Any], _t.Callable[[_t.Any, _t.Any], None]] | None = None,
         default: _t.Callable[[_t.Any, _t.Any], None] | None = None,
     ) -> None:
         super().__init__(
             fobj,
-            b"\n",
-            encoding,
-            pyrepr_default_encoders if encoders is None else encoders,
-            default,
+            encoding=encoding,
+            eol=eol,
+            encoders=pyrepr_default_encoders if encoders is None else encoders,
+            default=default,
         )
         self.indent = indent
         self.current = starting_indent

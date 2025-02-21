@@ -34,12 +34,13 @@ class TIOEncoder(TIOWrappedWriter):
     def __init__(  # pylint: disable=dangerous-default-value
         self,
         fobj: _t.Any,
-        eol: bytes = b"\n",
+        *,
         encoding: str = _sys.getdefaultencoding(),
+        eol: str | bytes = b"\n",
         encoders: dict[type[_t.Any], _t.Callable[[_t.Any, _t.Any], None]] = {},
         default: _t.Callable[[_t.Any, _t.Any], None] | None = None,
     ) -> None:
-        super().__init__(fobj, eol, encoding)
+        super().__init__(fobj, encoding=encoding, eol=eol)
         self.encoders = encoders.copy()
         if default is None:
             self.default = TIOEncoder.not_implemented
