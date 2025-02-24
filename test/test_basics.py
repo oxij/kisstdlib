@@ -88,3 +88,53 @@ def test_basics() -> None:
         Left(4),
         Right(5),
     ]
+
+    # string abbreviation
+
+    for n in range(0, 4):
+        assert abbrev("abcde", n, False, True) == "..."
+        assert abbrev("abcde", n, True, False) == "..."
+        assert abbrev("abcde", n, False, False) == "..."
+        assert abbrev("abcde", n, True, True) == "..."
+
+    assert abbrev("abcde", 4, False, True) == "a..."
+    assert abbrev("abcde", 4, True, False) == "...e"
+    assert abbrev("abcde", 4, False, False) == "a..."
+    assert abbrev("abcde", 4, True, True) == "..."
+
+    assert abbrev("abcdef", 4, False, True) == "a..."
+    assert abbrev("abcdef", 4, True, False) == "...f"
+    assert abbrev("abcdef", 4, False, False) == "a..."
+    assert abbrev("abcdef", 4, True, True) == "..."
+
+    assert abbrev("abcde", 5, False, True) == "abcde"
+    assert abbrev("abcde", 5, True, False) == "abcde"
+    assert abbrev("abcde", 5, False, False) == "abcde"
+    assert abbrev("abcde", 5, True, True) == "abcde"
+
+    assert abbrev("abcdef", 5, False, True) == "ab..."
+    assert abbrev("abcdef", 5, True, False) == "...ef"
+    assert abbrev("abcdef", 5, False, False) == "a...f"
+    assert abbrev("abcdef", 5, True, True) == "..."
+
+    assert abbrev("abcde", 2, False, True, ".") == "a."
+    assert abbrev("abcde", 2, True, False, ".") == ".e"
+    assert abbrev("abcde", 2, False, False, ".") == "a."
+    assert abbrev("abcde", 2, True, True, ".") == "."
+
+    assert abbrev("abcde", 3, False, True, ".") == "ab."
+    assert abbrev("abcde", 3, True, False, ".") == ".de"
+    assert abbrev("abcde", 3, False, False, ".") == "a.e"
+    assert abbrev("abcde", 3, True, True, ".") == ".c."
+
+    assert abbrev("abcde", 4, False, False, ".") == "ab.e"
+    assert abbrev("abcde", 4, True, True, ".") == ".bc."
+
+    assert abbrev("abcdef", 3, False, True, ".") == "ab."
+    assert abbrev("abcdef", 3, True, False, ".") == ".ef"
+    assert abbrev("abcdef", 3, False, False, ".") == "a.f"
+    assert abbrev("abcdef", 3, True, True, ".") == ".d."
+    assert abbrev("abcdef", 4, True, True, ".") == ".cd."
+    assert abbrev("abcdef", 5, True, True, ".") == ".cde."
+    assert abbrev("abcdef", 6, True, True, ".") == "abcdef"
+    assert abbrev("abcdefg", 6, True, True, ".") == ".bcde."
