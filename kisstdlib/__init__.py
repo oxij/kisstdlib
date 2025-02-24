@@ -23,5 +23,6 @@
 """Re-exports allowing to simply use `from kisstdlib import *` in most simple programs."""
 
 from .base import *
+from .string_ext import *
 from .itertools_ext import *
 from .io.stdio import *
