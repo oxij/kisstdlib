@@ -26,10 +26,15 @@
 
 """Extensions for the standard `argparse` module."""
 
+import sys as _sys
 import textwrap as _textwrap
 import typing as _t
+
 from argparse import *
 from gettext import gettext as _gettext
+
+from .io.stdio import stderr as _stderr
+from .logging_ext import die as _die
 
 
 class BetterHelpFormatter(HelpFormatter):
@@ -225,3 +230,12 @@ class BetterArgumentParser(ArgumentParser):
         formatter.add_text(self.epilog)
 
         return res
+
+    def exit(self, status: int = 0, message: str | None = None) -> _t.NoReturn:
+        if message:
+            _stderr.write(message)
+        _sys.exit(status)
+
+    def error(self, message: str) -> _t.NoReturn:
+        self.print_usage()
+        _die("%s", message, code=2)
