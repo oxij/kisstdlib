@@ -175,10 +175,7 @@ def main() -> None:
         cargs.mtimes = True
 
     if cargs.help:
-        if cargs.markdown:
-            print(parser.format_help(8192))
-        else:
-            print(parser.format_help())
+        print(parser.format_help())
         _sys.exit(0)
 
     del cargs.full

@@ -26,6 +26,7 @@
 
 """Extensions for the standard `argparse` module."""
 
+import shutil as _shutil
 import sys as _sys
 import textwrap as _textwrap
 import typing as _t
@@ -41,6 +42,17 @@ class BetterHelpFormatter(HelpFormatter):
     """Like `argparse.HelpFormatter`, but with better formatting. Also, adds
     `add_code` function.
     """
+
+    def __init__(
+        self,
+        prog: str,
+        indent_increment: int = 2,
+        max_help_position: int = 24,
+        width: int | None = None,
+    ):
+        if width is None:
+            width = _shutil.get_terminal_size(fallback=(65536, 20)).columns - 2
+        super().__init__(prog, indent_increment, max_help_position, width)
 
     def _fill_text(self, text: str, width: int, indent: str) -> str:
         res = []
@@ -73,7 +85,25 @@ class MarkdownBetterHelpFormatter(BetterHelpFormatter):
     def _format_usage(
         self, usage: str | None, actions: _t.Any, groups: _t.Any, prefix: str | None
     ) -> str:
-        return super()._format_usage(usage, actions, groups, "")
+        if prefix is None:
+            prefix = _gettext("usage: ")
+
+        if usage is not None:
+            usage = usage % {"prog": self._prog}
+        elif usage is None and not actions:
+            usage = self._prog
+        elif usage is None:
+            optionals = []
+            positionals = []
+            for action in actions:
+                if action.option_strings:
+                    optionals.append(action)
+                else:
+                    positionals.append(action)
+            action_usage = self._format_actions_usage(optionals + positionals, groups)
+            usage = " ".join([s for s in [self._prog, action_usage] if s])
+
+        return f"{prefix}{usage}\n\n"
 
     def _format_action(self, action: _t.Any) -> str:
         # determine the required width and the entry label
@@ -191,14 +221,13 @@ class BetterArgumentParser(ArgumentParser):
                     if e.formatter_class != formatter_class:
                         e.formatter_class = formatter_class
 
-    def format_help(self, width: int | None = None) -> str:
-        if width is None:
-            import shutil
+    def format_help(self, depth: int = 1) -> str:
+        # generate top-level thing, like the default `format_help` does
+        formatter = self.formatter_class(prog=self.prog)
 
-            width = shutil.get_terminal_size().columns - 2
-        formatter = self.formatter_class(prog=self.prog, width=width)
-
-        formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
+        formatter.add_usage(
+            self.usage, self._actions, self._mutually_exclusive_groups, "#" * depth + " "
+        )
         formatter.add_text(self.description)
 
         if hasattr(self, "_action_groups"):
@@ -210,8 +239,7 @@ class BetterArgumentParser(ArgumentParser):
                 )
                 formatter.end_section()
 
-        res: str = "# " + formatter.format_help()
-
+        # add sub-sections for all subparsers
         if hasattr(self._subparsers, "_group_actions"):
             seen = set()
             for grp in self._subparsers._group_actions:  # type: ignore # pylint: disable=protected-access
@@ -219,17 +247,19 @@ class BetterArgumentParser(ArgumentParser):
                     if e in seen:
                         continue
                     seen.add(e)
-                    e.formatter_class = self.formatter_class
-                    res += "\n#" + e.format_help(width=width)
+                    formatter._add_item(  # pylint: disable=protected-access
+                        e.format_help, [depth + 1]
+                    )
+                    formatter._add_item(lambda: "\n", [])  # pylint: disable=protected-access
 
+        # add additional sections
         for gen in self.additional_sections:
-            formatter = self.formatter_class(prog=self.prog, width=width)
             gen(formatter)
-            res += "\n" + formatter.format_help()
 
+        # add epilog
         formatter.add_text(self.epilog)
 
-        return res
+        return formatter.format_help()
 
     def exit(self, status: int = 0, message: str | None = None) -> _t.NoReturn:
         if message:
