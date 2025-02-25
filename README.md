@@ -125,6 +125,8 @@ Also, internally, this programs is actually a thin wrapper over `describe_forest
   : input directories
 
 - options:
+  - `--version`
+  : show program's version number and exit
   - `-h, --help`
   : show this help message and exit
   - `--markdown`

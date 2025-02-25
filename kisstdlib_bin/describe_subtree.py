@@ -132,6 +132,8 @@ def main() -> None:
     parser = BetterArgumentParser(
         prog="describe-subtree",
         description=__doc__,
+        add_version = True,
+        version = "1.0",
     )
 
     parser.add_argument("--numbers", dest="numbers", action="store_true",
