@@ -371,3 +371,23 @@ def get_traceback(exc: BaseException, /, lines: int = 128) -> str:
     fobj = _io.StringIO()
     _traceback.print_exception(type(exc), exc, exc.__traceback__, lines, fobj)
     return fobj.getvalue()
+
+
+_BaseExeceptionType = _t.TypeVar("_BaseExeceptionType", bound=BaseException)
+
+
+def flat_exceptions(
+    es: BaseExceptionGroup[_BaseExeceptionType], /
+) -> _t.Iterator[_BaseExeceptionType]:
+    """For simplifying some `try ... except*` expressions."""
+
+    def sub(
+        excs: _BaseExeceptionType | BaseExceptionGroup[_BaseExeceptionType],
+    ) -> _t.Iterator[_BaseExeceptionType]:
+        if isinstance(excs, BaseExceptionGroup):
+            for e in excs.exceptions:
+                yield from sub(e)
+        else:
+            yield excs
+
+    yield from sub(es)
