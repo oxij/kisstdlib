@@ -37,6 +37,26 @@ from sqlite3 import *  # pylint: disable=redefined-builtin
 import kisstdlib.failure as _kf
 
 
+def iter_fetchmany(cur: Cursor) -> _t.Iterator[_t.Any]:
+    """Iterate over `sqlite3.Cursor` by calling `fetchmany()` instead of
+    `fetchone()`.
+
+    My measurements show that in practice, usually, iteration with
+    `.fetchmany()` is slower than both implicit fetches via `for a in cur` and
+    explicit repeated calls to `.fetchone()`. But when loading data from a
+    database (and then using that data to access other data on disk, and both
+    the database and the other data are on the same spinning rust drive, then
+    using `.fetchmany()` is much faster, because loading a bunch of data all at
+    once saves on disk seeks.
+
+    """
+    while True:
+        chunk = cur.fetchmany()
+        if len(chunk) == 0:
+            break
+        yield from chunk
+
+
 class DBFailure(_kf.Failure):
     pass
 
