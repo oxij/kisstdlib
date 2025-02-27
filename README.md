@@ -7,6 +7,7 @@
 <ul>
 <li><a href="#describe-subtree" id="toc-describe-subtree">describe-subtree</a></li>
 </ul></li>
+<li><a href="#development-.test-example.sh---help---wine" id="toc-development-.test-example.sh---help---wine">Development: <code>./test-example.sh [--help] [--wine]</code></a></li>
 </ul>
 </details>
 
@@ -151,3 +152,7 @@ Also, internally, this programs is actually a thin wrapper over `describe_forest
   : time precision (as a negative power of 10); default: `0`, which means seconds, set to `9` for nanosecond precision
   - `--hash-length INT`
   : cut hashes by taking their prefixes of this many characters; default: print them whole
+
+# Development: `./test-example.sh [--help] [--wine]`
+
+Check that all `kisstdlib/example/*.py` are fixed-output.

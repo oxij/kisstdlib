@@ -17,6 +17,12 @@ for i in 0 1; do
 s/^\(#\+\) /#\1 /
 s/^\(#\+\) \(describe-subtree[^A-Z[({]*\) [A-Z[({].*/\1 \2/
 '
+
+    echo
+
+    ./test-example.sh --help | sed '
+s/^# usage: \(.*\)$/# Development: `\1`/
+'
 } > README.new
 mv README.new README.md
 done

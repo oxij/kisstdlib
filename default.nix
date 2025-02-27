@@ -29,6 +29,8 @@ buildPythonApplication (rec {
     setuptools
     sortedcontainers
   ];
+
+  postPatch = "patchShebangs *.sh";
 } // lib.optionalAttrs developer {
   nativeBuildInputs = [
     build twine pip mypy pytest black pylint
