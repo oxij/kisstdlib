@@ -74,7 +74,7 @@ def test_TIOWrappers() -> None:
     assert run_TIOWrappers(False) == (
         b"Hello, World!\nThis is default red.\n",
         b"Hello, World!\nThis is bold red on white.\n",
-        b"Hello, World!\n",
+        b"Hello, World!\n\n\n\n\n\n\n",
     )
     assert run_TIOWrappers(True) == (
         b"Hello, World!\n\x1b[0;31mThis is default red.\x1b[0m\n",

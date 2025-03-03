@@ -381,9 +381,10 @@ class TIOWrappedWriter(TIOWrapper, MinimalIOWriter):
     def ansi_clear(self) -> None:
         """Erase the whole screen and all history.
 
-        With `self.ansi == False`, do nothing.
+        With `self.ansi == False`, writes an empty line.
         """
         if not self.ansi:
+            self.write_str_ln("")
             return
         return self.write_str("\x1bc")
 
@@ -391,9 +392,10 @@ class TIOWrappedWriter(TIOWrapper, MinimalIOWriter):
         """Erase the current screen. With `before=False`, erase only after cursor. With
         `after=False`, erase only before cursor.
 
-        With `self.ansi == False`, do nothing.
+        With `self.ansi == False`, writes an empty line.
         """
         if not self.ansi:
+            self.write_str_ln("")
             return
         if before and after:
             return self.write_str("\x1b[2J")
@@ -415,9 +417,10 @@ class TIOWrappedWriter(TIOWrapper, MinimalIOWriter):
         """Erase current line. With `before=False`, erase only after cursor. With
         `after=False`, erase only before cursor.
 
-        With `self.ansi == False`, do nothing.
+        With `self.ansi == False`, writes an empty line.
         """
         if not self.ansi:
+            self.write_str_ln("")
             return
         if before and after:
             return self.write_str("\x1b[2K")
