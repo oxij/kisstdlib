@@ -23,6 +23,8 @@
 """Testing basic `kisstdlib` modules."""
 
 import typing as _t
+import urllib.parse as _up
+
 import pytest
 
 from kisstdlib import *
@@ -138,3 +140,63 @@ def test_basics() -> None:
     assert abbrev("abcdef", 5, True, True, ".") == ".cde."
     assert abbrev("abcdef", 6, True, True, ".") == "abcdef"
     assert abbrev("abcdefg", 6, True, True, ".") == ".bcde."
+
+    # escaping and quoting
+
+    for a, b in [
+        ("Hello, World!", "Hello, World!"),
+        ("\\", "\\\\"),
+        (R'\""', R'\\""'),
+        ("\x01\x02\x03", R"\x01\x02\x03"),
+        ("\\\v\tabc\r\ndef\x00\f\b", R"\\\v\tabc\r\ndef\0\f\b"),
+        ("abc=cde", "abc=cde"),
+        (R'abc="c\de"', R'abc="c\\de"'),
+    ]:
+        assert escape(a) == b
+        assert escape(a.encode("utf-8")) == b.encode("utf-8")
+        assert unescape(b) == a
+        assert unescape(b.encode("utf-8")) == a.encode("utf-8")
+
+    for a, b in [
+        ("\\", "\\\\"),
+        (R'\""', R"\\\"\""),
+        ("\x01\x02\x03", "\x01\x02\x03"),
+        ("\\\v\tabc\r\ndef\x00\f\b", "\\\\\v\tabc\r\ndef\x00\f\b"),
+        ("abc=cde", "abc=cde"),
+        (R'abc="c\de"', R"abc=\"c\\de\""),
+    ]:
+        assert escape(a, '"', lambda x: True) == b
+        assert escape(a.encode("utf-8"), '"', lambda x: True) == b.encode("utf-8")
+        assert unescape(b) == a
+        assert unescape(b.encode("utf-8")) == a.encode("utf-8")
+
+    for a, b in [
+        ("Hello, World!", "Hello%2C%20World%21"),
+        ("\\", "%5C"),
+        (R'\""', "%5C%22%22"),
+        ("\x01\x02\x03", "%01%02%03"),
+        ("\\\v\tabc\r\ndef\x00\f\b", "%5C%0B%09abc%0D%0Adef%00%0C%08"),
+        ("abc=cde", "abc%3Dcde"),
+        (R'abc="c\de"', "abc%3D%22c%5Cde%22"),
+        ("abаб", "ab%D0%B0%D0%B1"),
+    ]:
+        assert url_quote(a) == _up.quote(a) == b
+        assert url_quote(a.encode("utf-8")) == b.encode("utf-8")
+        assert url_unquote(b) == _up.unquote(b) == a
+        assert url_unquote(b.encode("utf-8")) == a.encode("utf-8")
+
+    for a, b in [
+        ("Hello, World!", "Hello%2C+World%21"),
+        ("Hello,+World!", "Hello%2C%2BWorld%21"),
+        ("abаб", "ab%D0%B0%D0%B1"),
+    ]:
+        assert url_quote(a, True) == _up.quote_plus(a) == b
+        assert url_quote(a.encode("utf-8"), True) == b.encode("utf-8")
+        assert url_unquote(b, True) == _up.unquote_plus(b) == a
+        assert url_unquote(b.encode("utf-8"), True) == a.encode("utf-8")
+
+    with pytest.raises(ValueError):
+        assert unescape("abc\\")
+
+    with pytest.raises(ValueError):
+        assert url_unquote("abc%2")
