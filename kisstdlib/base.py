@@ -227,6 +227,22 @@ def snd(x: tuple[AType, BType]) -> BType:
     return x[1]
 
 
+def first_def(*args: AType | None) -> AType:
+    """Return first argument that is not `None`."""
+    for e in args:
+        if e is not None:
+            return e
+    raise IndexError("no matching elements")
+
+
+def first_ok(*args: AType) -> AType:
+    """Return first `True`-like argument."""
+    for e in args:
+        if e:
+            return e
+    raise IndexError("no matching elements")
+
+
 def optional(b: BType, f: _t.Callable[[AType], BType], x: AType | None) -> BType:
     """`f(x) if x is not None else b`."""
     return f(x) if x is not None else b
