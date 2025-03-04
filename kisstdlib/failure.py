@@ -67,5 +67,9 @@ class AssertionFailure(CatastrophicFailure, AssertionError):
     """`AssertionError`-equivalent `CatastrophicFailure`."""
 
 
+class RuntimeFailure(Failure, RuntimeError):
+    """`RuntimeError`-equivalent `Failure`."""
+
+
 class ParsingFailure(Failure, ValueError):
     """A `Failure` of parsing something."""
