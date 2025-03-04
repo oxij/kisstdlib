@@ -105,6 +105,28 @@ def same_symlink_data(path1: str | bytes, path2: str | bytes) -> bool:
     return a == b
 
 
+HASH_BUFFER_SIZE = 16 * MiB
+
+
+def hash_file(
+    make_hasher: _t.Callable[[], _t.Any], path: str | bytes, buffer_size: int = HASH_BUFFER_SIZE
+) -> bytes:
+    """Use a `hashlib.Hash` factory to produce a hash digest of file contents."""
+    with open(path, "rb") as f:
+        hasher = make_hasher()
+        while True:
+            data = f.read(buffer_size)
+            if len(data) == 0:
+                break
+            hasher.update(data)
+        return hasher.digest()  # type: ignore
+
+
+def sha256_file(path: str | bytes, buffer_size: int = HASH_BUFFER_SIZE) -> bytes:
+    """Get `sha256` hash digest of file contents."""
+    return hash_file(_hashlib.sha256, path, buffer_size)
+
+
 IncludeFilesFunc = _t.Callable[[_t.AnyStr], bool]
 IncludeDirectoriesFunc = _t.Callable[
     [_t.AnyStr, _t.AnyStr, bool, list[tuple[_t.AnyStr, _t.AnyStr, bool]]], bool | None
@@ -372,18 +394,6 @@ def nonempty_leaf_directories(
     return False
 
 
-def _hex_sha256_of(path: str | bytes) -> str:
-    BUFFER_SIZE = 8 * MiB
-    with open(path, "rb") as f:
-        fhash = _hashlib.sha256()
-        while True:
-            data = f.read(BUFFER_SIZE)
-            if len(data) == 0:
-                break
-            fhash.update(data)
-        return fhash.hexdigest()
-
-
 def describe_forest(
     paths: list[_t.AnyStr],
     *,
@@ -449,7 +459,7 @@ def describe_forest(
             if _stat.S_ISDIR(stat.st_mode):
                 yield [epath + sep, "dir"] + emode + emtime
             elif _stat.S_ISREG(stat.st_mode):
-                sha256 = _hex_sha256_of(abs_path)
+                sha256 = sha256_file(abs_path).hex()
                 if hash_length is not None:
                     sha256 = sha256[:hash_length]
                 yield [epath, "reg"] + emode + emtime + esize + ["sha256", sha256]  # fmt: skip
