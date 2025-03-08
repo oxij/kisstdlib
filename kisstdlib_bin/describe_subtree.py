@@ -132,13 +132,6 @@ def main() -> None:
     parser = BetterArgumentParser(
         prog="describe-subtree",
         description=__doc__,
-        formatter_class=MarkdownBetterHelpFormatter,
-    )
-    parser.add_argument("-h", "--help", action="store_true",
-        help=_("show this help message and exit"),
-    )
-    parser.add_argument("--markdown", action="store_true",
-        help=_("show help messages formatted in Markdown"),
     )
 
     parser.add_argument("--numbers", dest="numbers", action="store_true",
@@ -173,14 +166,7 @@ def main() -> None:
     if cargs.full:
         cargs.modes = True
         cargs.mtimes = True
-
-    if cargs.help:
-        print(parser.format_help())
-        _sys.exit(0)
-
     del cargs.full
-    del cargs.help
-    del cargs.markdown
 
     for desc in describe_forest(**cargs.__dict__):
         print(*desc)

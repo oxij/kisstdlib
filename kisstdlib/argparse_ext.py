@@ -34,7 +34,8 @@ import typing as _t
 from argparse import *
 from gettext import gettext as _gettext
 
-from .io.stdio import stderr as _stderr
+from .base import identity as _identity
+from .io.stdio import stdout as _stdout, stderr as _stderr
 from .logging_ext import die as _die
 
 
@@ -158,53 +159,98 @@ class MarkdownBetterHelpFormatter(BetterHelpFormatter):
             return join(["\n", heading, item_help, "\n"])
 
 
+class OptionallyMarkdownHelpAction(Action):
+    def __init__(
+        self,
+        option_strings: list[str],
+        dest: str = SUPPRESS,
+        default: _t.Any = SUPPRESS,
+        help: str | None = None,  # pylint: disable=redefined-builtin
+    ) -> None:
+        super().__init__(
+            option_strings=option_strings, dest=dest, default=default, nargs=0, help=help
+        )
+
+    def show_help(self, parser: "BetterArgumentParser", namespace: Namespace) -> None:
+        if namespace._markdown:  # pylint: disable=protected-access
+            parser.set_formatter_class(MarkdownBetterHelpFormatter)
+            _stdout.write(parser.format_help())
+        else:
+            parser.print_help()
+        parser.exit()
+
+    def __call__(
+        self,
+        parser: ArgumentParser,
+        namespace: Namespace,
+        values: str | _t.Sequence[_t.Any] | None,
+        option_string: str | None = None,
+    ) -> None:
+        if not isinstance(parser, BetterArgumentParser):
+            raise ArgumentError(
+                None,
+                _gettext("`OptionallyMarkdownHelpAction` needs `BetterArgumentParser`"),
+            )
+        parser.post_parse_args = self.show_help
+
+
 class BetterArgumentParser(ArgumentParser):
-    """Like argparse.ArgumentParser but uses BetterHelpFormatter by default,
-    adds `--help` only to the root node, and
-    that `--help` prints the help for all the subcommands at once.
-    Also, provides `add_version` option.
+    """Like `argparse.ArgumentParser`, but uses `BetterHelpFormatter` by default,
+    and implements `format_help` that recurses into subcommands and appends
+    `additional_sections` at the end.
+
+    Also, this implements `add_version` option and disables `allow_abbrev` by
+    default, since it's produces error-prone CLIs.
     """
 
     formatter_class: type[BetterHelpFormatter]
 
     def __init__(
         self,
-        *args: _t.Any,
         prog: str | None = None,
+        *,
+        allow_abbrev: bool = False,  # error-prone default in `ArgumentParser`
+        add_version: bool = False,  # so that subparsers won't have this enabled
         version: str | None = None,
-        add_version: bool = False,  # we set these two to False by default
-        add_help: bool = False,  # so that subparsers don't get them enabled by default
-        additional_sections: list[_t.Callable[[BetterHelpFormatter], None]] = [],
+        add_help: bool = True,
         formatter_class: type[BetterHelpFormatter] = BetterHelpFormatter,
+        additional_sections: list[_t.Callable[[BetterHelpFormatter], None]] = [],
         **kwargs: _t.Any,
     ) -> None:
-        super().__init__(prog, *args, formatter_class=formatter_class, add_help=False, **kwargs)  # type: ignore
+        super().__init__(
+            prog,
+            allow_abbrev=allow_abbrev,
+            add_help=False,
+            formatter_class=formatter_class,
+            **kwargs,
+        )
 
-        if version is None:
-            version = "dev"
-            if prog is not None:
-                try:
-                    import importlib.metadata as meta
-
-                    try:
-                        version = meta.version(prog)
-                    except meta.PackageNotFoundError:
-                        pass
-                except ImportError:
-                    pass
-
-        self.version = version
         self.add_version = add_version
         self.add_help = add_help
         self.additional_sections = additional_sections
+        self.post_parse_args: _t.Callable[[BetterArgumentParser, Namespace], None] | None = None
 
         default_prefix = "-" if "-" in self.prefix_chars else self.prefix_chars[0]
-        if self.add_version:
+        if add_version:
+            if version is None:
+                version = "dev"
+                if prog is not None:
+                    try:
+                        import importlib.metadata as meta
+
+                        try:
+                            version = meta.version(prog)
+                        except meta.PackageNotFoundError:
+                            pass
+                    except ImportError:
+                        pass
             self.add_argument(
                 default_prefix * 2 + "version", action="version", version="%(prog)s " + version
             )
 
-        if self.add_help:
+        if add_help:
+            self.register("action", "help", OptionallyMarkdownHelpAction)
+
             self.add_argument(
                 default_prefix + "h",
                 default_prefix * 2 + "help",
@@ -212,14 +258,19 @@ class BetterArgumentParser(ArgumentParser):
                 default=SUPPRESS,
                 help=_gettext("show this help message and exit"),
             )
+            self.add_argument(
+                default_prefix * 2 + "markdown",
+                dest="_markdown",
+                action="store_true",
+                help=_gettext("show `--help` formatted in Markdown"),
+            )
 
     def set_formatter_class(self, formatter_class: type[BetterHelpFormatter]) -> None:
         self.formatter_class = formatter_class
         if hasattr(self._subparsers, "_group_actions"):
             for grp in self._subparsers._group_actions:  # type: ignore # pylint: disable=protected-access
                 for _choice, e in grp.choices.items():  # type: ignore
-                    if e.formatter_class != formatter_class:
-                        e.formatter_class = formatter_class
+                    e.set_formatter_class(formatter_class)
 
     def format_help(self, depth: int = 1) -> str:
         # generate top-level thing, like the default `format_help` does
@@ -269,3 +320,24 @@ class BetterArgumentParser(ArgumentParser):
     def error(self, message: str) -> _t.NoReturn:
         self.print_usage()
         _die("%s", message, code=2)
+
+    def parse_args(  # type: ignore
+        self,
+        args: _t.Sequence[str] | None = None,
+        namespace: Namespace | None = None,
+        remake_parser: _t.Callable[["BetterArgumentParser"], "BetterArgumentParser"] = _identity,
+        remake_subparser: _t.Callable[["BetterArgumentParser"], "BetterArgumentParser"] = _identity,
+    ) -> Namespace:
+        res: Namespace = super().parse_args(args, namespace)
+        post = self.post_parse_args
+        if post is not None:
+            post(remake_parser(self), res)
+        if hasattr(self._subparsers, "_group_actions"):
+            for grp in self._subparsers._group_actions:  # type: ignore # pylint: disable=protected-access
+                for _choice, e in grp.choices.items():  # type: ignore
+                    post = e.post_parse_args
+                    if post is not None:
+                        post(remake_subparser(e), res)
+        if self.add_help:
+            del res._markdown
+        return res

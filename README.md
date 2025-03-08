@@ -128,7 +128,7 @@ Also, internally, this programs is actually a thin wrapper over `describe_forest
   - `-h, --help`
   : show this help message and exit
   - `--markdown`
-  : show help messages formatted in Markdown
+  : show `--help` formatted in Markdown
   - `--numbers`
   : emit number prefixes even with a single input `PATH`
   - `--literal`
@@ -149,4 +149,3 @@ Also, internally, this programs is actually a thin wrapper over `describe_forest
   : time precision (as a negative power of 10); default: `0`, which means seconds, set to `9` for nanosecond precision
   - `--hash-length INT`
   : cut hashes by taking their prefixes of this many characters; default: print them whole
-
