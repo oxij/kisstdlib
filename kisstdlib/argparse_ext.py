@@ -341,3 +341,32 @@ class BetterArgumentParser(ArgumentParser):
         if self.add_help:
             del res._markdown
         return res
+
+
+_AParamSpec = _t.ParamSpec("_AParamSpec")
+
+
+def make_argparser_and_run(
+    make_argparser: _t.Callable[[bool], BetterArgumentParser],
+    func: _t.Callable[_t.Concatenate[Namespace, _AParamSpec], None],
+    /,
+    *args: _AParamSpec.args,
+    **kwargs: _AParamSpec.kwargs,
+) -> None:
+    """Given `make_argparser` function that produces "real" and "fake"
+    `BetterArgumentParser`s, run `parse_args` with on real one, but then, if
+    `--help` was requested, run `show_help` with the fake one.
+
+    I.e., allow the printed output of `--help` to differ from the real syntax
+    one.
+
+    This is useful for easily hiding whole blocks from `--help`, deduplicating
+    similar groups between subcommands, making non-`--help` version cheaper to
+    compute (by hiding complex generated help strings), etc.
+
+    Suparsers' `--help`s will be left as-is, so that `subcommand --help` would
+    show the real syntax.
+    """
+    parser = make_argparser(True)
+    cargs = parser.parse_args(_sys.argv[1:], remake_parser=lambda x: make_argparser(False))
+    func(cargs, *args, **kwargs)
