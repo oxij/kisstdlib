@@ -408,7 +408,7 @@ def describe_forest(
     hash_length: int | None = None,
 ) -> _t.Iterator[list[str]]:
     """Produce a simple `find .`+`stat`-like description of walks of given `paths`.
-    See `describe-subtree` script for more info.
+    See `describe-forest` script for more info.
     """
     escape: _t.Callable[[str], str] = _identity if literal else _escaper("\\").escape  # type: ignore
     seen: dict[tuple[int, int], tuple[_t.AnyStr, int, str]] = {}

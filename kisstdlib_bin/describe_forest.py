@@ -30,7 +30,7 @@ This is most useful for testing code that produces filesystem trees but it can a
 The most verbose output format this program can produce, for a single input file
 
 ```bash
-describe-subtree --full path/to/README.md
+describe-forest --full path/to/README.md
 ```
 
 looks as follows:
@@ -43,7 +43,7 @@ Note how both the path to and the name of the file do not appear in the output.
 This is what you would want for doing things like
 
 ```bash
-if ! diff -U 0 <(describe-subtree --full v1/path/to/README.md) <(describe-subtree --full v2/path/to/README.md) ; then
+if ! diff -U 0 <(describe-forest --full v1/path/to/README.md) <(describe-forest --full v2/path/to/README.md) ; then
     echo "output changed between versions!" >&2
     exit 1
 fi
@@ -55,7 +55,7 @@ which this program is designed for.
 For a single input directory
 
 ```bash
-describe-subtree --full path/to/dir
+describe-forest --full path/to/dir
 ```
 
 the output looks similar to this:
@@ -84,7 +84,7 @@ Multiple inputs get named by numbering them starting from "0".
 Thus, for instance, running this program with the same input file given twice
 
 ```bash
-describe-subtree --full path/to/README.md path/to/README.md
+describe-forest --full path/to/README.md path/to/README.md
 ```
 
 produces something like:
@@ -130,7 +130,7 @@ def main() -> None:
 
     # fmt: off
     parser = BetterArgumentParser(
-        prog="describe-subtree",
+        prog="describe-forest",
         description=__doc__,
         add_version = True,
         version = "1.0",

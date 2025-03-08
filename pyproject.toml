@@ -29,7 +29,7 @@ dependencies = [
     "sortedcontainers==2.4.*",
 ]
 [project.scripts]
-"describe-subtree" = "kisstdlib_bin.describe_subtree:main"
+"describe-forest" = "kisstdlib_bin.describe_forest:main"
 [project.urls]
 "Homepage" = "https://oxij.org/software/kisstdlib/"
 "GitHub" = "https://github.com/oxij/kisstdlib"

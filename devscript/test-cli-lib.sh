@@ -83,7 +83,7 @@ equal_file() {
 }
 
 equal_dir() {
-    if ! diff -U 0 <(describe-subtree "$1") <(describe-subtree "$2"); then
+    if ! diff -U 0 <(describe-forest "$1") <(describe-forest "$2"); then
         error "equal_dir \`$1\` \`$2\` failed"
     fi
 }
@@ -107,7 +107,7 @@ fixed_file() {
 }
 
 fixed_dir() {
-    describe-subtree "$2" > "$2.describe-dir"
+    describe-forest "$2" > "$2.describe-dir"
     fixed_file "$1" "$2.describe-dir"
 }
 

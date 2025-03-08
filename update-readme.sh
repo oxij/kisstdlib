@@ -13,9 +13,9 @@ for i in 0 1; do
     sed -n "/# What is/,/# Usage/ p" README.md
     echo
 
-    python3 -m kisstdlib_bin.describe_subtree --help --markdown | sed '
+    python3 -m kisstdlib_bin.describe_forest --help --markdown | sed '
 s/^\(#\+\) /#\1 /
-s/^\(#\+\) \(describe-subtree[^A-Z[({]*\) [A-Z[({].*/\1 \2/
+s/^\(#\+\) \(describe-forest[^A-Z[({]*\) [A-Z[({].*/\1 \2/
 '
 
     echo

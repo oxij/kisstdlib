@@ -5,7 +5,7 @@
 <li><a href="#parts-and-pieces" id="toc-parts-and-pieces">Parts and pieces</a></li>
 <li><a href="#usage" id="toc-usage">Usage</a>
 <ul>
-<li><a href="#describe-subtree" id="toc-describe-subtree">describe-subtree</a></li>
+<li><a href="#describe-forest" id="toc-describe-forest">describe-forest</a></li>
 </ul></li>
 <li><a href="#development-.test-example.sh---help---wine" id="toc-development-.test-example.sh---help---wine">Development: <code>./test-example.sh [--help] [--wine]</code></a></li>
 </ul>
@@ -25,7 +25,7 @@ However, this project already provides some useful thin-wrapper programs over `k
 
 # Usage
 
-## describe-subtree
+## describe-forest
 
 Produce a recursive deterministic self-descriptive `find .`+`stat`-like textual description of given files and/or directories.
 
@@ -35,7 +35,7 @@ This is most useful for testing code that produces filesystem trees but it can a
 The most verbose output format this program can produce, for a single input file
 
 ```bash
-describe-subtree --full path/to/README.md
+describe-forest --full path/to/README.md
 ```
 
 looks as follows:
@@ -48,7 +48,7 @@ Note how both the path to and the name of the file do not appear in the output.
 This is what you would want for doing things like
 
 ```bash
-if ! diff -U 0 <(describe-subtree --full v1/path/to/README.md) <(describe-subtree --full v2/path/to/README.md) ; then
+if ! diff -U 0 <(describe-forest --full v1/path/to/README.md) <(describe-forest --full v2/path/to/README.md) ; then
     echo "output changed between versions!" >&2
     exit 1
 fi
@@ -59,7 +59,7 @@ which this program is designed for.
 For a single input directory
 
 ```bash
-describe-subtree --full path/to/dir
+describe-forest --full path/to/dir
 ```
 
 the output looks similar to this:
@@ -88,7 +88,7 @@ Multiple inputs get named by numbering them starting from "0".
 Thus, for instance, running this program with the same input file given twice
 
 ```bash
-describe-subtree --full path/to/README.md path/to/README.md
+describe-forest --full path/to/README.md path/to/README.md
 ```
 
 produces something like:
