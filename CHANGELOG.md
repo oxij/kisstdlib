@@ -6,6 +6,234 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 Also, at the bottom of this file there is a [TODO list](#todo) with planned future changes.
 
+## [v0.0.9] - 2025-03-10
+
+### Changed (1)
+
+- Renamed `kisstdlib.argparse.better` module -\> `kisstdlib.argparse_ext`.
+
+- Renamed `kisstdlib.util` module -\> `kisstdlib.base`.
+
+- Renamed `kisstdlib.logging` module -\> `kisstdlib.logging_ext`.
+
+- `kisstdlib.base`:
+
+  - Renamed `(In|Out|Extra)Type` -\> `(A|B|E)Type`.
+  - Added more placeholder types, similarly named.
+  - Re-imported `Decimal` here.
+  - Moved `NumericType` here.
+  - Renamed `NumericType` -\> `AnyNumber`.
+  - Moved `BytesLike` and byte sizes here.
+  - Renamed `str_Exception` -\> `get_traceback`, generalized it a bit.
+  - Renamed `map_optionals` -\> `map_optional2list`.
+  - Generalized `compose_*calls` into a single `compose_pipe`.
+  - Switched to using positional-only parameters where appropriate.
+
+- `kisstdlib.fs`:
+
+  - Renamed `walk_orderly` -\> `iter_subtree`, improved its type.
+  - Renamed `describe_walk` -\> `describe_forest`.
+  - Improved and simplified the API of `describe_forest`.
+  - Renamed `fsync_path` -\> `fsync_file`.
+  - Renamed `fsync_many_paths` -\> `fsync_many_files`.
+  - Renamed `unlink_many_paths` -\> `unlink_many`
+  - Improved the behaviour of `unlink_many` and `fsync_many_files`.
+  - Added `makedirs` arguments to all relevant functions.
+
+- `kisstdlib.sorted:SortedIndex`:
+
+ - Generalized it into an `AbstractSortedIndex` with the original `SortedIndex` as its implementation.
+ - Renamed all internal API methods to `internal_*`.
+
+- `kisstdlib.io.wrapper:TIOWrappedWriter`:
+
+  - From now on, it allows `eol` to be `str`.
+  - Improved it a bit.
+
+- `kisstdlib.io.stdio`:
+
+  - Edited it to play nicely with `sys.std(in|out|err)`.
+
+- `kisstdlib.logging_ext`:
+
+  - Renamed `CountHandler` -\> `LogCounter`.
+  - In `LogCounter`:
+      - Switched to inheriting from `Handler` instead, for thread safety.
+      - From now on, it will count everything below `INFO` as `debugs`.
+
+### Added (1)
+
+- `kisstdlib.base`:
+
+  - Introduced `Number` type with a bunch of operations for it.
+  - Introduced some more constants.
+  - Introduced `Missing` and `MISSING`.
+  - Introduced `identity_`, `const`, `const_`.
+  - Introduced `Maybe`, `maybe`, `map_maybe`, `map_maybe2list`.
+  - Introduced `Either`, `either`, `map_left`, `map_right`.
+  - Introduced `optional`, `optional2list`.
+  - Introduced `fst`, `snd`.
+  - Introduced `singleton`, `optlist`, `optslist`.
+  - Introduced `first_def` and `first_ok`.
+  - Introduced `flat_exceptions`.
+
+- `kisstdlib.string_ext`:
+
+  - Introduced the module.
+  - Introduced `abbrev`.
+  - Introduced `StringLexer`, which is a simple parser generator for simple string lexing syntaxes.
+  - Introduced `escaper`, `escape`, `unescape`, which do `lex`-style string processing.
+  - Introduced `quoter`, `url_quote`, `url_unquote`, which do what similar `urllib.parse` functions do, but faster, and with more options.
+  - Introduced a bunch of related constants.
+
+- `kisstdlib.fs`:
+
+  - Introduced `same_file_data` and `same_symlink_data`.
+  - Added `sep` and `sepb`.
+  - Introduced `hash_file` and `sha256_file`.
+
+- `kisstdlib.itertools_ext`:
+
+  - Introduced the module with a bunch of commonly useful iteration-related stuff.
+  - Introduced `diff_sorted`.
+
+- `kisstdlib.time:Timestamp`
+
+  - Implemented `__add__` and `__sub__`.
+
+- `kisstdlib.sorted:AbstractSortedIndex`, `kisstdlib.sorted:SortedIndex`:
+
+ - In `internal_from_to`:
+     - Added support for reverse walking.
+     - added support for inclusion and exclusion of bounds.
+
+ - Introduced `internal_from_to_step` which adds `step`ping support to any `internal_from_to`.
+ - Introduced `iter_range` which adds `predicate` support to `internal_from_to_step`.
+ - Introduced a bunch of other convenience functions.
+
+- `kisstdlib.sqlite3_ext`:
+
+  - Introduced the module with a bunch of commonly useful `sqlite3`-related stuff.
+
+- `kisstdlib.signal_ext`:
+
+  - Introduced the module with a bunch of stuff useful for signal handling.
+
+- `kisstdlib.getpass_ext`:
+
+  - Introduced the module with a bunch `getpass`-related stuff.
+
+- `kisstdlib.io.wrapper:TIOWrappedWriter`:
+
+  - Implemented ANSI TTY Escape Sequences support, making a pretty nice API for it.
+  - Added ANSI box and wrapped text drawing.
+  - Introduced `terminal_size` API.
+
+  Also, note that `TIOWrappedWriter`, by default, will automatically fallback to non-ANSI plain-text mode when the output is not a TTY of when `NO_COLOR=1` environment variable is set.
+
+  Also, those newly introduced `ansi_*` API functions fallback to plain-text output when ANSI mode is disabled in a way that is designed to work pretty well with very little care taken in the code that uses them.
+
+  I.e. you can just color things, draw boxes, scroll text around, and etc without care, and it will make the output readable in plain-text mode for you for free.
+
+- `kisstdlib.io.stdio`:
+
+  - Introduced `setup_stdio`.
+  - Introduced `printf` and `printf_err` with ANSI TTY color support.
+
+- `kisstdlib.logging_ext`:
+
+  - Introduced `ANSILogHandler`, which use `printf` to render the log very prettily on an ANSI TTY.
+  - Introduced `die`.
+  - Introduced `setup_logging`.
+  - Re-exported common logging things from `logging`.
+
+### Removed
+
+- `kisstdlib.fs`:
+
+  - Removed `describe_path`, `describe_forest` is simple enough now.
+
+- `kisstdlib.base`:
+
+  - Replaced `first` with a more general version in `itertools_ext`.
+
+### Fixed
+
+- `kisstdlib.fs:iter_subtree`:
+
+  - From now on it will sort directories as if they have `os.path.sep` after their name.
+
+    Otherwise, `list(map(first, iter_subtree(..., include_directories=False)))` won't be sorted.
+
+    This was broken since 730b1422ea6714349693163f6ae9965a80c00c5d.
+
+    Also, added those separators to the outputs of `describe_forest`.
+
+- `kisstdlib.failure:CatastrophicFailure`:
+
+  - Implemented `__repr__`.
+
+- `kisstdlib.sorted`:
+
+  - Fixed a bug in `internal_from_nearest` found by tests.
+
+- `kisstdlib.argparse_ext`:
+
+  - In `BetterArgumentParser`, fixed it to properly format subparser headers to arbitrary `depth`.
+
+### Changed (2)
+
+- `kisstdlib.argparse_ext`:
+
+  - Switched to using `kisstdlib.io.stdio` and `kisstdlib.logging_ext`.
+  - Improved and simplified Markdown formatting code.
+  - Simplified `BetterArgumentParser.format_help`, make it play better with default `argparse` things.
+  - Made `MarkdownBetterHelpFormatter` produce proper Markdown headers independent of `width`.
+  - Improved `BetterArgumentParser` defaults.
+
+### Added (2)
+
+- `kisstdlib.argparse_ext`:
+
+  - Introduced `OptionallyMarkdownHelpAction`.
+  - Implemented `--help` and `--markdown` directly in `BetterArgumentParser`.
+  - Introduced `make_argparser_and_run`.
+
+- `kisstdlib`:
+
+  - Introduced `setup_kisstdlib` and `run_kisstdlib_main`.
+  - Re-exported all the commonly useful things.
+
+- Examples:
+
+  - Added a bunch of new examples.
+
+- Tests:
+
+  - Added a bunch more `./test/*` unit tests.
+  - Added `./test-example.sh` with fixed-output tests testing that examples produce the same results between versions.
+
+### Changed (3)
+
+- Renamed `describe-dir` script -\> `describe-forest`.
+
+- `describe-forest`:
+
+  - Improved `describe-forest--help`.
+  - Added `describe-forest --version`.
+  - Added more command-line options.
+  - Improved output format.
+
+- `test-cli-lib.sh`:
+
+  - Added a bunch more functions there.
+  - Generalized and simplified it all.
+  - Improved logging.
+
+- `*`:
+
+  - Improved documentation and docstrings.
+
 ## [v0.0.8] - 2025-01-22
 
 ### Changed
@@ -89,6 +317,7 @@ Also, at the bottom of this file there is a [TODO list](#todo) with planned futu
 
 - Initial release.
 
+[v0.0.9]: https://github.com/oxij/kisstdlib/compare/v0.0.8...v0.0.9
 [v0.0.8]: https://github.com/oxij/kisstdlib/compare/v0.0.7...v0.0.8
 [v0.0.7]: https://github.com/oxij/kisstdlib/compare/v0.0.6...v0.0.7
 [v0.0.6]: https://github.com/oxij/kisstdlib/compare/v0.0.5...v0.0.6
