@@ -11,7 +11,7 @@ namespaces = true
 name = "kisstdlib"
 version = "0.0.8"
 authors = [{ name = "Jan Malakhovski", email = "oxij@oxij.org" }]
-description = "Keep It Simple STandarD LIBraries set for Python"
+description = "System programming with conceptually and algebraically simple primitives."
 readme = "README.md"
 classifiers = [
     "Development Status :: 4 - Beta",

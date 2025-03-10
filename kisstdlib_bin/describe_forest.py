@@ -22,10 +22,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Produce a recursive deterministic self-descriptive `find .`+`stat`-like textual description of given files and/or directories.
+"""Produce a plain-text recursive deterministic `find`/`ls`/`stat`-like description of given file and/or directory inputs.
 
-I.e., given one or more inputs, this program produces an easily `diff`able output describing what the input consists of.
-This is most useful for testing code that produces filesystem trees but it can also be used as a better alternative to `ls -lR` or `find . -exec ls -l {} \\;`.
+The output format is designed to be descriptive and easily `diff`able while also producing minimally dissimilar outputs for similar inputs, even when those inputs contain lots of symlinks and/or hardlinks.
+I.e., essentially, this is an alternative to `ls -lR` and/or `find . -exec ls -l {} \\;` which generates outputs that change very little when files with multiple symlinks and/or hardlinks change.
+
+This is most useful for testing code that produces filesystem trees.
 
 The most verbose output format this program can produce, for a single input file
 
@@ -50,7 +52,6 @@ fi
 ```
 
 which this program is designed for.
-
 
 For a single input directory
 

@@ -13,24 +13,42 @@
 
 # What is `kisstdlib`?
 
-`kisstdlib` is a [Python](https://www.python.org/) library that aims to enhance the Standard experience while Keeping It all very conceptually and algebraically Simple.
+`kisstdlib` is a set of modules for the [Python](https://www.python.org/) programming language, designed mostly for system programming with a touch of everything else, that aims to enhance the standard experience while keeping everything it does conceptually and algebraically simple.
 
-The design is very much informed by borrowing from [Haskell](https://www.haskell.org/) programming language, where appropriate.
+This library borrows heavily from the [Haskell](https://www.haskell.org/) programming language, where appropriate.
+(The Python's bundled modules do that too in many places, but `kisstdlib` borrows more.)
+
+In short, `kisstdlib` mostly implements useful extensions for Python's bundled modules, keeping the APIs backward compatible and naming things in the same style.
+The only exception to this is, yet unpublished, `io.loop` module, which implements Free-Monad-based IO.
+
+At the moment, `kisstdlib` is an alpha work in progress software with an unstable API.
 
 # <span id="pieces"/>Parts and pieces
 
-An Alpha Work In Progress software at the moment.
+`kisstdlib` consists of:
 
-However, this project already provides some useful thin-wrapper programs over `kisstdlib` functions, which I use for writing tests in other programs, which are shown below.
+- a bunch of Python modules under [./kisstdlib](./kisstdlib);
+
+  they are pretty well-documented there, though there's no generated `sphinx` docs yet;
+
+- a bunch of human-readable [examples](./example) using those modules;
+
+- some useful thin-wrapper programs over `kisstdlib` functions, useful for writing whole-program and/or fixed-output/extensional-equality tests;
+
+  the documentation of which gets rendered into the following "Usage" section;
+
+- as well as some testing-related infrastructure built on top of this, in [./devscript](./devscript).
 
 # Usage
 
 ## describe-forest
 
-Produce a recursive deterministic self-descriptive `find .`+`stat`-like textual description of given files and/or directories.
+Produce a plain-text recursive deterministic `find`/`ls`/`stat`-like description of given file and/or directory inputs.
 
-I.e., given one or more inputs, this program produces an easily `diff`able output describing what the input consists of.
-This is most useful for testing code that produces filesystem trees but it can also be used as a better alternative to `ls -lR` or `find . -exec ls -l {} \;`.
+The output format is designed to be descriptive and easily `diff`able while also producing minimally dissimilar outputs for similar inputs, even when those inputs contain lots of symlinks and/or hardlinks.
+I.e., essentially, this is an alternative to `ls -lR` and/or `find . -exec ls -l {} \;` which generates outputs that change very little when files with multiple symlinks and/or hardlinks change.
+
+This is most useful for testing code that produces filesystem trees.
 
 The most verbose output format this program can produce, for a single input file
 
