@@ -119,7 +119,7 @@ def delay_signal_handler(signum: int, _frame: _t.Any) -> None:
     `yes_signals` block.
     """
 
-    _delayed_signals[signum] = num = _delayed_signals.get(signum, 0) + 1
+    num = _delayed_signals.get(signum, 0) + 1
 
     enabled, verbose = _delay_signals_state
     if isinstance(verbose, str):
@@ -134,7 +134,13 @@ def delay_signal_handler(signum: int, _frame: _t.Any) -> None:
                 start="\n",
                 color=1,
             )
+        try:
+            del _delayed_signals[signum]
+        except KeyError:
+            pass
         raise SignalInterrupt(signum, True)
+
+    _delayed_signals[signum] = num
 
     if verbose:
         _printf_err(
