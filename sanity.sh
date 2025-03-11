@@ -4,5 +4,7 @@ black $1 .
 mypy
 pytest -k 'not slow'
 pylint .
-./test-example.sh
 ./update-readme.sh
+if [[ "$1" == "--check" ]]; then
+    ./test-example.sh
+fi
