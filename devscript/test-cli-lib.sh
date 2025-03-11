@@ -134,8 +134,12 @@ ok_stdio2() {
 ok_no_stderr() {
     local tmp=$(mktemp --tmpdir test-cli-lib-stderr-XXXXXXXX)
 
-    ok "$@" > /dev/null 2> "$tmp"
-    if [[ -s "$tmp" ]]; then
+    "$@" > /dev/null 2> "$tmp"
+    code=$?
+    if ((code != 0)); then
+        cat "$tmp" >&2
+        die "$*: return code $code"
+    elif [[ -s "$tmp" ]]; then
         cat "$tmp" >&2
         error "$*: stderr is not empty"
     fi
