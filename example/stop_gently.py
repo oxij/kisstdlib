@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # Prepare everything, this will setup signal handlers.
     setup_kisstdlib("program-name")
 
-    print("### In short")
+    printf_err("### In short")
 
     # The short version is that, after `setup_delay_signals` (called by the
     # `setup_kisstdlib` above), inside a `with no_signals()` block, `raise`ing
@@ -65,11 +65,11 @@ if __name__ == "__main__":
         try:
             with no_signals():
                 os.kill(pid, signal.SIGINT)
-            print("won't ever execute")
+            printf_err("won't ever execute")
         except* SignalInterrupt as excs:
-            printf("Got: except* %s", repr(excs), color=ANSIColor.YELLOW)
+            printf_err("Got: except* %s", repr(excs), color=ANSIColor.YELLOW)
     except BaseException as exc:
-        printf("Top %s!", repr(exc), color=ANSIColor.YELLOW)
+        printf_err("Top %s!", repr(exc), color=ANSIColor.YELLOW)
 
     # or as `BaseExceptionGroup`s of them, when the process recieves a bunch of
     # them:
@@ -79,16 +79,14 @@ if __name__ == "__main__":
                 os.kill(pid, signal.SIGINT)
                 os.kill(pid, signal.SIGTERM)
                 with yes_signals():
-                    print("won't ever execute")
-            print("won't ever execute")
+                    printf_err("won't ever execute")
+            printf_err("won't ever execute")
         except* SignalInterrupt as excs:
-            printf("Got: except* %s", repr(excs), color=ANSIColor.YELLOW)
+            printf_err("Got: except* %s", repr(excs), color=ANSIColor.YELLOW)
     except BaseException as exc:
-        printf("Top: %s!", repr(exc), color=ANSIColor.YELLOW)
+        printf_err("Top: %s!", repr(exc), color=ANSIColor.YELLOW)
 
     forget_delayed_signals()
-
-    print("\n### Usage 1")
 
     # This allows you to do things like the following.
     #
@@ -103,13 +101,15 @@ if __name__ == "__main__":
     # ^C twice while it is inside, `SignalInterrupt(signal.SIGINT, forced=True)`
     # will be raised immediately.
     for n in range(0, num):
+        printf_err("\n### Usage 1: %d", n)
+
         try:
             for i in range(0, 10):
                 with no_signals():
                     # This part, ideally, should not be interrupted.
-                    printf("Work on batch %d, atomically", i)
+                    printf_err("Work on batch %d, atomically", i)
                     for j in range(0, 10):
-                        printf("  ... element %d", j)
+                        printf_err("  ... element %d", j)
                         sleep(timeout)
 
                         if simulate:
@@ -119,18 +119,18 @@ if __name__ == "__main__":
                             elif n == 1 and i == 2 and j == 5:
                                 os.kill(pid, signal.SIGINT)
                                 os.kill(pid, signal.SIGINT)
-                    printf("Commit batch %d.", i, color=ANSIColor.GREEN)
+                    printf_err("Commit batch %d.", i, color=ANSIColor.GREEN)
         except BaseException as exc:
-            printf("Top: %s! Rollback!", repr(exc), color=ANSIColor.YELLOW)
+            printf_err("Top: %s! Rollback!", repr(exc), color=ANSIColor.YELLOW)
 
         forget_delayed_signals()
-
-    print("\n### Usage 2")
 
     # Alternatively, you can call `raise_first_delayed_signal` at specific
     # program points under `no_signals` explicitly:
 
     for n in range(0, num):
+        printf_err("\n### Usage 2: %d", n)
+
         i = 0
         try:
             with no_signals():
@@ -139,13 +139,13 @@ if __name__ == "__main__":
                     try:
                         raise_first_delayed_signal()
                     except SignalInterrupt:
-                        printf("Finished %d batches.", i, color=ANSIColor.GREEN)
+                        printf_err("Finished %d batches.", i, color=ANSIColor.GREEN)
                         break
 
                     # This part, ideally, should not be interrupted.
-                    printf("Work on batch %d, atomically", i)
+                    printf_err("Work on batch %d, atomically", i)
                     for j in range(0, 10):
-                        printf("  ... element %d", j)
+                        printf_err("  ... element %d", j)
                         sleep(timeout)
 
                         if simulate:
@@ -155,17 +155,17 @@ if __name__ == "__main__":
                             elif n == 1 and i == 2 and j == 5:
                                 os.kill(pid, signal.SIGINT)
                                 os.kill(pid, signal.SIGINT)
-                printf("Commit everything.", color=ANSIColor.GREEN)
+                printf_err("Commit everything.", color=ANSIColor.GREEN)
         except BaseException as exc:
-            printf("Top: %s! Rollback!", repr(exc), color=ANSIColor.YELLOW)
+            printf_err("Top: %s! Rollback!", repr(exc), color=ANSIColor.YELLOW)
 
         forget_delayed_signals()
-
-    print("\n### Usage 3")
 
     # Alternatively, you can call catch `GentleSignalInterrupt` instead:
 
     for n in range(0, num):
+        printf_err("\n### Usage 3: %d", n)
+
         i = 0
         try:
             with no_signals():
@@ -173,9 +173,9 @@ if __name__ == "__main__":
                     raise_first_delayed_signal()
 
                     # This part, ideally, should not be interrupted.
-                    printf("Work on batch %d, atomically", i)
+                    printf_err("Work on batch %d, atomically", i)
                     for j in range(0, 10):
-                        printf("  ... element %d", j)
+                        printf_err("  ... element %d", j)
                         sleep(timeout)
 
                         if simulate:
@@ -185,38 +185,38 @@ if __name__ == "__main__":
                             elif n == 1 and i == 2 and j == 5:
                                 os.kill(pid, signal.SIGINT)
                                 os.kill(pid, signal.SIGINT)
-                printf("Commit everything.", color=ANSIColor.GREEN)
+                printf_err("Commit everything.", color=ANSIColor.GREEN)
         except GentleSignalInterrupt as exc:
             # raised by `raise_first_delayed_signal`
-            printf("Commit %d finished batches.", i, color=ANSIColor.GREEN)
+            printf_err("Commit %d finished batches.", i, color=ANSIColor.GREEN)
         except SignalInterrupt as exc:
             # raised by force-interrupting
-            printf("Rollback %d unfinished batches.", i + 1, color=ANSIColor.YELLOW)
+            printf_err("Rollback %d unfinished batches.", i + 1, color=ANSIColor.YELLOW)
         except BaseException as exc:
-            printf("Top: %s! Rollback!", repr(exc), color=ANSIColor.YELLOW)
+            printf_err("Top: %s! Rollback!", repr(exc), color=ANSIColor.YELLOW)
 
         forget_delayed_signals()
-
-    print("\n### Usage: Sleeping")
 
     # If your program is a daemon that does some work and then sleeps, and that
     # sleep is the place where the program should be interrupted, then you can
     # also do this:
 
     for n in range(0, num):
+        printf_err("\n### Usage: Sleeping: %d", n)
+
         try:
             with no_signals():
                 for i in range(0, 10):
-                    print("Maybe sleeping...")
+                    printf_err("Maybe sleeping...")
                     # `time.sleep` inside `yes_signals`, but raises
                     # `GentleSignalInterrupt(...)` regardless
                     soft_sleep(timeout * 5)
 
                     # This part, ideally, should not be interrupted.
                     try:
-                        printf("Work on batch %d, atomically", i)
+                        printf_err("Work on batch %d, atomically", i)
                         for j in range(0, 10):
-                            printf("  ... element %d", j)
+                            printf_err("  ... element %d", j)
                             sleep(timeout)
 
                             if simulate:
@@ -226,9 +226,9 @@ if __name__ == "__main__":
                                 elif n == 1 and i == 2 and j == 5:
                                     os.kill(pid, signal.SIGINT)
                                     os.kill(pid, signal.SIGINT)
-                        printf("Commit.", color=ANSIColor.GREEN)
+                        printf_err("Commit.", color=ANSIColor.GREEN)
                     except BaseException as exc:
-                        printf("Got: %s! Rollback!", type(exc).__name__, color=ANSIColor.YELLOW)
+                        printf_err("Got: %s! Rollback!", type(exc).__name__, color=ANSIColor.YELLOW)
                         raise
         except BaseException as exc:
-            printf("Top: %s!", repr(exc), color=ANSIColor.YELLOW)
+            printf_err("Top: %s!", repr(exc), color=ANSIColor.YELLOW)
