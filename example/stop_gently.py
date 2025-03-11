@@ -96,8 +96,8 @@ if __name__ == "__main__":
     # and "Rollback" then commit or rollback them.
     #
     # Hitting ^C once inside the following `with no_signals()` block will not
-    # raise anything. Instead, delayed `SignalInterrupt(signal.SIGINT,
-    # forced=False)` will be raised the moment the programs exits that block.
+    # raise anything. Instead, a delayed `GentleSignalInterrupt(signal.SIGINT)`
+    # will be raised the moment the programs exits that block.
     #
     # However, if the instruction pointer is outside of that block or if you hit
     # ^C twice while it is inside, `SignalInterrupt(signal.SIGINT, forced=True)`
@@ -163,7 +163,7 @@ if __name__ == "__main__":
 
     print("\n### Usage 3")
 
-    # Alternatively, you can call check `SignalInterrupt.forced` instead:
+    # Alternatively, you can call catch `GentleSignalInterrupt` instead:
 
     for n in range(0, num):
         i = 0
@@ -186,19 +186,18 @@ if __name__ == "__main__":
                                 os.kill(pid, signal.SIGINT)
                                 os.kill(pid, signal.SIGINT)
                 printf("Commit everything.", color=ANSIColor.GREEN)
+        except GentleSignalInterrupt as exc:
+            # raised by `raise_first_delayed_signal`
+            printf("Commit %d finished batches.", i, color=ANSIColor.GREEN)
         except SignalInterrupt as exc:
-            if exc.forced:
-                # raised by force-interrupting
-                printf("Rollback %d unfinished batches.", i + 1, color=ANSIColor.YELLOW)
-            else:
-                # raised by `raise_first_delayed_signal`
-                printf("Commit %d finished batches.", i, color=ANSIColor.GREEN)
+            # raised by force-interrupting
+            printf("Rollback %d unfinished batches.", i + 1, color=ANSIColor.YELLOW)
         except BaseException as exc:
             printf("Top: %s! Rollback!", repr(exc), color=ANSIColor.YELLOW)
 
         forget_delayed_signals()
 
-    print("\n### Sleeping")
+    print("\n### Usage: Sleeping")
 
     # If your program is a daemon that does some work and then sleeps, and that
     # sleep is the place where the program should be interrupted, then you can
@@ -210,7 +209,7 @@ if __name__ == "__main__":
                 for i in range(0, 10):
                     print("Maybe sleeping...")
                     # `time.sleep` inside `yes_signals`, but raises
-                    # `SignalInterrupt(..., forced=False)` regardless
+                    # `GentleSignalInterrupt(...)` regardless
                     soft_sleep(timeout * 5)
 
                     # This part, ideally, should not be interrupted.

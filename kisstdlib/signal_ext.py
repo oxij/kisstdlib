@@ -65,10 +65,17 @@ class SignalInterrupt(BaseException):
     # signal number
     signum: int
     # was this signal raised forcefully?
-    forced: bool
+    forced: bool = _dc.field(default=True)
 
     def __post_init__(self) -> None:
         BaseException.__init__(self)
+
+
+class GentleSignalInterrupt(SignalInterrupt):
+    """Unforced `SignalInterrupt`."""
+
+    def __init__(self, signum: int) -> None:
+        super().__init__(signum, False)
 
 
 delay_signal_message: dict[int, str] = {}
@@ -138,7 +145,7 @@ def delay_signal_handler(signum: int, _frame: _t.Any) -> None:
             del _delayed_signals[signum]
         except KeyError:
             pass
-        raise SignalInterrupt(signum, True)
+        raise SignalInterrupt(signum)
 
     _delayed_signals[signum] = num
 
@@ -204,19 +211,20 @@ def pop_delayed_signal() -> int | None:
 
 
 def raise_first_delayed_signal() -> None:
-    """Raise `SignalInterrupt(signum, False)` with the first `signum` delayed by
+    """Raise `GentleSignalInterrupt(signum)` with the first `signum` delayed by
     `delay_signal_handler`, do nothing if no signals bound to
     `delay_signal_handler` were recieved.
 
     This function can be called repeatedly, in which case it will raise
-    `SignalInterrupt`s for each delayed signal in order they were received.
+    `GentleSignalInterrupt`s for each delayed signal in order they were
+    received.
     """
     try:
         signum, _num = _delayed_signals.popitem(False)
     except KeyError:
         pass
     else:
-        raise SignalInterrupt(signum, False)
+        raise GentleSignalInterrupt(signum)
 
 
 def raise_delayed_signals() -> None:
@@ -226,7 +234,7 @@ def raise_delayed_signals() -> None:
     excs = []
     while len(_delayed_signals) > 0:
         signum, _num = _delayed_signals.popitem(False)
-        excs.append(SignalInterrupt(signum, False))
+        excs.append(GentleSignalInterrupt(signum))
     if len(excs) == 0:
         return
     if len(excs) == 1:
@@ -249,8 +257,8 @@ def no_signals(*, do_raise: bool = True, verbose: bool | str = True) -> _t.Itera
     When `do_raise` is set (which is the default), if this is the topmost
     `no_signals` block, or if the parent block is `yes_signals`, then
     `raise_delayed_signals` will be called right after this block finishes.
-    I.e., any delayed `SignalInterrupt`s will be raised immediately at exit from
-    this block.
+    I.e., any delayed `GentleSignalInterrupt`s will be raised immediately at
+    exit from this block.
 
     You can also `raise` them at certain program points by calling
     `raise_first_delayed_signal` or `raise_delayed_signals` manually from inside
@@ -273,7 +281,7 @@ def no_signals(*, do_raise: bool = True, verbose: bool | str = True) -> _t.Itera
     try:
         yield None
     except Exception:
-        # pretend `SignalInterrupt` was raised first
+        # pretend `GentleSignalInterrupt` was raised first
         if do_raise and old[0]:
             raise_delayed_signals()
         raise
@@ -311,16 +319,18 @@ def soft_sleep(seconds: int | float, *, verbose: bool | str = False) -> None:
     """Start `yes_signals(verbose=verbose)` block, if doing that does not not
     trigger `raise_delayed_signals`, run `time.sleep` with the given argument,
     if the latter gets interrupted with a `SignalInterrupt`, raise
-    `SignalInterrupt` with the same `signum` but with `forced=False`.
+    `GentleSignalInterrupt` with the same `signum` instead.
 
     Note that you should probably use `try ... except*`, not simply `try ...
     except` with this, unless you know what you are doing.
     """
+    # NB: there's no need to handle `BaseExceptionGroup` here since this these
+    # `except` clauses will only be executed right after `delay_signal_handler`
+    # `raise`s.
     try:
         with yes_signals(verbose=verbose):
             sleep(seconds)
+    except GentleSignalInterrupt:
+        raise
     except SignalInterrupt as exc:
-        # NB: there's no need to handle `BaseExceptionGroup` here since this
-        # will only needs to be executed right after `delay_signal_handler`
-        # `raise`s.
-        raise SignalInterrupt(exc.signum, False) from exc
+        raise GentleSignalInterrupt(exc.signum) from exc
