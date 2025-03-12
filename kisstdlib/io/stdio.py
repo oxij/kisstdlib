@@ -78,7 +78,6 @@ def printf(
     Colors get applied to `prefix`, rendered `pattern`, and `suffix`, but not to
     `indent` and `end`, so that, e.g., `printf(..., indent=" " * 4`,
     background=1)` produces an indented background-colored block.
-
     """
     if file is None:
         file = stdout
@@ -93,25 +92,29 @@ def printf(
         end = file.eol
 
     data = pattern % args
+    extra = len(prefix) + len(indent) + len(suffix)
 
     lines = 0
+    implicit_eol = False
     if start:
         file.write(start)
         lines += _numlines(start)
     for line in data.splitlines(True):
-        w = len(indent) + len(prefix) + len(line) + len(suffix)
+        w = len(line) + extra
         if indent:
             file.write(indent)
             lines += _numlines(indent)
         if line[-1:] in ("\n", b"\n"):
             file.write_ln(prefix + line[:-1] + suffix, **kwargs)
-            lines += 1 + (w - 1) // width
+            lines += 1
+            w -= 1
         else:
             file.write(prefix + line + suffix, **kwargs)
-            lines += w // width
+        lines += w // width
+        implicit_eol = w > 0 and w % width == 0
     if end:
         file.write(end)
-        lines += _numlines(end)
+        lines += max(0, _numlines(end) - 1) if implicit_eol else _numlines(end)
     if flush is True or flush is None and file.isatty():
         file.flush()
     return lines
