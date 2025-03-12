@@ -138,6 +138,17 @@ if __name__ == "__main__":
     step1(1)
     lhnd.flush()
 
+    # a test for implicit eols
+    for k in range(0, 3):
+        columns = stdout.terminal_size.columns * k
+        for n in range(columns - 20, columns - 15):
+            s = "!"
+            for i in range(0, n):
+                s += chr(48 + i % 10)
+            info(s)
+            lhnd.update()
+            step1(1)
+
     lhnd.ephemeral_below = 0
     info("This will not be ephemeral anymore.")
 
