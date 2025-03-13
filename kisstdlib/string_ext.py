@@ -482,6 +482,13 @@ def unescape(
     )
 
 
+### Path escaping
+
+path_escaper: StringLexer[str] = escaper("\\")
+escape_path = path_escaper.escape
+unescape_path = path_escaper.unescape
+
+
 ### URL-quoting
 
 _safe_url_chars: dict[tuple[str, str], _t.Callable[[int | str], bool]] = {}

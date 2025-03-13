@@ -37,8 +37,8 @@ import sys as _sys
 import typing as _t
 
 from .base import POSIX as _POSIX, identity as _identity
-from .string_ext import escaper as _escaper
 from .io.base import *
+from .string_ext import escape_path as _escape_path
 from .time import Timestamp as _Timestamp
 
 sep = _op.sep
@@ -410,7 +410,7 @@ def describe_forest(
     """Produce a simple `find .`+`stat`-like description of walks of given `paths`.
     See `describe-forest` script for more info.
     """
-    escape: _t.Callable[[str], str] = _identity if literal else _escaper("\\").escape  # type: ignore
+    escape: _t.Callable[[str], str] = _identity if literal else _escape_path  # type: ignore
     seen: dict[tuple[int, int], tuple[_t.AnyStr, int, str]] = {}
     for i, dirpath in enumerate(paths):
         for fpath, _eps, _edir in iter_subtree(dirpath, follow_symlinks=follow_symlinks):
