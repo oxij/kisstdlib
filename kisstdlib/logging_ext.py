@@ -153,16 +153,12 @@ class ANSILogHandler(_logging.StreamHandler[_TIOWrappedWriter]):
         After a `reset` with default arguments:
 
         - If next `emit`s repeat the previous message, these repeats will will
-          be counted separately from the previous message.
+          be counted separately.
 
         - If the last message was both ephemeral and printed, it will simply
           become pesistent.
 
         - Next `update` timeout for new ephemeral messages will be reset.
-
-        Unless you want to commit the last ephemeral message to view (which can
-        be done with `update` followed by `reset`), you should use `flush`
-        instead.
         """
         self.last = new
         self.repeats = repeats
@@ -240,30 +236,27 @@ class ANSILogHandler(_logging.StreamHandler[_TIOWrappedWriter]):
                 stream.flush()
             self.repeats_printed = True
 
-    def rollback(self) -> None:
-        """Remove the last printed message from view, but not forget it, i.e. the next
-        `update` will re-print it again, if no `emit`s were done in the
-        meantime.
-        """
-        self._rollback()
-        self.stream.flush()
-        self.reset(self.last, self.repeats)
-
     def flush(self) -> None:
         """Remove any ephemeral state from view and/or commit non-ephemeral state to
         view.
 
-        I.e., if the last message was ephemeral, remove it from view and `reset`.
-        Otherwise, `update` and `reset`.
+        I.e., if the last message was not ephemeral, `update` and `reset`.
+
+        Otherwise, remove the last message from view, but don't forget about it,
+        allowing it to be re-printed with `update`.
+
+        If you want to commit the last ephemeral message to view, do `update`
+        and `reset` manually.
         """
         last = self.last
         if last is not None and last[0]:
             # ephemeral
             self._rollback()
             self.stream.flush()
+            self.reset(self.last, self.repeats)
         else:
             self.update()
-        self.reset()
+            self.reset()
 
     def emit(self, record: _logging.LogRecord) -> None:
         """`logging.Handler` implementation."""
