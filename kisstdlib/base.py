@@ -30,6 +30,7 @@ import traceback as _traceback
 import typing as _t
 
 from decimal import Decimal
+from functools import partial, partialmethod  # pylint: disable=unused-import
 
 
 ### Primitive types
