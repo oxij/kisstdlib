@@ -194,6 +194,38 @@ class _OptionallyMarkdownHelpAction(Action):
         parser.post_parse_args = self.show_help
 
 
+class _StoreMapAction(Action):
+    def __init__(self, func: _t.Callable[[_t.Any], _t.Any] = _identity, **kwargs: _t.Any) -> None:
+        super().__init__(**kwargs)
+        self.func = func
+
+    def __call__(
+        self,
+        parser: _t.Any,
+        namespace: Namespace,
+        values: _t.Any,
+        option_string: str | None = None,
+    ) -> None:
+        setattr(namespace, self.dest, self.func(values))
+
+
+class _AppendMapAction(Action):
+    def __init__(self, func: _t.Callable[[_t.Any], _t.Any] = _identity, **kwargs: _t.Any) -> None:
+        super().__init__(default=[], **kwargs)
+        self.func = func
+
+    def __call__(
+        self,
+        parser: _t.Any,
+        namespace: Namespace,
+        values: _t.Any,
+        option_string: str | None = None,
+    ) -> None:
+        v = getattr(namespace, self.dest)
+        v.append(self.func(values))
+        setattr(namespace, self.dest, v)
+
+
 class BetterArgumentParser(ArgumentParser):
     """Like `argparse.ArgumentParser`, but uses `BetterHelpFormatter` by default,
     and implements `format_help` that recurses into subcommands and appends
@@ -225,6 +257,8 @@ class BetterArgumentParser(ArgumentParser):
             **kwargs,
         )
 
+        self.register("action", "store_map", _StoreMapAction)
+        self.register("action", "append_map", _AppendMapAction)
         self.register("action", "help_omd", _OptionallyMarkdownHelpAction)
 
         self.add_version = add_version
