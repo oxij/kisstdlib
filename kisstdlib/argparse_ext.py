@@ -159,16 +159,16 @@ class MarkdownBetterHelpFormatter(BetterHelpFormatter):
             return join(["\n", heading, item_help, "\n"])
 
 
-class OptionallyMarkdownHelpAction(Action):
+class _OptionallyMarkdownHelpAction(Action):
     def __init__(
         self,
         option_strings: list[str],
         dest: str = SUPPRESS,
         default: _t.Any = SUPPRESS,
-        help: str | None = None,  # pylint: disable=redefined-builtin
+        **kwargs: _t.Any,
     ) -> None:
         super().__init__(
-            option_strings=option_strings, dest=dest, default=default, nargs=0, help=help
+            option_strings=option_strings, dest=dest, default=default, nargs=0, **kwargs
         )
 
     def show_help(self, parser: "BetterArgumentParser", namespace: Namespace) -> None:
@@ -225,6 +225,8 @@ class BetterArgumentParser(ArgumentParser):
             **kwargs,
         )
 
+        self.register("action", "help_omd", _OptionallyMarkdownHelpAction)
+
         self.add_version = add_version
         self.add_help = add_help
         self.additional_sections = additional_sections
@@ -249,12 +251,10 @@ class BetterArgumentParser(ArgumentParser):
             )
 
         if add_help:
-            self.register("action", "help", OptionallyMarkdownHelpAction)
-
             self.add_argument(
                 default_prefix + "h",
                 default_prefix * 2 + "help",
-                action="help",
+                action="help_omd",
                 default=SUPPRESS,
                 help=_gettext("show this help message and exit"),
             )
