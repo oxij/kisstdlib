@@ -576,6 +576,7 @@ class DeferredSync(_t.Generic[_t.AnyStr]):
     Doing this can improve disk performance considerably.
     """
 
+    defer: bool
     tmp_file: set[_t.AnyStr]
     unlink_file: set[_t.AnyStr]
     fsync_file: set[_t.AnyStr]
@@ -586,7 +587,8 @@ class DeferredSync(_t.Generic[_t.AnyStr]):
     # if all of the above succeed, also do these
     _after: _t.Optional["DeferredSync[_t.AnyStr]"]
 
-    def __init__(self) -> None:
+    def __init__(self, defer: bool) -> None:
+        self.defer = defer
         self.reset()
 
     def reset(self) -> None:
@@ -616,14 +618,14 @@ after="""
     @property
     def after(self) -> "DeferredSync[_t.AnyStr]":
         if self._after is None:
-            self._after = DeferredSync()
+            self._after = DeferredSync(self.defer)
         return self._after
 
     def copy(self) -> "DeferredSync[_t.AnyStr]":
         """Return a shallow copy of this object (elements describing operations are not
         copied, only the structure is).
         """
-        res: DeferredSync[_t.AnyStr] = DeferredSync()
+        res: DeferredSync[_t.AnyStr] = DeferredSync(self.defer)
         res.tmp_file = set(self.tmp_file)
         res.unlink_file = set(self.unlink_file)
         res.fsync_file = set(self.fsync_file)
@@ -807,11 +809,15 @@ def atomic_rename(
     if makedirs and nondot:
         _os.makedirs(dst_dir, exist_ok=True)
 
-    if isinstance(sync, DeferredSync):
+    if isinstance(sync, DeferredSync) and sync.defer:
         sync.rename_file.append((src_path, dst_path, allow_overwrites, src_dir, dst_dir))
         return
 
     rename(src_path, dst_path, allow_overwrites, makedirs=False, dst_dir=dst_dir)
+
+    if isinstance(sync, DeferredSync):
+        sync.fsync_dir.add(dst_dir)
+        return
 
     if sync:
         if _POSIX:
@@ -882,7 +888,7 @@ def atomic_make_file(
         _os.makedirs(dst_dir, exist_ok=True)
     make_dst(tmp_path, isinstance(sync, bool) and sync)
 
-    if isinstance(sync, DeferredSync):
+    if isinstance(sync, DeferredSync) and sync.defer:
         sync.tmp_file.add(tmp_path)
         sync.fsync_file.add(tmp_path)
         sync.rename_file.append((tmp_path, dst_path, allow_overwrites, dst_dir, dst_dir))
@@ -895,6 +901,10 @@ def atomic_make_file(
     except Exception:
         unlink_maybe(tmp_path)
         raise
+
+    if isinstance(sync, DeferredSync):
+        sync.fsync_dir.add(dst_dir)
+        return
 
     if sync and _POSIX:
         fsync_file(dst_dir, _os.O_DIRECTORY)
@@ -952,7 +962,7 @@ def atomic_link(
         _os.link(src_path, dst_path, follow_symlinks=follow_symlinks)
 
     # _os.link is atomic, so non-atomic make_file is ok
-    if allow_overwrites:
+    if allow_overwrites or (isinstance(sync, DeferredSync) and sync.defer):
         atomic_make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
     else:
         make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
@@ -976,7 +986,7 @@ def atomic_symlink(
         _os.symlink(src_path, dst_path)
 
     # _os.symlink is atomic, so non-atomic make_file is ok
-    if allow_overwrites:
+    if allow_overwrites or (isinstance(sync, DeferredSync) and sync.defer):
         atomic_make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
     else:
         make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)

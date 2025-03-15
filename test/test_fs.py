@@ -61,7 +61,7 @@ def atomic1(defer: bool, tmp_path: str) -> None:
 
     sync: DeferredSync[str] | bool = True
     if defer:
-        sync = DeferredSync()
+        sync = DeferredSync(True)
 
     def check(es: list[list[str]], ed: list[list[str]] | None = None) -> None:
         if isinstance(sync, DeferredSync):
