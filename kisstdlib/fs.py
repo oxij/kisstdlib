@@ -36,6 +36,8 @@ import stat as _stat
 import sys as _sys
 import typing as _t
 
+from os import fsencode, fsdecode
+
 from .base import POSIX as _POSIX, identity as _identity
 from .io.base import *
 from .string_ext import escape_path as _escape_path
@@ -43,20 +45,6 @@ from .time import Timestamp as _Timestamp
 
 sep = _op.sep
 sepb = _os.fsencode(_op.sep)
-
-
-def fsdecode_maybe(x: str | bytes) -> str:
-    """Apply `os.fsdecode` if `bytes`."""
-    if isinstance(x, bytes):
-        return _os.fsdecode(x)
-    return x
-
-
-def fsencode_maybe(x: str | bytes) -> bytes:
-    """Apply `os.fsencode` if `str`."""
-    if isinstance(x, str):
-        return _os.fsencode(x)
-    return x
 
 
 def dirname_dot(x: _t.AnyStr) -> tuple[_t.AnyStr, bool]:
@@ -100,8 +88,8 @@ def same_file_data(path1: str | bytes, path2: str | bytes) -> bool:
 
 def same_symlink_data(path1: str | bytes, path2: str | bytes) -> bool:
     """Check if two given symlinks have exactly the same content."""
-    a = _os.readlink(fsencode_maybe(path1))
-    b = _os.readlink(fsencode_maybe(path2))
+    a = _os.readlink(fsencode(path1))
+    b = _os.readlink(fsencode(path2))
     return a == b
 
 
@@ -415,7 +403,7 @@ def describe_forest(
     for i, dirpath in enumerate(paths):
         for fpath, _eps, _edir in iter_subtree(dirpath, follow_symlinks=follow_symlinks):
             abs_path = _op.abspath(fpath)
-            rpath = fsdecode_maybe(_op.relpath(fpath, dirpath))
+            rpath = fsdecode(_op.relpath(fpath, dirpath))
             epath: str
             if numbers is False or numbers is None and len(paths) == 1:
                 epath = escape(rpath)
@@ -434,7 +422,7 @@ def describe_forest(
                 if relative_hardlinks and hi == i:
                     # within the same `dirpath`
                     dirname = _op.dirname(abs_path)
-                    target = escape(fsdecode_maybe(_op.relpath(habs_path, dirname)))
+                    target = escape(fsdecode(_op.relpath(habs_path, dirname)))
                     yield [epath, "ref", "=>", target]
                 else:
                     yield [epath, "ref", "==>", hepath]
@@ -464,7 +452,7 @@ def describe_forest(
                     sha256 = sha256[:hash_length]
                 yield [epath, "reg"] + emode + emtime + esize + ["sha256", sha256]  # fmt: skip
             elif _stat.S_ISLNK(stat.st_mode):
-                esymlink = escape(fsdecode_maybe(_os.readlink(abs_path)))
+                esymlink = escape(fsdecode(_os.readlink(abs_path)))
                 yield [epath, "sym"] + emode + emtime + ["->", esymlink]
             else:
                 yield [epath, "???"] + emode + emtime + esize
@@ -667,7 +655,7 @@ after="""
         exceptions: list[Exception] = []
 
         if simulate is not None:
-            simulate += [["unlink", fsdecode_maybe(f)] for f in sorted(self.unlink_file)]
+            simulate += [["unlink", fsdecode(f)] for f in sorted(self.unlink_file)]
             self.unlink_file = set()
         elif self.unlink_file:
             self.unlink_file = set(unlink_many(sorted(self.unlink_file), exceptions))
@@ -689,7 +677,7 @@ after="""
 
         while self.fsync_file or self.fsync_dir or self.fsync_dir2 or self.rename_file:
             if simulate is not None:
-                simulate += [["fsync", fsdecode_maybe(f)] for f in sorted(self.fsync_file)]
+                simulate += [["fsync", fsdecode(f)] for f in sorted(self.fsync_file)]
                 self.fsync_file = set()
             elif self.fsync_file:
                 fsync_file_left.update(fsync_many_files(sorted(self.fsync_file), 0, exceptions))
@@ -723,7 +711,7 @@ after="""
 
                     try:
                         if simulate is not None:
-                            simulate.append(["replace" if allow_overwrites else "rename", fsdecode_maybe(src_path), fsdecode_maybe(dst_path)])  # fmt: skip
+                            simulate.append(["replace" if allow_overwrites else "rename", fsdecode(src_path), fsdecode(dst_path)])  # fmt: skip
                         else:
                             rename(src_path, dst_path, allow_overwrites, makedirs=False, dst_dir=dst_dir)  # fmt: skip
                     except Exception as exc:
@@ -751,14 +739,14 @@ after="""
                         return exceptions
 
             if simulate is not None:
-                simulate += [["fsync_win", fsdecode_maybe(f)] for f in sorted(self.fsync_file)]
+                simulate += [["fsync_win", fsdecode(f)] for f in sorted(self.fsync_file)]
                 self.fsync_file = set()
             elif self.fsync_file:
                 fsync_file_left.update(fsync_many_files(sorted(self.fsync_file), 0, exceptions))
                 self.fsync_file = set()
 
             if simulate is not None:
-                simulate += [["fsync_dir", fsdecode_maybe(f)] for f in sorted(self.fsync_dir)]
+                simulate += [["fsync_dir", fsdecode(f)] for f in sorted(self.fsync_dir)]
                 self.fsync_dir = set()
             elif self.fsync_dir:
                 if _POSIX:
@@ -766,7 +754,7 @@ after="""
                 self.fsync_dir = set()
 
             if simulate is not None:
-                simulate += [["fsync_dir", fsdecode_maybe(f)] for f in sorted(self.fsync_dir2)]
+                simulate += [["fsync_dir", fsdecode(f)] for f in sorted(self.fsync_dir2)]
                 self.fsync_dir2 = set()
             elif self.fsync_dir2:
                 if _POSIX:
