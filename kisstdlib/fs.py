@@ -889,6 +889,8 @@ def atomic_make_file(
         return
 
     try:
+        if sync:
+            fsync_file(tmp_path)
         rename(tmp_path, dst_path, allow_overwrites, dst_dir=dst_dir)
     except Exception:
         unlink_maybe(tmp_path)
