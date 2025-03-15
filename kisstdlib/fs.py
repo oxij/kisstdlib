@@ -858,6 +858,10 @@ def make_file(
         fsync_file(dst_dir, _os.O_DIRECTORY)
 
 
+_dot_part = ".part"
+_dot_partb = b".part"
+
+
 def atomic_make_file(
     make_dst: _t.Callable[[_t.AnyStr, bool], None],
     dst_path: _t.AnyStr,
@@ -878,9 +882,9 @@ def atomic_make_file(
         raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
 
     if isinstance(dst_path, str):
-        tmp_path = dst_path + ".part"
+        tmp_path = dst_path + _dot_part
     else:
-        tmp_path = dst_path + b".part"
+        tmp_path = dst_path + _dot_partb
 
     dst_dir, nondot = dirname_dot(dst_path)
 
@@ -1088,3 +1092,14 @@ def atomic_unlink(
 
     if sync and _POSIX:
         fsync_file(dirname, _os.O_DIRECTORY)
+
+
+def setup_fs(prog: str | None = None, ext: str = ".part", add_pid: bool = True) -> None:
+    """Setup temporary files prefix."""
+    if prog is None:
+        prog = _op.basename(_sys.argv[0])
+
+    global _dot_part, _dot_partb
+    pid = f"_{_os.getpid()}" if add_pid else ""
+    _dot_part = f".{prog}{pid}{ext}"
+    _dot_partb = _dot_part.encode("ascii")

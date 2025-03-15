@@ -36,10 +36,14 @@ from .io.stdio import *
 from .logging_ext import *
 from .signal_ext import *
 
+from .fs import setup_fs as _setup_fs
+
 
 def setup_kisstdlib(
     prog: str | None = None,
+    *,
     do_setup_stdio: bool = True,
+    do_setup_fs: bool = True,
     signals: list[str] | None = None,
     **kwargs: _t.Any,
 ) -> tuple[LogCounter, ANSILogHandler]:
@@ -53,6 +57,8 @@ def setup_kisstdlib(
     res = setup_logging(prog, **kwargs)
     setup_delay_signal_messages(prog + ": ")
     setup_delay_signals(signals)
+    if do_setup_fs:
+        _setup_fs(prog)
     return res
 
 
