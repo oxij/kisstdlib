@@ -47,18 +47,18 @@ sep = _op.sep
 sepb = _os.fsencode(_op.sep)
 
 
-def dirname_dot(x: _t.AnyStr) -> tuple[_t.AnyStr, bool]:
+def dirname_dot(path: _t.AnyStr) -> tuple[_t.AnyStr, bool]:
     """Apply `os.path.dirname` to the given argument, but if it's empty, return "." instead.
     The second element of the tuple is `False` if the above replacement was performed, `True` otherwise.
     """
-    x = _os.path.dirname(x)
-    if isinstance(x, bytes):
-        if x == b"":
+    path = _os.path.dirname(path)
+    if isinstance(path, bytes):
+        if path == b"":
             return b".", False
-        return x, True
-    if x == "":
+        return path, True
+    if path == "":
         return ".", False
-    return x, True
+    return path, True
 
 
 def read_file_maybe(path: str | bytes) -> bytes | None:
