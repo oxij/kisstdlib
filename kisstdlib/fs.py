@@ -206,7 +206,7 @@ def iter_subtree(
             if handle_error is not None:
                 eno = exc.errno
                 handle_error(
-                    "failed to stat `%s`: [Errno %d, %s] %s: %s",
+                    "failed to `stat`: [Errno %d, %s] %s: %s",
                     eno,
                     _errno.errorcode.get(eno, "?"),
                     _os.strerror(eno),
