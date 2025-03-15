@@ -642,15 +642,13 @@ after="""
             unlink_many(self.tmp_file)
         self.reset()
 
-    def commit(
-        self, strict: bool = True, simulate: list[list[str]] | None = None
-    ) -> list[Exception]:
+    def sync(self, strict: bool = True, simulate: list[list[str]] | None = None) -> list[Exception]:
         """Perform all deferred operations and return a list of raised exceptions.
 
         Operations that fail will be left sitting in the corresponding fields.
 
         With `simulate` argument set, this function instead simulates the
-        `commit` and writes the log of things it would do into that argument.
+        `sync` and writes the log of things it would do into that argument.
         """
         exceptions: list[Exception] = []
 
@@ -773,7 +771,7 @@ after="""
             return exceptions
 
         if self._after is not None:
-            excs = self._after.commit(strict, simulate)
+            excs = self._after.sync(strict, simulate)
             if len(excs) > 0:
                 exceptions += excs
             else:
@@ -781,12 +779,12 @@ after="""
 
         return exceptions
 
-    def finish(self, strict: bool = True) -> None:
-        """Like `commit` but raises collected exceptions as an exception group and calls
+    def flush(self, strict: bool = True) -> None:
+        """Like `sync` but raises collected exceptions as an exception group and calls
         `.clear` in that case.
         """
         try:
-            excs = self.commit(strict)
+            excs = self.sync(strict)
             if len(excs) > 0:
                 raise ExceptionGroup("failed to sync", excs)
         finally:

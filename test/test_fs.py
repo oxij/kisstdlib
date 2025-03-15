@@ -66,7 +66,7 @@ def atomic1(sync: bool, tmp_path: str) -> None:
     def check(es: list[list[str]], ed: list[list[str]] | None = None) -> None:
         if dsync is not None:
             gs: list[list[str]] = []
-            dsync.copy().commit(True, gs)
+            dsync.copy().sync(True, gs)
             assert es == gs
 
         if ed is not None:
@@ -188,7 +188,7 @@ def atomic1(sync: bool, tmp_path: str) -> None:
         ]
     )
     if dsync is not None:
-        dsync.finish()
+        dsync.flush()
     check(
         [],
         [
@@ -215,7 +215,7 @@ def atomic1(sync: bool, tmp_path: str) -> None:
         ]
     )
     if dsync is not None:
-        dsync.finish()
+        dsync.flush()
     check([])
 
     atomic_copy2("test.a", "x/test.a", True, dsync=dsync)
@@ -240,7 +240,7 @@ def atomic1(sync: bool, tmp_path: str) -> None:
         ]
     )
     if dsync is not None:
-        dsync.finish()
+        dsync.flush()
     check(
         [],
         [
@@ -289,7 +289,7 @@ def atomic1(sync: bool, tmp_path: str) -> None:
         ]
     )
     if dsync is not None:
-        dsync.finish()
+        dsync.flush()
     check(
         [],
         [
