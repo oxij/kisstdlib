@@ -1064,3 +1064,27 @@ def atomic_write(
             raise
 
     atomic_make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
+
+
+def atomic_unlink(
+    path: _t.AnyStr,
+    *,
+    sync: DeferredSync[_t.AnyStr] | bool = True,
+) -> None:
+    """Atomically unlink `path`."""
+
+    dirname, _ = dirname_dot(path)
+
+    if isinstance(sync, DeferredSync) and sync.defer:
+        sync.unlink_file.add(path)
+        sync.fsync_dir.add(dirname)
+        return
+
+    _os.unlink(path)
+
+    if isinstance(sync, DeferredSync):
+        sync.fsync_dir.add(dirname)
+        return
+
+    if sync and _POSIX:
+        fsync_file(dirname, _os.O_DIRECTORY)
