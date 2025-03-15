@@ -43,8 +43,8 @@ def setup_kisstdlib(
     prog: str | None = None,
     *,
     do_setup_stdio: bool = True,
+    do_setup_delay_signals: bool = True,
     do_setup_fs: bool = True,
-    signals: list[str] | None = None,
     **kwargs: _t.Any,
 ) -> tuple[LogCounter, ANSILogHandler]:
     """Run all `setup_*` functions of all other `kisstdlib.*` modules and setup
@@ -54,11 +54,12 @@ def setup_kisstdlib(
         prog = _op.basename(_sys.argv[0])
     if do_setup_stdio:
         setup_stdio()
-    res = setup_logging(prog, **kwargs)
     setup_delay_signal_messages(prog + ": ")
-    setup_delay_signals(signals)
+    if do_setup_delay_signals:
+        setup_delay_signals()
     if do_setup_fs:
         _setup_fs(prog)
+    res = setup_logging(prog, **kwargs)
     return res
 
 
