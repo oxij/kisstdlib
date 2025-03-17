@@ -6,6 +6,80 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 Also, at the bottom of this file there is a [TODO list](#todo) with planned future changes.
 
+## [v0.0.10] - 2025-03-17
+
+### Added
+
+- `kisstdlib.signal_ext`: Introduced `GentleSignalInterrupt` simplifying the API usage a bit.
+
+- `kisstdlib.base`: Now re-exports `partial` and `partialmethod`.
+
+- `kisstdlib.string_ext`: Introduced `path_escaper` and related singletons.
+
+- `kisstdlib.logging_ext:ANSILogHandler`: Simplified the API by merging `rollback` functionality into `flush`.
+
+- `kisstdlib.fs`:
+
+  - Introduced `atomic_unlink`.
+
+  - Introduced `setup_fs`, making temp file suffixes configurable.
+
+    Also, `kisstdlib:setup_kisstdlib` now runs this function too.
+
+### Fixed
+
+- `kisstdlib.signal_ext`: From now on, `delay_signal_handler` will flush delayed signals when raising `SignalInterrupt`.
+
+  This prevents `raise_first_delayed_signal` and `raise_delayed_signals` from raising them again, which was a bug.
+
+- `kisstdlib.io.stdio`: Fixed `printf` to count implicit eols properly.
+
+- `kisstdlib.fs`:
+
+  - `iter_subtree`: Fixed error format.
+
+  - `atomic_make_file`: Added `fsync` before `rename`, which should have been there.
+
+- `kisstdlib:run_kisstdlib_main`: Now handles `BrokenPipeError`s when finishing up.
+
+### Changed
+
+- `devscript/test-cli-lib.sh`: Improved a bit.
+
+- `kisstdlib.argparse_ext.py`:
+
+  - Renamed and registered `OptionallyMarkdownHelpAction` as `help_omd`, similarly to how `argparse` does it.
+
+  - Introduced `store_map` and `append_map` actions.
+
+    Which do the same thing as `store` and `append`, but map values with a given function.
+
+- `kisstdlib.fs`:
+
+  - Replace `fsdecode_maybe` and `fsencode_maybe` with imports from `os`.
+
+    Those functions have this functionality too.
+
+  - `DeferredSync`:
+
+    - Renamed `commit` -\> `sync`, `finish` -\> `flush`.
+
+    - Action deference can now be optional, i.e. `DeferredSync` can now be used to only defer the `fsync` alone.
+
+  - `atomic_*`:
+
+    - Renamed `dsync` arguments -\> `sync`, now allowing them to be `bool`s.
+
+      I.e., added no-`fsync`/async mode to all of those functions.
+
+    - Added `prog` program name and its `pid` to temp file suffixes.
+
+      Though, it's configurable via `setup_fs`.
+
+- `kisstdlib:setup_kisstdlib`: Simplified the API a bit.
+
+  Users should now call `setup_delay_signals` themselves if they need non-default `signals`.
+
 ## [v0.0.9] - 2025-03-10
 
 ### Changed (1)
@@ -317,6 +391,7 @@ Also, at the bottom of this file there is a [TODO list](#todo) with planned futu
 
 - Initial release.
 
+[v0.0.10]: https://github.com/oxij/kisstdlib/compare/v0.0.9...v0.0.10
 [v0.0.9]: https://github.com/oxij/kisstdlib/compare/v0.0.8...v0.0.9
 [v0.0.8]: https://github.com/oxij/kisstdlib/compare/v0.0.7...v0.0.8
 [v0.0.7]: https://github.com/oxij/kisstdlib/compare/v0.0.6...v0.0.7
