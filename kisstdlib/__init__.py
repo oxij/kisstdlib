@@ -109,9 +109,18 @@ def run_kisstdlib_main(
         for be in flat_exceptions(excs):
             critical(gettext("Uncaught exception: %s"), str(be), exc_info=be)
 
-    logger.flush()
-    stdout.flush()
-    stderr.flush()
+    try:
+        logger.flush()
+    except BrokenPipeError:
+        pass
+    try:
+        stdout.flush()
+    except BrokenPipeError:
+        pass
+    try:
+        stderr.flush()
+    except BrokenPipeError:
+        pass
 
     num_warnings = counter.warnings
     num_errors = counter.errors
