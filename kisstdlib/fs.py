@@ -192,7 +192,7 @@ def iter_subtree(
             fstat = _os.stat(path, follow_symlinks=follow_symlinks)
         except OSError as exc:
             if handle_error is not None:
-                eno = exc.errno
+                eno = exc.errno or 0
                 handle_error(
                     "failed to `stat`: [Errno %d, %s] %s: %s",
                     eno,
@@ -218,7 +218,7 @@ def iter_subtree(
         scandir_it = _os.scandir(path)
     except OSError as exc:
         if handle_error is not None:
-            eno = exc.errno
+            eno = exc.errno or 0
             handle_error(
                 "failed to `scandir`: [Errno %d, %s] %s: %s",
                 eno,
@@ -240,7 +240,7 @@ def iter_subtree(
                 break
             except OSError as exc:
                 if handle_error is not None:
-                    eno = exc.errno
+                    eno = exc.errno or 0
                     handle_error(
                         "failed in `scandir`: [Errno %d, %s] %s: %s",
                         eno,
@@ -255,7 +255,7 @@ def iter_subtree(
                     entry_is_dir = entry.is_dir(follow_symlinks=follow_symlinks)
                 except OSError as exc:
                     if handle_error is not None:
-                        eno = exc.errno
+                        eno = exc.errno or 0
                         handle_error(
                             "failed to `stat`: [Errno %d, %s] %s: %s",
                             eno,
@@ -398,7 +398,7 @@ def describe_forest(
     """Produce a simple `find .`+`stat`-like description of walks of given `paths`.
     See `describe-forest` script for more info.
     """
-    escape: _t.Callable[[str], str] = _identity if literal else _escape_path  # type: ignore
+    escape: _t.Callable[[str], str] = _identity if literal else _escape_path
     seen: dict[tuple[int, int], tuple[_t.AnyStr, int, str]] = {}
     for i, dirpath in enumerate(paths):
         for fpath, _eps, _edir in iter_subtree(dirpath, follow_symlinks=follow_symlinks):
