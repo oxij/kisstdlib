@@ -1110,6 +1110,6 @@ def setup_fs(prog: str | None = None, ext: str = ".part", add_pid: bool = True) 
         prog = _op.basename(_sys.argv[0])
 
     global _dot_part, _dot_partb
-    pid = f"_{_os.getpid()}" if add_pid else ""
-    _dot_part = f".{prog}{pid}{ext}"
+    pid = f"{_os.getpid()}." if add_pid else ""
+    _dot_part = f".{pid}{prog}{ext}"
     _dot_partb = _dot_part.encode("ascii")
