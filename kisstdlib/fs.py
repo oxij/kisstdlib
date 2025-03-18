@@ -61,6 +61,16 @@ def dirname_dot(path: _t.AnyStr) -> tuple[_t.AnyStr, bool]:
     return path, True
 
 
+def realdir(path: _t.AnyStr, strict: bool = False) -> _t.AnyStr:
+    """Apply `os.path.realpath` to the `dirname` part of `path`.
+
+    Essentially, this returns the canonical path of the inode the `path` points to, even when that
+    inode is a symlink.
+    """
+    dn, bn = _op.split(path)
+    return _op.join(_op.realpath(dn, strict=strict), bn)
+
+
 def read_file_maybe(path: str | bytes) -> bytes | None:
     """Return contents of the given file path, or `None` if it does not exist."""
     try:
