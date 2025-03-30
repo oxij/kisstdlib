@@ -6,6 +6,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 Also, at the bottom of this file there is a [TODO list](#todo) with planned future changes.
 
+## [v0.0.11] - 2025-03-30
+
+### Added
+
+- `kisstdlib.fs`:  introduced `realdir`.
+
+- `kisstdlib.io.adapter`: imported from `hoardy-adb/hoardy_adb/__main__.py`, improved a bit.
+
+### Removed
+
+- `kisstdlib.argparse_ext`: Removed `store_map` and `append_map`.
+
+  These can be implemented with mainstream `argparse` by simply setting `type=func`.
+
+### Changed
+
+- Updated for `mypy v1.14.1`.
+
+- `kisstdlib.fs`: `setup_fs`: put `pid` in front of `prog`.
+
 ## [v0.0.10] - 2025-03-17
 
 ### Added
@@ -391,6 +411,7 @@ Also, at the bottom of this file there is a [TODO list](#todo) with planned futu
 
 - Initial release.
 
+[v0.0.11]: https://github.com/oxij/kisstdlib/compare/v0.0.10...v0.0.11
 [v0.0.10]: https://github.com/oxij/kisstdlib/compare/v0.0.9...v0.0.10
 [v0.0.9]: https://github.com/oxij/kisstdlib/compare/v0.0.8...v0.0.9
 [v0.0.8]: https://github.com/oxij/kisstdlib/compare/v0.0.7...v0.0.8
