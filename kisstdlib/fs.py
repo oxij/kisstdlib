@@ -67,7 +67,7 @@ def realdir(path: _t.AnyStr, strict: bool = False) -> _t.AnyStr:
     Essentially, this returns the canonical path of the inode the `path` points to, even when that
     inode is a symlink.
     """
-    dn, bn = _op.split(path)
+    dn, bn = _op.split(_op.abspath(path))
     return _op.join(_op.realpath(dn, strict=strict), bn)
 
 
