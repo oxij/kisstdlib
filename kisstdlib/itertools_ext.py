@@ -95,7 +95,7 @@ def nth(n: int, iterable: _t.Iterable[_AType], default: _AType | Missing = MISSI
         for e in iterable:
             if i == 0:
                 return e
-            i -= i
+            i -= 1
     if default is MISSING:
         raise IndexError("not enough elements")
     return _t.cast(_AType, default)
