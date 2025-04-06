@@ -48,6 +48,7 @@ def test_basics() -> None:
     assert first([123], None) == first((123,), None) == 123
     assert last([123], None) == last((123,), None) == 123
     assert nth(0, [], None) == nth(0, (), None) == None
+    assert nth(0, [123], None) == 123
 
     e: _t.Any
     for e in ((), []):
@@ -78,8 +79,8 @@ def test_basics() -> None:
         for i in range(0, len(l) + 1):
             assert drop(i, l) == l[i:]
 
-        assert nth(0, l, None) == nth(0, t, None) == l[0]
-        assert nth(1, l, None) == nth(1, t, None) == (l[1] if len(l) > 1 else None)
+        for i in range(0, len(l) + 1):
+            assert nth(i, l, None) == nth(i, t, None) == (l[i] if i < len(l) else None)
 
         l.pop()
 
