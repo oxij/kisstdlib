@@ -340,7 +340,7 @@ class AppDB(_t.Generic[SettingsType]):
                 self.commit()
 
             self.logger.debug(
-                "`%s`: opened at version %d with settings of `%s`",
+                "`%s`: finished init at version %d with settings of `%s`",
                 path,
                 self._version,
                 str(self._settings),
