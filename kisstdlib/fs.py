@@ -468,111 +468,6 @@ def describe_forest(
                 yield [epath, "???"] + emode + emtime + esize
 
 
-def unlink_maybe(path: str | bytes) -> None:
-    """Try to `os.unlink` and ignore `Exception`s."""
-    try:
-        _os.unlink(path)
-    except Exception:
-        pass
-
-
-def fsync_maybe(fd: int) -> None:
-    """Try to `os.fsync` and ignore `errno.EINVAL` errors."""
-    try:
-        _os.fsync(fd)
-    except OSError as exc:
-        if exc.errno == _errno.EINVAL:
-            # EINVAL means fd is not attached to a file, so we
-            # ignore this error
-            return
-        raise
-
-
-def fsync_file(path: str | bytes, flags: int = 0) -> None:
-    """Run `os.fsync` on a given `path`."""
-    oflags = _os.O_RDONLY | _os.O_NOFOLLOW | _os.O_CLOEXEC if _POSIX else _os.O_RDWR
-    try:
-        fd = _os.open(path, oflags | flags)
-    except OSError as exc:
-        if exc.errno == _errno.ELOOP:
-            # ignore symlinks; doing it this way insead of `stat`ing the path to
-            # ensure atomicity
-            return
-        raise
-    try:
-        _os.fsync(fd)
-    except OSError as exc:
-        exc.filename = path
-        raise exc
-    finally:
-        _os.close(fd)
-
-
-def unlink_many(
-    paths: _t.Iterable[_t.AnyStr], exceptions: list[Exception] | None = None
-) -> list[_t.AnyStr]:
-    """`os.unlink` many paths, optionally collecting exceptions.
-    Returns the paths for which `os.unlink` failed.
-    """
-    left = []
-    for path in paths:
-        try:
-            _os.unlink(path)
-        except Exception as exc:
-            if exceptions is None:
-                raise
-            left.append(path)
-            exceptions.append(exc)
-    return left
-
-
-def fsync_many_files(
-    paths: _t.Iterable[_t.AnyStr], flags: int = 0, exceptions: list[Exception] | None = None
-) -> list[_t.AnyStr]:
-    """`os.fsync` many paths, optionally collecting exceptions.
-    Returns the paths for which `os.fsync` failed.
-    """
-    left = []
-    for path in paths:
-        try:
-            fsync_file(path, flags)
-        except Exception as exc:
-            if exceptions is None:
-                raise
-            left.append(path)
-            exceptions.append(exc)
-    return left
-
-
-def rename(
-    src_path: _t.AnyStr,
-    dst_path: _t.AnyStr,
-    allow_overwrites: bool,
-    *,
-    makedirs: bool = True,
-    dst_dir: _t.AnyStr | None = None,
-) -> None:
-    if dst_dir is None:
-        dst_dir, nondot = dirname_dot(dst_path)
-        makedirs = makedirs and nondot
-
-    if makedirs:
-        _os.makedirs(dst_dir, exist_ok=True)
-
-    if allow_overwrites:
-        _os.replace(src_path, dst_path)
-    elif _POSIX:
-        with Directory(dst_dir) as d:
-            d.flock()
-            # this is now atomic
-            if _os.path.lexists(dst_path):
-                raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
-            _os.rename(src_path, dst_path)
-    else:
-        # this is both atomic and fails with `FileExistsError` on Windows
-        _os.rename(src_path, dst_path)
-
-
 DeferredRename = tuple[_t.AnyStr, _t.AnyStr, bool, _t.AnyStr, _t.AnyStr]
 
 
@@ -611,6 +506,12 @@ class DeferredSync(_t.Generic[_t.AnyStr]):
         self.rename_file = _c.deque()
         self._after = None
 
+    @property
+    def after(self) -> "DeferredSync[_t.AnyStr]":
+        if self._after is None:
+            self._after = DeferredSync(self.defer)
+        return self._after
+
     def __repr__(self) -> str:
         return (
             f"""<{self.__class__.__name__}
@@ -624,12 +525,6 @@ after="""
             + repr(self._after)
             + ">"
         )
-
-    @property
-    def after(self) -> "DeferredSync[_t.AnyStr]":
-        if self._after is None:
-            self._after = DeferredSync(self.defer)
-        return self._after
 
     def copy(self) -> "DeferredSync[_t.AnyStr]":
         """Return a shallow copy of this object (elements describing operations are not
@@ -803,6 +698,135 @@ after="""
             self.clear()
 
 
+def fsync_maybe(fd: int) -> None:
+    """Try to `os.fsync` and ignore `errno.EINVAL` errors."""
+    try:
+        _os.fsync(fd)
+    except OSError as exc:
+        if exc.errno == _errno.EINVAL:
+            # EINVAL means fd is not attached to a file, so we
+            # ignore this error
+            return
+        raise
+
+
+def fsync_file(path: str | bytes, flags: int = 0) -> None:
+    """Run `os.fsync` on a given `path`."""
+    oflags = _os.O_RDONLY | _os.O_NOFOLLOW | _os.O_CLOEXEC if _POSIX else _os.O_RDWR
+    try:
+        fd = _os.open(path, oflags | flags)
+    except OSError as exc:
+        if exc.errno == _errno.ELOOP:
+            # ignore symlinks; doing it this way insead of `stat`ing the path to
+            # ensure atomicity
+            return
+        raise
+    try:
+        _os.fsync(fd)
+    except OSError as exc:
+        exc.filename = path
+        raise exc
+    finally:
+        _os.close(fd)
+
+
+def fsync_many_files(
+    paths: _t.Iterable[_t.AnyStr], flags: int = 0, exceptions: list[Exception] | None = None
+) -> list[_t.AnyStr]:
+    """`os.fsync` many paths, optionally collecting exceptions.
+    Returns the paths for which `os.fsync` failed.
+    """
+    left = []
+    for path in paths:
+        try:
+            fsync_file(path, flags)
+        except Exception as exc:
+            if exceptions is None:
+                raise
+            left.append(path)
+            exceptions.append(exc)
+    return left
+
+
+def unlink_maybe(path: str | bytes) -> None:
+    """Try to `os.unlink` and ignore `Exception`s."""
+    try:
+        _os.unlink(path)
+    except Exception:
+        pass
+
+
+def unlink_many(
+    paths: _t.Iterable[_t.AnyStr], exceptions: list[Exception] | None = None
+) -> list[_t.AnyStr]:
+    """`os.unlink` many paths, optionally collecting exceptions.
+    Returns the paths for which `os.unlink` failed.
+    """
+    left = []
+    for path in paths:
+        try:
+            _os.unlink(path)
+        except Exception as exc:
+            if exceptions is None:
+                raise
+            left.append(path)
+            exceptions.append(exc)
+    return left
+
+
+def atomic_unlink(
+    path: _t.AnyStr,
+    *,
+    sync: DeferredSync[_t.AnyStr] | bool = True,
+) -> None:
+    """Atomically unlink `path`."""
+
+    dirname, _ = dirname_dot(path)
+
+    if isinstance(sync, DeferredSync) and sync.defer:
+        sync.unlink_file.add(path)
+        sync.fsync_dir.add(dirname)
+        return
+
+    _os.unlink(path)
+
+    if isinstance(sync, DeferredSync):
+        sync.fsync_dir.add(dirname)
+        return
+
+    if sync and _POSIX:
+        fsync_file(dirname, _os.O_DIRECTORY)
+
+
+def rename(
+    src_path: _t.AnyStr,
+    dst_path: _t.AnyStr,
+    allow_overwrites: bool,
+    *,
+    makedirs: bool = True,
+    dst_dir: _t.AnyStr | None = None,
+) -> None:
+    if dst_dir is None:
+        dst_dir, nondot = dirname_dot(dst_path)
+        makedirs = makedirs and nondot
+
+    if makedirs:
+        _os.makedirs(dst_dir, exist_ok=True)
+
+    if allow_overwrites:
+        _os.replace(src_path, dst_path)
+    elif _POSIX:
+        with Directory(dst_dir) as d:
+            d.flock()
+            # this is now atomic
+            if _os.path.lexists(dst_path):
+                raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
+            _os.rename(src_path, dst_path)
+    else:
+        # this is both atomic and fails with `FileExistsError` on Windows
+        _os.rename(src_path, dst_path)
+
+
 def atomic_rename(
     src_path: _t.AnyStr,
     dst_path: _t.AnyStr,
@@ -923,6 +947,30 @@ def atomic_make_file(
     if sync and _POSIX:
         fsync_file(dst_dir, _os.O_DIRECTORY)
         # NB: src_dir == dst_dir
+
+
+def atomic_write(
+    data: bytes,
+    dst_path: _t.AnyStr,
+    allow_overwrites: bool = False,
+    *,
+    makedirs: bool = True,
+    sync: DeferredSync[_t.AnyStr] | bool = True,
+) -> None:
+    """Atomically write given `data` to `dst_path`."""
+
+    def make_dst(tmp_path: _t.AnyStr, fsync_immediately: bool) -> None:
+        try:
+            with open(tmp_path, "xb") as fdst:
+                fdst.write(data)
+                fdst.flush()
+                if fsync_immediately:
+                    _os.fsync(fdst.fileno())
+        except Exception:
+            unlink_maybe(tmp_path)
+            raise
+
+    atomic_make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
 
 
 def atomic_copy2(
@@ -1054,54 +1102,6 @@ def atomic_move(
 
     if sync and _POSIX:
         fsync_file(src_dir, _os.O_DIRECTORY)
-
-
-def atomic_write(
-    data: bytes,
-    dst_path: _t.AnyStr,
-    allow_overwrites: bool = False,
-    *,
-    makedirs: bool = True,
-    sync: DeferredSync[_t.AnyStr] | bool = True,
-) -> None:
-    """Atomically write given `data` to `dst_path`."""
-
-    def make_dst(tmp_path: _t.AnyStr, fsync_immediately: bool) -> None:
-        try:
-            with open(tmp_path, "xb") as fdst:
-                fdst.write(data)
-                fdst.flush()
-                if fsync_immediately:
-                    _os.fsync(fdst.fileno())
-        except Exception:
-            unlink_maybe(tmp_path)
-            raise
-
-    atomic_make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
-
-
-def atomic_unlink(
-    path: _t.AnyStr,
-    *,
-    sync: DeferredSync[_t.AnyStr] | bool = True,
-) -> None:
-    """Atomically unlink `path`."""
-
-    dirname, _ = dirname_dot(path)
-
-    if isinstance(sync, DeferredSync) and sync.defer:
-        sync.unlink_file.add(path)
-        sync.fsync_dir.add(dirname)
-        return
-
-    _os.unlink(path)
-
-    if isinstance(sync, DeferredSync):
-        sync.fsync_dir.add(dirname)
-        return
-
-    if sync and _POSIX:
-        fsync_file(dirname, _os.O_DIRECTORY)
 
 
 def setup_fs(prog: str | None = None, ext: str = ".part", add_pid: bool = True) -> None:
