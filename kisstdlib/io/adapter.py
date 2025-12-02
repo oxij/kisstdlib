@@ -73,7 +73,7 @@ class ReadAdapter(IOAdapter):
                 self._buffer += self._handle_data(data)
 
         if len(self._buffer) == 0:
-            return b""
+            return self._buffer
 
         if size == -1 or len(self._buffer) == size:
             res = self._buffer
@@ -89,7 +89,7 @@ class ReadAdapter(IOAdapter):
 
 
 class UpdateFinalizeReader(ReadAdapter):
-    def __init__(self, preprocessor: _t.Any, fobj: _t.Any, block_size: int) -> None:
+    def __init__(self, fobj: _t.Any, preprocessor: _t.Any, block_size: int = 4096) -> None:
         super().__init__(fobj, block_size)
         self._preprocessor = preprocessor
 
