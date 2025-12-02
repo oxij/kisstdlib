@@ -20,12 +20,130 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Parsec-like parser combinator, but using regexes a lot."""
+"""Parsing of `str`ings and `bytes`."""
 
 import re as _re
 import typing as _t
 
+from itertools import islice as _islice
+
 from .failure import ParsingFailure
+
+
+# A state transition function, see `BytesTransformer` below.
+ByteTransitions: _t.TypeAlias = _t.Callable[[int, int], tuple[int, bytes] | None]
+
+
+def LF2CRLF(_s: int, c: int) -> tuple[int, bytes] | None:
+    "Map all LF to CR LF."
+    if c == 10:
+        # LF
+        return 0, b"\r\n"
+    return None
+
+
+def CRLF2LF(s: int, c: int) -> tuple[int, bytes] | None:
+    "Map all CR LF sequences to LF."
+    if s == 0:
+        if c == 13:
+            # CR
+            return 1, b""
+        return None
+
+    if c == 10:
+        # CR LF
+        return 0, b"\n"
+    if c == 13:
+        # CR CR
+        return 1, b"\r"
+    if c == -1:
+        # CR EOF
+        return 0, b"\r"
+
+    # CR other
+    return 0, bytes([13, c])
+
+
+class BytesTransformer:
+    """Transform some `bytes` using a given `ByteTransitions` somewhat similarly to
+    `bytearray.transform`, but with more expressive power.
+
+    This class implements the same `update` + `finalize` API as most cryptographic libraries.
+
+    `ByteTransitions` is a function from old state number (the first `int`) and a char (the second
+    `int`) to new state number and generated `bytes` output. The `None` result means "keep the same
+    state, output the input byte". The initial state is `0`, EOF is represented by a `-1` byte.
+
+    See, e.g. `UNIX2DOS*` and `DOS2UNIX*` in `kisstdlib.io.adapter` for example usages.
+    """
+
+    def __init__(self, transitions: ByteTransitions) -> None:
+        self._transitions = transitions
+        self._stateno = 0
+
+    def update(self, data: bytes) -> bytes:
+        i = 0
+        dlen = len(data)
+
+        stateno = self._stateno
+        tf = self._transitions
+
+        c: int
+        t: tuple[int, bytes] | None
+
+        # skip noops
+        while i < dlen:
+            c = data[i]
+            t = tf(stateno, c)
+            if t is None:
+                i += 1
+                continue
+            # nstateno, nout = t
+            # if nstateno == stateno and len(nout) == 0 and nout[0] == c:
+            #     i += 1
+            #     continue
+            break
+        else:
+            return data
+
+        if i == dlen:
+            # there were only noops
+            return data
+
+        # copy the noop part
+        res = bytearray(_islice(data, i))
+
+        # update on the current char
+        stateno, nout = t
+        res.extend(nout)
+        i += 1
+
+        # update on the rest
+        while i < dlen:
+            c = data[i]
+            t = tf(stateno, c)
+            if t is None:
+                res.append(c)
+            else:
+                stateno, nout = t
+                res.extend(nout)
+            i += 1
+
+        self._stateno = stateno
+        return bytes(res)
+
+    def finalize(self) -> bytes:
+        t = self._transitions(self._stateno, -1)
+        if t is None:
+            self._stateno, nout = 0, b""
+        else:
+            self._stateno, nout = t
+
+        # ensure it gets reset properly
+        assert self._stateno == 0
+
+        return nout
+
 
 word_re = _re.compile(r"(\S+)")
 natural_re = _re.compile(r"([0-9]+)")
@@ -40,7 +158,7 @@ ParserParamSpec = _t.ParamSpec("ParserParamSpec")
 
 
 class Parser:
-    """Parser combinator with regexes."""
+    """Parsec-like parser combinator with regexes."""
 
     def __init__(self, data: str) -> None:
         self.buffer = data

@@ -23,7 +23,14 @@
 """Adapt almost any folding function into `IOBase` interface."""
 
 import typing as _t
+
 from zlib import compressobj as _compressobj, decompressobj as _decompressobj
+
+from ..parsing import (
+    BytesTransformer as _BytesTransformer,
+    LF2CRLF as _LF2CRLF,
+    CRLF2LF as _CRLF2LF,
+)
 
 
 class IOAdapter:
@@ -112,6 +119,26 @@ class UpdateFinalizeWriter(IOAdapter):
         if not self.closed:
             self._fobj.write(self._preprocessor.finalize())
             self._fobj.close()
+
+
+class DOS2UNIXReader(UpdateFinalizeReader):
+    def __init__(self, fobj: _t.Any, block_size: int = 4096) -> None:
+        super().__init__(fobj, _BytesTransformer(_CRLF2LF), block_size)
+
+
+class UNIX2DOSReader(UpdateFinalizeReader):
+    def __init__(self, fobj: _t.Any, block_size: int = 4096) -> None:
+        super().__init__(fobj, _BytesTransformer(_LF2CRLF), block_size)
+
+
+class DOS2UNIXWriter(UpdateFinalizeWriter):
+    def __init__(self, fobj: _t.Any) -> None:
+        super().__init__(fobj, _BytesTransformer(_CRLF2LF))
+
+
+class UNIX2DOSWriter(UpdateFinalizeWriter):
+    def __init__(self, fobj: _t.Any) -> None:
+        super().__init__(fobj, _BytesTransformer(_LF2CRLF))
 
 
 class ZlibDecompressor(ReadAdapter):
