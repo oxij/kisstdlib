@@ -26,7 +26,22 @@ import io as _io
 import typing as _t
 
 from kisstdlib.io.base import *
+from kisstdlib.io.adapter import *
 from kisstdlib.io.wrapper import *
+
+
+def test_adapters() -> None:
+    buf = _io.BytesIO()
+
+    u2d = UNIX2DOSWriter(buf)
+    orig = b"Hello, World!\nFoo\rBar\r"
+    u2d.write(orig)
+    assert buf.getvalue() == b"Hello, World!\r\nFoo\rBar\r"
+
+    buf.seek(0)
+
+    d2u = DOS2UNIXReader(buf)
+    assert d2u.read() == orig
 
 
 def test_ansi_set() -> None:
