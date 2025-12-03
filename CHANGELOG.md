@@ -6,6 +6,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 Also, at the bottom of this file there is a [TODO list](#todo) with planned future changes.
 
+## [v0.0.12] - 2025-12-03
+
+### Fixed
+
+- `kisstdlib/fs.py`: `realdir`: Fixed `realdir(".")` to work as expected.
+
+- `kisstdlib/itertools_ext.py`: `nth`: Fixed a bug.
+
+### Added
+
+- `kisstdlib/parsing.py`, `kisstdlib/io/adapter.py`: Implemented `BytesTransformer` and its IO-adapter friends.
+
+- `test/test_basics.py`: Added better tests for `nth`.
+
+- `test/test_parsing.py`, `test/test_io.py`: Added tests for `BytesTransformer` adapters.
+
+### Changed
+
+- `kisstdlib/io/adapter.py`: `UpdateFinalizeReader`: Reordered arguments a bit.
+
+- `kisstdlib/sqlite3_ext.py`: Improved debug messages.
+
 ## [v0.0.11] - 2025-03-30
 
 ### Added
@@ -411,6 +433,7 @@ Also, at the bottom of this file there is a [TODO list](#todo) with planned futu
 
 - Initial release.
 
+[v0.0.12]: https://github.com/oxij/kisstdlib/compare/v0.0.11...v0.0.12
 [v0.0.11]: https://github.com/oxij/kisstdlib/compare/v0.0.10...v0.0.11
 [v0.0.10]: https://github.com/oxij/kisstdlib/compare/v0.0.9...v0.0.10
 [v0.0.9]: https://github.com/oxij/kisstdlib/compare/v0.0.8...v0.0.9

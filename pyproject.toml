@@ -9,7 +9,7 @@ namespaces = true
 "kisstdlib" = ["py.typed"]
 [project]
 name = "kisstdlib"
-version = "0.0.11"
+version = "0.0.12"
 authors = [{ name = "Jan Malakhovski", email = "oxij@oxij.org" }]
 description = "System programming with conceptually and algebraically simple primitives."
 readme = "README.md"
