@@ -171,7 +171,7 @@ class AppDB(_t.Generic[SettingsType]):
         - Then, if `backup_before_upgrades` is set and upgrades are required,
           backups the old database into `{path}.v{old_version}.bak`.
 
-        - If the database does not exists, this method creates a new database
+        - If the database does not exist, this method creates a new database
           with current `APPLICATION_ID`, `version` set to `0` and `setting` set
           to `default_settings`.
 
