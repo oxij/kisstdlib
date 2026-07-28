@@ -20,8 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""cbor2-style encoder for Pythonic Object Representation (repr)
-"""
+"""cbor2-style encoder for Pythonic Object Representation (repr)"""
 
 import io as _io
 import typing as _t
