@@ -47,7 +47,7 @@ sep = _op.sep
 sepb = _os.fsencode(_op.sep)
 
 
-def dirname_dot(path: _t.AnyStr) -> tuple[_t.AnyStr, bool]:
+def dirname_dot[AnyStr: (str, bytes)](path: AnyStr) -> tuple[AnyStr, bool]:
     """Apply `os.path.dirname` to the given argument, but if it's empty, return "." instead.
     The second element of the tuple is `False` if the above replacement was performed, `True` otherwise.
     """
@@ -61,7 +61,7 @@ def dirname_dot(path: _t.AnyStr) -> tuple[_t.AnyStr, bool]:
     return path, True
 
 
-def realdir(path: _t.AnyStr, strict: bool = False) -> _t.AnyStr:
+def realdir[AnyStr: (str, bytes)](path: AnyStr, strict: bool = False) -> AnyStr:
     """Apply `os.path.realpath` to the `dirname` part of `path`.
 
     Essentially, this returns the canonical path of the inode the `path` points to, even when that
@@ -125,10 +125,8 @@ def sha256_file(path: str | bytes, buffer_size: int = HASH_BUFFER_SIZE) -> bytes
     return hash_file(_hashlib.sha256, path, buffer_size)
 
 
-IncludeFilesFunc = _t.Callable[[_t.AnyStr], bool]
-IncludeDirectoriesFunc = _t.Callable[
-    [_t.AnyStr, _t.AnyStr, bool, list[tuple[_t.AnyStr, _t.AnyStr, bool]]], bool | None
-]
+type IncludeFilesFunc[T] = _t.Callable[[T], bool]
+type IncludeDirectoriesFunc[T] = _t.Callable[[T, T, bool, list[tuple[T, T, bool]]], bool | None]
 
 
 class WalkOrder(_enum.Enum):
@@ -137,16 +135,19 @@ class WalkOrder(_enum.Enum):
     REVERSE = 2
 
 
-def iter_subtree(
-    path: _t.AnyStr,
+def iter_subtree[AnyStr: (
+    str,
+    bytes,
+)](
+    path: AnyStr,
     *,
-    include_files: bool | IncludeFilesFunc[_t.AnyStr] = True,
-    include_directories: bool | IncludeDirectoriesFunc[_t.AnyStr] = True,
+    include_files: bool | IncludeFilesFunc[AnyStr] = True,
+    include_directories: bool | IncludeDirectoriesFunc[AnyStr] = True,
     follow_symlinks: bool = True,
     order: WalkOrder = WalkOrder.SORT,
     handle_error: _t.Callable[..., None] | None = None,
-    path_sep: _t.AnyStr | None = None,
-) -> _t.Iterator[tuple[_t.AnyStr, _t.AnyStr, bool]]:
+    path_sep: AnyStr | None = None,
+) -> _t.Iterator[tuple[AnyStr, AnyStr, bool]]:
     """Similar to `os.walk`, but produces an iterator over
 
     `tuple[path, path + sep if is_dir else path, is_dir]`
@@ -240,12 +241,12 @@ def iter_subtree(
         raise
 
     complete = True
-    elements: list[tuple[_t.AnyStr, _t.AnyStr, bool]] = []
+    elements: list[tuple[AnyStr, AnyStr, bool]] = []
 
     with scandir_it:
         while True:
             try:
-                entry: _os.DirEntry[_t.AnyStr] = next(scandir_it)
+                entry: _os.DirEntry[AnyStr] = next(scandir_it)
             except StopIteration:
                 break
             except OSError as exc:
@@ -278,7 +279,7 @@ def iter_subtree(
                         continue
                     raise
 
-                epath_sep: _t.AnyStr = entry.path
+                epath_sep: AnyStr = entry.path
                 if entry_is_dir:
                     if isinstance(epath_sep, str):
                         epath_sep += sep
@@ -320,45 +321,57 @@ def iter_subtree(
         yield el
 
 
-def as_include_directories(f: IncludeFilesFunc[_t.AnyStr]) -> IncludeDirectoriesFunc[_t.AnyStr]:
+def as_include_directories[AnyStr: (
+    str,
+    bytes,
+)](f: IncludeFilesFunc[AnyStr]) -> IncludeDirectoriesFunc[AnyStr]:
     """`convert iter_subtree(..., include_files, ...)` filter to `include_directories` filter"""
 
     def func(
-        path: _t.AnyStr,
-        _path_sep: _t.AnyStr,
+        path: AnyStr,
+        _path_sep: AnyStr,
         _complete: bool,
-        _elements: list[tuple[_t.AnyStr, _t.AnyStr, bool]],
+        _elements: list[tuple[AnyStr, AnyStr, bool]],
     ) -> bool:
         return f(path)
 
     return func
 
 
-def with_extension_in(exts: _cabc.Collection[str | bytes]) -> IncludeFilesFunc[_t.AnyStr]:
+def with_extension_in[AnyStr: (
+    str,
+    bytes,
+)](exts: _cabc.Collection[str | bytes]) -> IncludeFilesFunc[AnyStr]:
     """`iter_subtree(..., include_files, ...)` (or `include_directories`) filter that makes it only include files that have one of the given extensions"""
 
-    def pred(path: _t.AnyStr) -> bool:
+    def pred(path: AnyStr) -> bool:
         _, ext = _op.splitext(path)
         return ext in exts
 
     return pred
 
 
-def with_extension_not_in(exts: _cabc.Collection[str | bytes]) -> IncludeFilesFunc[_t.AnyStr]:
+def with_extension_not_in[AnyStr: (
+    str,
+    bytes,
+)](exts: _cabc.Collection[str | bytes]) -> IncludeFilesFunc[AnyStr]:
     """`iter_subtree(..., include_files, ...)` (or `include_directories`) filter that makes it only include files that do not have any of the given extensions"""
 
-    def pred(path: _t.AnyStr) -> bool:
+    def pred(path: AnyStr) -> bool:
         _, ext = _op.splitext(path)
         return ext not in exts
 
     return pred
 
 
-def nonempty_directories(
-    _path: _t.AnyStr,
-    _path_sep: _t.AnyStr,
+def nonempty_directories[AnyStr: (
+    str,
+    bytes,
+)](
+    _path: AnyStr,
+    _path_sep: AnyStr,
     complete: bool,
-    elements: list[tuple[_t.AnyStr, _t.AnyStr, bool]],
+    elements: list[tuple[AnyStr, AnyStr, bool]],
 ) -> bool:
     """`iter_subtree(..., include_directories, ...)` filter that makes it print only non-empty directories"""
     if len(elements) == 0:
@@ -366,11 +379,14 @@ def nonempty_directories(
     return True
 
 
-def leaf_directories(
-    _path: _t.AnyStr,
-    _path_sep: _t.AnyStr,
+def leaf_directories[AnyStr: (
+    str,
+    bytes,
+)](
+    _path: AnyStr,
+    _path_sep: AnyStr,
     complete: bool,
-    elements: list[tuple[_t.AnyStr, _t.AnyStr, bool]],
+    elements: list[tuple[AnyStr, AnyStr, bool]],
 ) -> bool:
     """`iter_subtree(..., include_directories, ...)` filter that makes it print leaf directories only, i.e. only directories without sub-directories"""
     if complete and all(map(lambda x: not x[2], elements)):
@@ -378,11 +394,14 @@ def leaf_directories(
     return False
 
 
-def nonempty_leaf_directories(
-    path: _t.AnyStr,
-    path_sep: _t.AnyStr,
+def nonempty_leaf_directories[AnyStr: (
+    str,
+    bytes,
+)](
+    path: AnyStr,
+    path_sep: AnyStr,
     complete: bool,
-    elements: list[tuple[_t.AnyStr, _t.AnyStr, bool]],
+    elements: list[tuple[AnyStr, AnyStr, bool]],
 ) -> bool:
     """`iter_subtree(..., include_directories, ...)` filter that makes it print only non-empty leaf directories, i.e. non-empty directories without sub-directories"""
     if nonempty_directories(path, path_sep, complete, elements) and leaf_directories(
@@ -392,8 +411,11 @@ def nonempty_leaf_directories(
     return False
 
 
-def describe_forest(
-    paths: list[_t.AnyStr],
+def describe_forest[AnyStr: (
+    str,
+    bytes,
+)](
+    paths: list[AnyStr],
     *,
     numbers: bool | None = None,
     literal: bool = False,
@@ -409,7 +431,7 @@ def describe_forest(
     See `describe-forest` script for more info.
     """
     escape: _t.Callable[[str], str] = _identity if literal else _escape_path
-    seen: dict[tuple[int, int], tuple[_t.AnyStr, int, str]] = {}
+    seen: dict[tuple[int, int], tuple[AnyStr, int, str]] = {}
     for i, dirpath in enumerate(paths):
         for fpath, _eps, _edir in iter_subtree(dirpath, follow_symlinks=follow_symlinks):
             abs_path = _op.abspath(fpath)
@@ -468,10 +490,10 @@ def describe_forest(
                 yield [epath, "???"] + emode + emtime + esize
 
 
-DeferredRename = tuple[_t.AnyStr, _t.AnyStr, bool, _t.AnyStr, _t.AnyStr]
+type DeferredRename[T] = tuple[T, T, bool, T, T]
 
 
-class DeferredSync(_t.Generic[_t.AnyStr]):
+class DeferredSync[AnyStr: (str, bytes)]:
     """Deferred file system `replace`s, `rename`s, `unlink`s, and `fsync`s.
 
     Basically, this exists to defer `os.replace`, `os.rename`, `os.unlink`, and
@@ -482,15 +504,15 @@ class DeferredSync(_t.Generic[_t.AnyStr]):
     """
 
     defer: bool
-    tmp_file: set[_t.AnyStr]
-    unlink_file: set[_t.AnyStr]
-    fsync_file: set[_t.AnyStr]
-    fsync_dir: set[_t.AnyStr]
-    fsync_dir2: set[_t.AnyStr]
-    rename_file: _c.deque[DeferredRename[_t.AnyStr]]
+    tmp_file: set[AnyStr]
+    unlink_file: set[AnyStr]
+    fsync_file: set[AnyStr]
+    fsync_dir: set[AnyStr]
+    fsync_dir2: set[AnyStr]
+    rename_file: _c.deque[DeferredRename[AnyStr]]
 
     # if all of the above succeed, also do these
-    _after: _t.Optional["DeferredSync[_t.AnyStr]"]
+    _after: _t.Optional["DeferredSync[AnyStr]"]
 
     def __init__(self, defer: bool) -> None:
         self.defer = defer
@@ -507,7 +529,7 @@ class DeferredSync(_t.Generic[_t.AnyStr]):
         self._after = None
 
     @property
-    def after(self) -> "DeferredSync[_t.AnyStr]":
+    def after(self) -> "DeferredSync[AnyStr]":
         if self._after is None:
             self._after = DeferredSync(self.defer)
         return self._after
@@ -526,11 +548,11 @@ after="""
             + ">"
         )
 
-    def copy(self) -> "DeferredSync[_t.AnyStr]":
+    def copy(self) -> "DeferredSync[AnyStr]":
         """Return a shallow copy of this object (elements describing operations are not
         copied, only the structure is).
         """
-        res: DeferredSync[_t.AnyStr] = DeferredSync(self.defer)
+        res: DeferredSync[AnyStr] = DeferredSync(self.defer)
         res.tmp_file = set(self.tmp_file)
         res.unlink_file = set(self.unlink_file)
         res.fsync_file = set(self.fsync_file)
@@ -568,10 +590,10 @@ after="""
         if strict and exceptions:
             return exceptions
 
-        fsync_file_left: set[_t.AnyStr] = set()
-        fsync_dir_left: set[_t.AnyStr] = set()
-        fsync_dir2_left: set[_t.AnyStr] = set()
-        rename_file_left: _c.deque[DeferredRename[_t.AnyStr]] = _c.deque()
+        fsync_file_left: set[AnyStr] = set()
+        fsync_dir_left: set[AnyStr] = set()
+        fsync_dir2_left: set[AnyStr] = set()
+        rename_file_left: _c.deque[DeferredRename[AnyStr]] = _c.deque()
 
         def done() -> None:
             self.fsync_file.update(fsync_file_left)
@@ -730,9 +752,12 @@ def fsync_file(path: str | bytes, flags: int = 0) -> None:
         _os.close(fd)
 
 
-def fsync_many_files(
-    paths: _t.Iterable[_t.AnyStr], flags: int = 0, exceptions: list[Exception] | None = None
-) -> list[_t.AnyStr]:
+def fsync_many_files[AnyStr: (
+    str,
+    bytes,
+)](paths: _t.Iterable[AnyStr], flags: int = 0, exceptions: list[Exception] | None = None) -> list[
+    AnyStr
+]:
     """`os.fsync` many paths, optionally collecting exceptions.
     Returns the paths for which `os.fsync` failed.
     """
@@ -756,9 +781,10 @@ def unlink_maybe(path: str | bytes) -> None:
         pass
 
 
-def unlink_many(
-    paths: _t.Iterable[_t.AnyStr], exceptions: list[Exception] | None = None
-) -> list[_t.AnyStr]:
+def unlink_many[AnyStr: (
+    str,
+    bytes,
+)](paths: _t.Iterable[AnyStr], exceptions: list[Exception] | None = None) -> list[AnyStr]:
     """`os.unlink` many paths, optionally collecting exceptions.
     Returns the paths for which `os.unlink` failed.
     """
@@ -774,11 +800,10 @@ def unlink_many(
     return left
 
 
-def atomic_unlink(
-    path: _t.AnyStr,
-    *,
-    sync: DeferredSync[_t.AnyStr] | bool = True,
-) -> None:
+def atomic_unlink[AnyStr: (
+    str,
+    bytes,
+)](path: AnyStr, *, sync: DeferredSync[AnyStr] | bool = True,) -> None:
     """Atomically unlink `path`."""
 
     dirname, _ = dirname_dot(path)
@@ -798,13 +823,16 @@ def atomic_unlink(
         fsync_file(dirname, _os.O_DIRECTORY)
 
 
-def rename(
-    src_path: _t.AnyStr,
-    dst_path: _t.AnyStr,
+def rename[AnyStr: (
+    str,
+    bytes,
+)](
+    src_path: AnyStr,
+    dst_path: AnyStr,
     allow_overwrites: bool,
     *,
     makedirs: bool = True,
-    dst_dir: _t.AnyStr | None = None,
+    dst_dir: AnyStr | None = None,
 ) -> None:
     if dst_dir is None:
         dst_dir, nondot = dirname_dot(dst_path)
@@ -827,13 +855,16 @@ def rename(
         _os.rename(src_path, dst_path)
 
 
-def atomic_rename(
-    src_path: _t.AnyStr,
-    dst_path: _t.AnyStr,
+def atomic_rename[AnyStr: (
+    str,
+    bytes,
+)](
+    src_path: AnyStr,
+    dst_path: AnyStr,
     allow_overwrites: bool,
     *,
     makedirs: bool = True,
-    sync: DeferredSync[_t.AnyStr] | bool = True,
+    sync: DeferredSync[AnyStr] | bool = True,
 ) -> None:
     """Atomically rename a file, performing all necesary `fsync`s."""
 
@@ -863,13 +894,16 @@ def atomic_rename(
             fsync_file(dst_path)
 
 
-def make_file(
-    make_dst: _t.Callable[[_t.AnyStr, bool], None],
-    dst_path: _t.AnyStr,
+def make_file[AnyStr: (
+    str,
+    bytes,
+)](
+    make_dst: _t.Callable[[AnyStr, bool], None],
+    dst_path: AnyStr,
     allow_overwrites: bool = False,
     *,
     makedirs: bool = True,
-    sync: DeferredSync[_t.AnyStr] | bool = True,
+    sync: DeferredSync[AnyStr] | bool = True,
 ) -> None:
     """Create a file using a given `make_dst` function."""
 
@@ -896,13 +930,16 @@ _dot_part = ".part"
 _dot_partb = b".part"
 
 
-def atomic_make_file(
-    make_dst: _t.Callable[[_t.AnyStr, bool], None],
-    dst_path: _t.AnyStr,
+def atomic_make_file[AnyStr: (
+    str,
+    bytes,
+)](
+    make_dst: _t.Callable[[AnyStr, bool], None],
+    dst_path: AnyStr,
     allow_overwrites: bool = False,
     *,
     makedirs: bool = True,
-    sync: DeferredSync[_t.AnyStr] | bool = True,
+    sync: DeferredSync[AnyStr] | bool = True,
 ) -> None:
     """Atomically create a file using a given `make_dst` function. This
     runs `make_dst` on a `.part` path first, `fsync`s it, then does
@@ -949,17 +986,20 @@ def atomic_make_file(
         # NB: src_dir == dst_dir
 
 
-def atomic_write(
+def atomic_write[AnyStr: (
+    str,
+    bytes,
+)](
     data: bytes,
-    dst_path: _t.AnyStr,
+    dst_path: AnyStr,
     allow_overwrites: bool = False,
     *,
     makedirs: bool = True,
-    sync: DeferredSync[_t.AnyStr] | bool = True,
+    sync: DeferredSync[AnyStr] | bool = True,
 ) -> None:
     """Atomically write given `data` to `dst_path`."""
 
-    def make_dst(tmp_path: _t.AnyStr, fsync_immediately: bool) -> None:
+    def make_dst(tmp_path: AnyStr, fsync_immediately: bool) -> None:
         try:
             with open(tmp_path, "xb") as fdst:
                 fdst.write(data)
@@ -973,18 +1013,21 @@ def atomic_write(
     atomic_make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
 
 
-def atomic_copy2(
-    src_path: _t.AnyStr,
-    dst_path: _t.AnyStr,
+def atomic_copy2[AnyStr: (
+    str,
+    bytes,
+)](
+    src_path: AnyStr,
+    dst_path: AnyStr,
     allow_overwrites: bool = False,
     *,
     follow_symlinks: bool = True,
     makedirs: bool = True,
-    sync: DeferredSync[_t.AnyStr] | bool = True,
+    sync: DeferredSync[AnyStr] | bool = True,
 ) -> None:
     """Atomically copy `src_path` to `dst_path`."""
 
-    def make_dst(tmp_path: _t.AnyStr, fsync_immediately: bool) -> None:
+    def make_dst(tmp_path: AnyStr, fsync_immediately: bool) -> None:
         try:
             if not follow_symlinks and _os.path.islink(src_path):
                 _os.symlink(_os.readlink(src_path), tmp_path)
@@ -1006,21 +1049,24 @@ def atomic_copy2(
     atomic_make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
 
 
-def atomic_link(
-    src_path: _t.AnyStr,
-    dst_path: _t.AnyStr,
+def atomic_link[AnyStr: (
+    str,
+    bytes,
+)](
+    src_path: AnyStr,
+    dst_path: AnyStr,
     allow_overwrites: bool = False,
     *,
     follow_symlinks: bool = True,
     makedirs: bool = True,
-    sync: DeferredSync[_t.AnyStr] | bool = True,
+    sync: DeferredSync[AnyStr] | bool = True,
 ) -> None:
     """Atomically hardlink `src_path` to `dst_path`."""
 
     if follow_symlinks and _os.path.islink(src_path):
         src_path = _os.path.realpath(src_path)
 
-    def make_dst(dst_path: _t.AnyStr, _fsync_immediately: bool) -> None:
+    def make_dst(dst_path: AnyStr, _fsync_immediately: bool) -> None:
         _os.link(src_path, dst_path, follow_symlinks=follow_symlinks)
 
     # _os.link is atomic, so non-atomic make_file is ok
@@ -1030,21 +1076,24 @@ def atomic_link(
         make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
 
 
-def atomic_symlink(
-    src_path: _t.AnyStr,
-    dst_path: _t.AnyStr,
+def atomic_symlink[AnyStr: (
+    str,
+    bytes,
+)](
+    src_path: AnyStr,
+    dst_path: AnyStr,
     allow_overwrites: bool = False,
     *,
     follow_symlinks: bool = True,
     makedirs: bool = True,
-    sync: DeferredSync[_t.AnyStr] | bool = True,
+    sync: DeferredSync[AnyStr] | bool = True,
 ) -> None:
     """Atomically symlink `src_path` to `dst_path`."""
 
     if follow_symlinks and _os.path.islink(src_path):
         src_path = _os.path.realpath(src_path)
 
-    def make_dst(dst_path: _t.AnyStr, _fsync_immediately: bool) -> None:
+    def make_dst(dst_path: AnyStr, _fsync_immediately: bool) -> None:
         _os.symlink(src_path, dst_path)
 
     # _os.symlink is atomic, so non-atomic make_file is ok
@@ -1054,14 +1103,17 @@ def atomic_symlink(
         make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
 
 
-def atomic_link_or_copy2(
-    src_path: _t.AnyStr,
-    dst_path: _t.AnyStr,
+def atomic_link_or_copy2[AnyStr: (
+    str,
+    bytes,
+)](
+    src_path: AnyStr,
+    dst_path: AnyStr,
     allow_overwrites: bool = False,
     *,
     follow_symlinks: bool = True,
     makedirs: bool = True,
-    sync: DeferredSync[_t.AnyStr] | bool = True,
+    sync: DeferredSync[AnyStr] | bool = True,
 ) -> None:
     """Atomically hardlink or copy `src_path` to `dst_path`."""
 
@@ -1073,14 +1125,17 @@ def atomic_link_or_copy2(
         atomic_copy2(src_path, dst_path, allow_overwrites, follow_symlinks=follow_symlinks, makedirs=makedirs, sync=sync)  # fmt: skip
 
 
-def atomic_move(
-    src_path: _t.AnyStr,
-    dst_path: _t.AnyStr,
+def atomic_move[AnyStr: (
+    str,
+    bytes,
+)](
+    src_path: AnyStr,
+    dst_path: AnyStr,
     allow_overwrites: bool = False,
     *,
     follow_symlinks: bool = False,
     makedirs: bool = True,
-    sync: DeferredSync[_t.AnyStr] | bool = True,
+    sync: DeferredSync[AnyStr] | bool = True,
 ) -> None:
     """Atomically move `src_path` to `dst_path`.
 

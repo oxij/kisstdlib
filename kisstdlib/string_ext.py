@@ -42,14 +42,17 @@ from stringprep import in_table_c21_c22 as _in_table_c21_c22
 from .failure import ParsingFailure as _ParsingFailure
 
 
-def abbrev(
-    x: _t.AnyStr,
+def abbrev[AnyStr: (
+    str,
+    bytes,
+)](
+    x: AnyStr,
     n: int,
     /,
     start_with_rep: bool = False,
     end_with_rep: bool = True,
-    rep: _t.AnyStr | None = None,
-) -> _t.AnyStr:
+    rep: AnyStr | None = None,
+) -> AnyStr:
     """Abbreviate a `str`ing or `bytes` to length `n` with the abbreviated
     part replaced with optionsal `rep` (which defaults to "..." or b"...").
 
@@ -88,7 +91,7 @@ def abbrev(
     return x[: half + leftover] + rep + x[xlen - half :]
 
 
-def hex_quote(prefix: _t.AnyStr, data: bytes) -> _t.AnyStr:
+def hex_quote[AnyStr: (str, bytes)](prefix: AnyStr, data: bytes) -> AnyStr:
     """Hex-quote given `data`, prepending each hex literal with a `prefix`."""
     res = []
     if isinstance(prefix, str):  # pylint: disable=no-else-return
@@ -103,7 +106,7 @@ def hex_quote(prefix: _t.AnyStr, data: bytes) -> _t.AnyStr:
         return b"".join(res)
 
 
-class StringLexer(_t.Generic[_t.AnyStr]):
+class StringLexer[AnyStr: (str, bytes)]:
     """A very simple string lexer which can escape, unescape, quote, and unquote
     `str`ings or `bytes`.
 
@@ -112,8 +115,8 @@ class StringLexer(_t.Generic[_t.AnyStr]):
 
     def __init__(
         self,
-        escape_char: _t.AnyStr,
-        hex_quote_char: _t.AnyStr | None,
+        escape_char: AnyStr,
+        hex_quote_char: AnyStr | None,
         special: dict[str, str] | dict[int, int] | str,
         escape_special: bool,
         safe: _t.Callable[[str | int], bool],
@@ -149,12 +152,12 @@ class StringLexer(_t.Generic[_t.AnyStr]):
         assert len(escape_char) == 1
         assert hex_quote_char is None or len(hex_quote_char) == 1
 
-        self.escape_str: _t.AnyStr = escape_char
+        self.escape_str: AnyStr = escape_char
         self.escape_int = escape_int = (
             ord(escape_char) if isinstance(escape_char, str) else escape_char[0]
         )
         self.escape_special = escape_special
-        self.hex_quote_string: _t.AnyStr = (
+        self.hex_quote_string: AnyStr = (
             ("" if isinstance(escape_char, str) else b"")
             if hex_quote_char is None
             else hex_quote_char
@@ -167,8 +170,8 @@ class StringLexer(_t.Generic[_t.AnyStr]):
         self.safe = safe
         self.encoding = encoding
 
-        fwd: dict[int, _t.AnyStr] = {}
-        rev: dict[int, _t.AnyStr] = {}
+        fwd: dict[int, AnyStr] = {}
+        rev: dict[int, AnyStr] = {}
 
         if hex_quote_char is not None:
             fwd[escape_int] = escape_char + escape_char
@@ -205,10 +208,10 @@ class StringLexer(_t.Generic[_t.AnyStr]):
                     rev[ord(c)] = cc
         else:
             assert False
-        self._fwd: dict[int, _t.AnyStr] = fwd
-        self._rev: dict[int, _t.AnyStr] = rev
+        self._fwd: dict[int, AnyStr] = fwd
+        self._rev: dict[int, AnyStr] = rev
 
-    def escape(self, data: _t.AnyStr, errors: str = "strict") -> _t.AnyStr:
+    def escape(self, data: AnyStr, errors: str = "strict") -> AnyStr:
         """Escape/quote given `data` using the configured settings.
 
         Turns all `special` characters into `{escape_char}{special(char)}`
@@ -218,10 +221,10 @@ class StringLexer(_t.Generic[_t.AnyStr]):
 
         safe = self.safe
         encoding = self.encoding
-        prefix: _t.AnyStr = self.escape_str + self.hex_quote_string
+        prefix: AnyStr = self.escape_str + self.hex_quote_string
         fwd = self._fwd
 
-        res: list[_t.AnyStr] = []
+        res: list[AnyStr] = []
         if isinstance(data, str):  # pylint: disable=no-else-return
             fwdc: dict[str, str] = {}
             for c in data:
@@ -270,7 +273,7 @@ class StringLexer(_t.Generic[_t.AnyStr]):
                 res.append(ec)
             return b"".join(res)
 
-    def unescape(self, data: _t.AnyStr, errors: str = "replace") -> _t.AnyStr:
+    def unescape(self, data: AnyStr, errors: str = "replace") -> AnyStr:
         """Unescape/unquote given `data` using the configured settings."""
 
         encoding = self.encoding
@@ -425,12 +428,15 @@ def safe_char(safe: str, unsafe: str) -> _t.Callable[[int | str], bool]:
     return pred
 
 
-def escaper(
-    escape_char: _t.AnyStr,
+def escaper[AnyStr: (
+    str,
+    bytes,
+)](
+    escape_char: AnyStr,
     special: dict[str, str] | dict[int, int] | str = ASCII_CONTROL_MAP,
     safe: _t.Callable[[str | int], bool] | tuple[str, str] = ("", ""),
     encoding: str = "utf-8",
-) -> StringLexer[_t.AnyStr]:
+) -> StringLexer[AnyStr]:
     """Get an `StringLexer` instance usable for escaping, configured with given
     parameters.
 
@@ -443,7 +449,7 @@ def escaper(
     if isinstance(safe, tuple):
         safe = safe_char(*safe)
     sid: str | int = special if isinstance(special, str) else id(special)
-    hex_quote_char: _t.AnyStr = "x" if isinstance(escape_char, str) else b"x"
+    hex_quote_char: AnyStr = "x" if isinstance(escape_char, str) else b"x"
     key = (escape_char, hex_quote_char, sid, True, id(safe), encoding)
     try:
         return _lexers[key]
@@ -452,14 +458,17 @@ def escaper(
     return res
 
 
-def escape(
-    x: _t.AnyStr,
+def escape[AnyStr: (
+    str,
+    bytes,
+)](
+    x: AnyStr,
     /,
     special: dict[str, str] | dict[int, int] | str = ASCII_CONTROL_MAP,
     safe: _t.Callable[[str | int], bool] | tuple[str, str] = ("", ""),
     encoding: str = "utf-8",
     errors: str = "strict",
-) -> _t.AnyStr:
+) -> AnyStr:
     """Escape all `special` and `safe` characters/bytes in `x` using `"\\"` as an
     escape character. See `StringLexer` for more info.
     """
@@ -468,14 +477,17 @@ def escape(
     )
 
 
-def unescape(
-    x: _t.AnyStr,
+def unescape[AnyStr: (
+    str,
+    bytes,
+)](
+    x: AnyStr,
     /,
     special: dict[str, str] | dict[int, int] | str = ASCII_CONTROL_MAP,
     safe: _t.Callable[[str | int], bool] | tuple[str, str] = ("", ""),
     encoding: str = "utf-8",
     errors: str = "replace",
-) -> _t.AnyStr:
+) -> AnyStr:
     """Inverse of `escape` with the same parameters."""
     return escaper(b"\\" if isinstance(x, bytes) else "\\", special, safe, encoding).unescape(
         x, errors
@@ -525,12 +537,15 @@ def safe_url_char(safe: str, unsafe: str) -> _t.Callable[[int | str], bool]:
     return pred
 
 
-def quoter(
-    escape_char: _t.AnyStr,
+def quoter[AnyStr: (
+    str,
+    bytes,
+)](
+    escape_char: AnyStr,
     special: dict[str, str] | dict[int, int] | str = "",
     safe: _t.Callable[[str | int], bool] | tuple[str, str] = ("", "/"),
     encoding: str = "utf-8",
-) -> StringLexer[_t.AnyStr]:
+) -> StringLexer[AnyStr]:
     """Get an `StringLexer` instance usable for quouting, configured with given
     parameters.
 
@@ -556,14 +571,17 @@ URL_QUOTE_PLUS_MAP = {
 }
 
 
-def url_quote(
-    x: _t.AnyStr,
+def url_quote[AnyStr: (
+    str,
+    bytes,
+)](
+    x: AnyStr,
     /,
     plus: bool = False,
     safe: _t.Callable[[str | int], bool] | tuple[str, str] = ("", "/"),
     encoding: str = "utf-8",
     errors: str = "strict",
-) -> _t.AnyStr:
+) -> AnyStr:
     """URL-quote all not-`safe` characters/bytes in `x` using `"%"` as an escape
     character. See `StringLexer` for more info.
     """
@@ -575,14 +593,17 @@ def url_quote(
     ).escape(x, errors)
 
 
-def url_unquote(
-    x: _t.AnyStr,
+def url_unquote[AnyStr: (
+    str,
+    bytes,
+)](
+    x: AnyStr,
     /,
     plus: bool = False,
     safe: _t.Callable[[str | int], bool] | tuple[str, str] = ("", "/"),
     encoding: str = "utf-8",
     errors: str = "replace",
-) -> _t.AnyStr:
+) -> AnyStr:
     """Inverse of `url_quote` with the same parameters."""
     return quoter(
         b"%" if isinstance(x, bytes) else "%",

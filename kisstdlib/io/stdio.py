@@ -47,14 +47,20 @@ def _numlines(x: str | bytes) -> int:
     return x.count(b"\n")
 
 
+# FIXME: Remove this. At the moment, can't use [AnyStr: (str, bytes)] below, because otherwise
+# `file` gets a spurious reference somewhere and does not get `del`eted. This appears to be a bug in
+# CPython.
+_AnyStr = _t.TypeVar("_AnyStr", str, bytes)
+
+
 def printf(
-    pattern: _t.AnyStr,
+    pattern: _AnyStr,
     /,
     *args: _t.Any,
-    start: _t.AnyStr | None = None,
-    indent: _t.AnyStr | None = None,
-    prefix: _t.AnyStr | None = None,
-    suffix: _t.AnyStr | None = None,
+    start: _AnyStr | None = None,
+    indent: _AnyStr | None = None,
+    prefix: _AnyStr | None = None,
+    suffix: _AnyStr | None = None,
     end: str | bytes | None = None,
     file: TIOWrappedWriter | None = None,
     width: int = 80,
