@@ -221,13 +221,13 @@ class AppDB(_t.Generic[SettingsType]):
         self.dirty = False
 
         try:
-            self.db = connect(path, autocommit=True, **kwargs)  # type: ignore
+            self.db = connect(path, autocommit=True, **kwargs)
             cur = self.cursor()
 
             for k, v in setup.items():
                 cur.execute(f"PRAGMA {k}={v}")
 
-            self.db.autocommit = False  # type: ignore
+            self.db.autocommit = False
 
             # create or open the database
             application_id = cur.execute("PRAGMA application_id").fetchone()[0]
@@ -251,9 +251,9 @@ class AppDB(_t.Generic[SettingsType]):
                 # backup before doing anything else
                 if backup_before_upgrades and opened_version < default_version:
                     backup_path = path + f".v{opened_version}.bak"
-                    self.db.autocommit = True  # type: ignore
+                    self.db.autocommit = True
                     cur.execute("VACUUM main INTO ?", (backup_path,))
-                    self.db.autocommit = False  # type: ignore
+                    self.db.autocommit = False
 
                     # NB: ideally, this should happen within the same
                     # transaction so that `opened_version` would still be valid.

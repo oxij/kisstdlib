@@ -58,7 +58,7 @@ def prefill_AbstractSortedIndex(
 def skip(step: Number, xs: _t.Iterable[tuple[Number, AType]]) -> _t.Iterator[tuple[Number, AType]]:
     prev = None
     for x in xs:
-        if prev is not None and abs(prev[0] - x[0]) < step:
+        if prev is not None and abs(sub_(prev[0], x[0])) < step:  # type: ignore
             continue
         yield x
         prev = x

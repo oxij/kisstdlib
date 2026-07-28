@@ -104,7 +104,7 @@ def write_all(write_func: _t.Callable[[BytesLike], int | None], data: BytesLike)
     while done < datalen:
         res = write_func(view[done:])
         if not res:
-            raise IncompleteWriteError(data[done:])
+            raise IncompleteWriteError(bytes(data[done:]))
         done += res
 
 

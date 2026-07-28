@@ -153,28 +153,29 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
         again = True
         while again:
             again = False
-            for e in self.internal_from_to(
+            for el in self.internal_from_to(
                 key, start, end, include_start=include_start, include_end=include_end
             ):
+                e = self.value_key(el)
                 if prev is not None:
                     # check that `e` is no less than `step` away from `prev`
                     if forwards:
-                        if e[0] - prev[0] < step:
-                            start = _add_(prev[0], step)
+                        if _sub_(e, prev) < step:
+                            start = _add_(prev, step)
                             if start > end:
                                 return
                             include_start = True
                             again = True
                             break
                     else:
-                        if prev[0] - e[0] < step:
-                            start = _sub_(prev[0], step)
+                        if _sub_(prev, e) < step:
+                            start = _sub_(prev, step)
                             if start < end:
                                 return
                             include_start = True
                             again = True
                             break
-                yield e
+                yield el
                 prev = e
 
     def iter_range(
@@ -354,7 +355,7 @@ class SortedIndex(
         self.ideal = ideal
         self.size = 0
 
-    def values(self) -> _t.Iterable[ValueType]:  # type: ignore
+    def values(self) -> _t.Iterable[ValueType]:
         return _chain.from_iterable(SortedDict.values(self))
 
     def insert(self, key: KeyType, value: ValueType) -> bool:
