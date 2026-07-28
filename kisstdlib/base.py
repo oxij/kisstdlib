@@ -104,8 +104,8 @@ MISSING = Missing()
 ### Structured unions
 
 
-class Maybe(_t.Generic[AType]):
-    """Similar to `Optional[AType]`, i.e. `AType | None`, but allows
+class Maybe[T]:
+    """Similar to `Optional[T]`, i.e. `T | None`, but allows
     arbitrary nesting.
 
     E.g. `Maybe[Maybe[int]]` does not get flattened into `Maybe[int]`.
@@ -113,41 +113,41 @@ class Maybe(_t.Generic[AType]):
 
 
 @_dc.dataclass(order=True)
-class Nothing(Maybe[AType], _t.Generic[AType]):
+class Nothing[T](Maybe[T]):
     pass
 
 
 @_dc.dataclass(order=True, slots=True)
-class Just(Maybe[AType], _t.Generic[AType]):
-    just: AType
+class Just[T](Maybe[T]):
+    just: T
 
 
-class Either(_t.Generic[AType, BType]):
-    """Either a value of `AType` or a value `BType`, without flattening.
+class Either[A, B]():
+    """Either a value of type `A` or a value of type `B`, without flattening.
 
     E.g., `Either[int, int]` is not just `int`.
     """
 
 
 @_dc.dataclass(order=True, slots=True)
-class Left(Either[AType, BType], _t.Generic[AType, BType]):
-    left: AType
+class Left[A, B](Either[A, B]):
+    left: A
 
 
 @_dc.dataclass(order=True, slots=True)
-class Right(Either[AType, BType], _t.Generic[AType, BType]):
-    right: BType
+class Right[A, B](Either[A, B]):
+    right: B
 
 
 ### Operations on Numbers
 
 
-def clamp(minv: AnyNumber, maxv: AnyNumber, v: AnyNumber) -> AnyNumber:
+def clamp[A: (int, float, Decimal)](minv: A, maxv: A, v: A) -> A:
     return min(maxv, max(minv, v))
 
 
-def is_infinite(x: Number) -> bool:
-    return hasattr(x, "is_infinite") and x.is_infinite() or isinstance(x, float) and _math.isinf(x)
+def is_infinite(x: _t.Any) -> bool:
+    return isinstance(x, float) and _math.isinf(x) or hasattr(x, "is_infinite") and x.is_infinite()
 
 
 def add_(x: Number, y: Number) -> Number:
@@ -189,41 +189,41 @@ def truediv_(x: Number, y: Number) -> Number:
 ### Simple functions
 
 
-def identity(x: AType, /) -> AType:
+def identity[T](x: T, /) -> T:
     """Identity function."""
     return x
 
 
-def identity_(x: AType, /, *_args: _t.Any, **_kwargs: _t.Any) -> AType:
+def identity_[T](x: T, /, *_args: _t.Any, **_kwargs: _t.Any) -> T:
     """Identity function, with a bunch of ignored arguments."""
     return x
 
 
-def const(x: AType, /) -> _t.Callable[[BType], AType]:
+def const[A, B](x: A, /) -> _t.Callable[[B], A]:
     """Return a function that always returns `a`."""
     return lambda y: x
 
 
-def const_(x: AType, /) -> _t.Callable[_t.Concatenate[BType, BParamSpec], AType]:
+def const_[A, B, **PS](x: A, /) -> _t.Callable[_t.Concatenate[B, PS], A]:
     """Return a function that always returns `a`, and has a bunch of ignored arguments."""
 
-    def sub(_y: BType, /, *_args: BParamSpec.args, **_kwargs: BParamSpec.kwargs) -> AType:
+    def sub(_y: B, /, *_args: PS.args, **_kwargs: PS.kwargs) -> A:
         return x
 
     return sub
 
 
-def fst(x: tuple[AType, BType]) -> AType:
+def fst[A, B](x: tuple[A, B]) -> A:
     """Get the first element of a given 2-elemnt tuple."""
     return x[0]
 
 
-def snd(x: tuple[AType, BType]) -> BType:
+def snd[A, B](x: tuple[A, B]) -> B:
     """Get the second element of a given 2-elemnt tuple."""
     return x[1]
 
 
-def first_def(*args: AType | None) -> AType:
+def first_def[A](*args: A | None) -> A:
     """Return first argument that is not `None`."""
     for e in args:
         if e is not None:
@@ -231,7 +231,7 @@ def first_def(*args: AType | None) -> AType:
     raise IndexError("no matching elements")
 
 
-def first_ok(*args: AType) -> AType:
+def first_ok[A](*args: A) -> A:
     """Return first `True`-like argument."""
     for e in args:
         if e:
@@ -239,19 +239,17 @@ def first_ok(*args: AType) -> AType:
     raise IndexError("no matching elements")
 
 
-def optional(b: BType, f: _t.Callable[[AType], BType], x: AType | None) -> BType:
+def optional[A, B](b: B, f: _t.Callable[[A], B], x: A | None) -> B:
     """`f(x) if x is not None else b`."""
     return f(x) if x is not None else b
 
 
-def maybe(b: BType, f: _t.Callable[[AType], BType], x: Maybe[AType]) -> BType:
+def maybe[A, B](b: B, f: _t.Callable[[A], B], x: Maybe[A]) -> B:
     """`f(x.just) if x is Just else b`."""
     return f(x.just) if isinstance(x, Just) else b
 
 
-def either(
-    fa: _t.Callable[[AType], CType], fb: _t.Callable[[BType], CType], x: Either[AType, BType]
-) -> CType:
+def either[A, B, C](fa: _t.Callable[[A], C], fb: _t.Callable[[B], C], x: Either[A, B]) -> C:
     """`fa(x.left) if x is Left`, `fb(x.right) if x is Right`, `AssertionError` otherwise."""
     if isinstance(x, Left):
         return fa(x.left)
@@ -263,22 +261,22 @@ def either(
 ### Injectors into `list`
 
 
-def singleton(x: AType) -> list[AType]:
+def singleton[A](x: A) -> list[A]:
     """`[x]`."""
     return [x]
 
 
-def optlist(p: bool, x: AType) -> list[AType]:
+def optlist[A](p: bool, x: A) -> list[A]:
     """`[x] if p else []`."""
     return [x] if p else []
 
 
-def optslist(p: bool, xs: list[AType]) -> list[AType]:
+def optslist[A](p: bool, xs: list[A]) -> list[A]:
     """`xs if p else []`."""
     return xs if p else []
 
 
-def optional2list(x: AType | None) -> list[AType]:
+def optional2list[A](x: A | None) -> list[A]:
     """`[x] if x is not None else []`."""
     return [x] if x is not None else []
 
@@ -286,48 +284,46 @@ def optional2list(x: AType | None) -> list[AType]:
 ### Functors, i.e. applying functions to elements contained in structures
 
 
-def map_optional(f: _t.Callable[[AType], BType], x: AType | None) -> BType | None:
+def map_optional[A, B](f: _t.Callable[[A], B], x: A | None) -> B | None:
     """`f(x) if x is not None else x`."""
     return f(x) if x is not None else x
 
 
-def map_optional2list(f: _t.Callable[[AType], list[BType]], x: AType | None) -> list[BType]:
+def map_optional2list[A, B](f: _t.Callable[[A], list[B]], x: A | None) -> list[B]:
     """`f(x) if x is not None else []`."""
     return f(x) if x is not None else []
 
 
-def map_maybe(f: _t.Callable[[AType], BType], x: Maybe[AType]) -> Maybe[BType]:
+def map_maybe[A, B](f: _t.Callable[[A], B], x: Maybe[A]) -> Maybe[B]:
     """`Just(f(x.just)) if x is Just else x`."""
-    return Just(f(x.just)) if isinstance(x, Just) else _t.cast(Maybe[BType], x)
+    return Just(f(x.just)) if isinstance(x, Just) else _t.cast(Maybe[B], x)
 
 
-def map_maybe2list(f: _t.Callable[[AType], list[BType]], x: Maybe[AType]) -> list[BType]:
+def map_maybe2list[A, B](f: _t.Callable[[A], list[B]], x: Maybe[A]) -> list[B]:
     """`f(x.just) if x is Just else []`."""
     return f(x.just) if isinstance(x, Just) else []
 
 
-def map_left(f: _t.Callable[[AType], CType], x: Either[AType, BType]) -> Either[CType, BType]:
+def map_left[A, B, C](f: _t.Callable[[A], C], x: Either[A, B]) -> Either[C, B]:
     """`Right(f(x.left)) if x is Left else x`."""
-    return Left(f(x.left)) if isinstance(x, Left) else _t.cast(Either[CType, BType], x)
+    return Left(f(x.left)) if isinstance(x, Left) else _t.cast(Either[C, B], x)
 
 
-def map_right(f: _t.Callable[[BType], CType], x: Either[AType, BType]) -> Either[AType, CType]:
+def map_right[A, B, C](f: _t.Callable[[B], C], x: Either[A, B]) -> Either[A, C]:
     """`Right(f(x.right)) if x is Right else x`."""
-    return Right(f(x.right)) if isinstance(x, Right) else _t.cast(Either[AType, CType], x)
+    return Right(f(x.right)) if isinstance(x, Right) else _t.cast(Either[A, C], x)
 
 
 ### Function composition
 
 
-def compose(
-    f: _t.Callable[[BType], CType], g: _t.Callable[[AType], BType]
-) -> _t.Callable[[AType], CType]:
+def compose[A, B, C](f: _t.Callable[[B], C], g: _t.Callable[[A], B]) -> _t.Callable[[A], C]:
     return lambda x: f(g(x))
 
 
-def compose_pipe(
-    pipe: list[_t.Callable[_t.Concatenate[AType, AParamSpec], AType]], /
-) -> _t.Callable[_t.Concatenate[AType, AParamSpec], AType]:
+def compose_pipe[A, **PS](
+    pipe: list[_t.Callable[_t.Concatenate[A, PS], A]], /
+) -> _t.Callable[_t.Concatenate[A, PS], A]:
     """Compose a list of functions, similarly to how a shell pipe ("|")
     exression does it. I.e. compose them in reverse order.
 
@@ -342,7 +338,7 @@ def compose_pipe(
     if len(pipe) == 1:
         return pipe[0]
 
-    def sub(x: AType, /, *args: AParamSpec.args, **kwargs: AParamSpec.kwargs) -> AType:
+    def sub(x: A, /, *args: PS.args, **kwargs: PS.kwargs) -> A:
         for func in pipe:
             x = func(x, *args, **kwargs)
         return x
@@ -374,17 +370,14 @@ def get_traceback(exc: BaseException, /, lines: int = 128) -> str:
     return fobj.getvalue()
 
 
-_BaseExeceptionType = _t.TypeVar("_BaseExeceptionType", bound=BaseException)
-
-
-def flat_exceptions(
-    es: BaseExceptionGroup[_BaseExeceptionType], /
-) -> _t.Iterator[_BaseExeceptionType]:
+def flat_exceptions[ExceptionType: BaseException](
+    es: BaseExceptionGroup[ExceptionType], /
+) -> _t.Iterator[ExceptionType]:
     """For simplifying some `try ... except*` expressions."""
 
     def sub(
-        excs: _BaseExeceptionType | BaseExceptionGroup[_BaseExeceptionType],
-    ) -> _t.Iterator[_BaseExeceptionType]:
+        excs: ExceptionType | BaseExceptionGroup[ExceptionType],
+    ) -> _t.Iterator[ExceptionType]:
         if isinstance(excs, BaseExceptionGroup):
             for e in excs.exceptions:
                 yield from sub(e)

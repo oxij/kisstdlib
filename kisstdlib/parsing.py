@@ -31,7 +31,7 @@ from .failure import ParsingFailure
 
 
 # A state transition function, see `BytesTransformer` below.
-ByteTransitions: _t.TypeAlias = _t.Callable[[int, int], tuple[int, bytes] | None]
+type ByteTransitions = _t.Callable[[int, int], tuple[int, bytes] | None]
 
 
 def LF2CRLF(_s: int, c: int) -> tuple[int, bytes] | None:
@@ -153,10 +153,6 @@ whitespace_re = _re.compile(r"\s+")
 opt_whitespace_re = _re.compile(r"(\s*)")
 
 
-ParsedValueType = _t.TypeVar("ParsedValueType")
-ParserParamSpec = _t.ParamSpec("ParserParamSpec")
-
-
 class Parser:
     """Parsec-like parser combinator with regexes."""
 
@@ -181,12 +177,12 @@ class Parser:
             "while parsing %s: expected EOF, got %s", repr(self.buffer), repr(self.leftovers)
         )
 
-    def chomp(
+    def chomp[T, **PS](
         self,
-        parser: _t.Callable[_t.Concatenate[str, ParserParamSpec], tuple[ParsedValueType, str]],
-        *args: ParserParamSpec.args,
-        **kwargs: ParserParamSpec.kwargs,
-    ) -> ParsedValueType:
+        parser: _t.Callable[_t.Concatenate[str, PS], tuple[T, str]],
+        *args: PS.args,
+        **kwargs: PS.kwargs,
+    ) -> T:
         if self.pos == 0:
             res, leftovers = parser(self.buffer, *args, **kwargs)
         else:

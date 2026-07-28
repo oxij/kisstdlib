@@ -343,15 +343,12 @@ class BetterArgumentParser(ArgumentParser):
         return res
 
 
-_AParamSpec = _t.ParamSpec("_AParamSpec")
-
-
-def make_argparser_and_run(
+def make_argparser_and_run[**PS](
     make_argparser: _t.Callable[[bool], BetterArgumentParser],
-    func: _t.Callable[_t.Concatenate[Namespace, _AParamSpec], None],
+    func: _t.Callable[_t.Concatenate[Namespace, PS], None],
     /,
-    *args: _AParamSpec.args,
-    **kwargs: _AParamSpec.kwargs,
+    *args: PS.args,
+    **kwargs: PS.kwargs,
 ) -> None:
     """Given `make_argparser` function that produces "real" and "fake"
     `BetterArgumentParser`s, run `parse_args` with on real one, but then, if

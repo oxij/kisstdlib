@@ -69,12 +69,11 @@ class InvalidDB(DBFailure):
     pass
 
 
-SettingsType = _t.TypeVar("SettingsType")
-SqliteValue: _t.TypeAlias = int | float | str | bytes | None
-DictSettings = dict[str, SqliteValue]
+type SqliteValue = int | float | str | bytes | None
+type DictSettings = dict[str, SqliteValue]
 
 
-class AppDB(_t.Generic[SettingsType]):
+class AppDB[SettingsType]:
     """An application-bound, versioned, `sqlite3` database with an arbitrary
     settings type.
 

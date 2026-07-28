@@ -51,15 +51,14 @@ class ShutdownState(_enum.Flag):
 
 
 # incomplete operation results
-IncompleteResultType = _t.TypeVar("IncompleteResultType")
 
 
-class IncompleteResultError(Exception, _t.Generic[IncompleteResultType]):
+class IncompleteResultError[T](Exception):
     """En `Exception` signifying an opeartion did not complete, but did
     produce a partial result.
     """
 
-    def __init__(self, data: IncompleteResultType) -> None:
+    def __init__(self, data: T) -> None:
         super().__init__()
         self.data = data
 

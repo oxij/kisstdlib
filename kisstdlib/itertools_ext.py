@@ -58,7 +58,7 @@ def count_from_to(start: Number, stop: Number, step: Number = 1) -> _t.Iterator[
     return takewhile(lambda x: x < stop, count_(start, step))
 
 
-def first(iterable: _t.Iterable[_AType], default: _AType | Missing = MISSING) -> _AType:
+def first[A](iterable: _t.Iterable[A], default: A | Missing = MISSING) -> A:
     """Get the first element of a given iterable.
     If the iterable does not have enough elements, return `default`.
     If `default` is unset, raise `IndexError`.
@@ -67,25 +67,25 @@ def first(iterable: _t.Iterable[_AType], default: _AType | Missing = MISSING) ->
         return e
     if default is MISSING:
         raise IndexError("empty iterable")
-    return _t.cast(_AType, default)
+    return _t.cast(A, default)
 
 
-def last(iterable: _t.Iterable[_AType], default: _AType | Missing = MISSING) -> _AType:
+def last[A](iterable: _t.Iterable[A], default: A | Missing = MISSING) -> A:
     """Get the last element of a given iterable.
     If the iterable does not have enough elements, return `default`.
     If `default` is unset, raise `IndexError`.
     """
-    prev: _AType | Missing = default
+    prev: A | Missing = default
     is_first = True
     for e in iterable:
         prev = e
         is_first = False
     if is_first and default is MISSING:
         raise IndexError("empty iterable")
-    return _t.cast(_AType, prev)
+    return _t.cast(A, prev)
 
 
-def nth(n: int, iterable: _t.Iterable[_AType], default: _AType | Missing = MISSING) -> _AType:
+def nth[A](n: int, iterable: _t.Iterable[A], default: A | Missing = MISSING) -> A:
     """Take `n`th element of a given iterable, counting from zero.
     If the iterable does not have enough elements, return `default`.
     If `default` is unset, raise `IndexError`.
@@ -98,17 +98,17 @@ def nth(n: int, iterable: _t.Iterable[_AType], default: _AType | Missing = MISSI
             i -= 1
     if default is MISSING:
         raise IndexError("not enough elements")
-    return _t.cast(_AType, default)
+    return _t.cast(A, default)
 
 
-def take(n: int, iterable: _t.Iterable[_AType]) -> list[_AType]:
+def take[A](n: int, iterable: _t.Iterable[A]) -> list[A]:
     """Take the first `n` (or less) elements of a given iterable as a `list`.
     Negative values of `n` are allowed and will be remapped to zero.
     """
     return list(islice(iterable, max(0, n)))
 
 
-def drop(n: int, iterable: _t.Iterable[_AType]) -> list[_AType]:
+def drop[A](n: int, iterable: _t.Iterable[A]) -> list[A]:
     """Skip/drop the first `n` elements of a given iterable as a `list`.
     Negative values of `n` are allowed and will be remapped to zero.
     """
@@ -118,7 +118,7 @@ def drop(n: int, iterable: _t.Iterable[_AType]) -> list[_AType]:
 # TODO: zip_defaults
 
 
-def _next_or_missing(iterator: _t.Iterator[_AType]) -> _AType | Missing:
+def _next_or_missing[A](iterator: _t.Iterator[A]) -> A | Missing:
     """`next(iterator)` or `MISSING` if it's finished. This function violates
     the intended usage of `Missing`, which is why it's hidden from view.
     """
@@ -128,12 +128,12 @@ def _next_or_missing(iterator: _t.Iterator[_AType]) -> _AType | Missing:
         return MISSING
 
 
-def diff_sorted(
-    a_iterable: _t.Iterable[_AType],
-    b_iterable: _t.Iterable[_BType],
-    a_key: _t.Callable[[_AType], _CType] = _identity,  # type: ignore
-    b_key: _t.Callable[[_BType], _CType] = _identity,  # type: ignore
-) -> _t.Iterator[Either[_AType, _BType] | tuple[_AType, _BType]]:
+def diff_sorted[A, B, C](
+    a_iterable: _t.Iterable[A],
+    b_iterable: _t.Iterable[B],
+    a_key: _t.Callable[[A], C] = _identity,  # type: ignore
+    b_key: _t.Callable[[B], C] = _identity,  # type: ignore
+) -> _t.Iterator[Either[A, B] | tuple[A, B]]:
     """Given two sorted iterables, produce an iterator over differences between
     them.
 
@@ -152,9 +152,9 @@ def diff_sorted(
     b_e_ = _next_or_missing(b_iter)
 
     if a_e_ is not MISSING and b_e_ is not MISSING:
-        a_e = _t.cast(_AType, a_e_)
+        a_e = _t.cast(A, a_e_)
         a_k = a_key(a_e)
-        b_e = _t.cast(_BType, b_e_)
+        b_e = _t.cast(B, b_e_)
         b_k = b_key(b_e)
 
         while True:
@@ -162,14 +162,14 @@ def diff_sorted(
                 yield Left(a_e)
                 a_e_ = _next_or_missing(a_iter)
                 if a_e_ is not MISSING:
-                    a_e = _t.cast(_AType, a_e_)
+                    a_e = _t.cast(A, a_e_)
                     a_k = a_key(a_e)
                     continue
             elif b_k < a_k:  # type: ignore
                 yield Right(b_e)
                 b_e_ = _next_or_missing(b_iter)
                 if b_e_ is not MISSING:
-                    b_e = _t.cast(_BType, b_e_)
+                    b_e = _t.cast(B, b_e_)
                     b_k = b_key(b_e)
                     continue
             else:
@@ -177,9 +177,9 @@ def diff_sorted(
                 a_e_ = _next_or_missing(a_iter)
                 b_e_ = _next_or_missing(b_iter)
                 if a_e_ is not MISSING and b_e_ is not MISSING:
-                    a_e = _t.cast(_AType, a_e_)
+                    a_e = _t.cast(A, a_e_)
                     a_k = a_key(a_e)
-                    b_e = _t.cast(_BType, b_e_)
+                    b_e = _t.cast(B, b_e_)
                     b_k = b_key(b_e)
                     continue
             break
@@ -187,11 +187,11 @@ def diff_sorted(
     # yield leftovers
 
     while a_e_ is not MISSING:
-        a_e = _t.cast(_AType, a_e_)
+        a_e = _t.cast(A, a_e_)
         yield Left(a_e)
         a_e_ = _next_or_missing(a_iter)
 
     while b_e_ is not MISSING:
-        b_e = _t.cast(_BType, b_e_)
+        b_e = _t.cast(B, b_e_)
         yield Right(b_e)
         b_e_ = _next_or_missing(b_iter)

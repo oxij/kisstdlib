@@ -63,12 +63,12 @@ def setup_kisstdlib(
     return res
 
 
-def run_kisstdlib_main(
+def run_kisstdlib_main[**PS](
     setup_logging_result: tuple[LogCounter, ANSILogHandler],
-    func: _t.Callable[AParamSpec, None],
+    func: _t.Callable[PS, None],
     /,
-    *args: AParamSpec.args,
-    **kwargs: AParamSpec.kwargs,
+    *args: PS.args,
+    **kwargs: PS.kwargs,
 ) -> None:
     """Run given function with given arguments under `with no_signals()` block while
     properly handling all exceptions in `ExceptionGroup`s,
