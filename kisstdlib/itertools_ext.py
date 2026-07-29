@@ -29,33 +29,27 @@ from itertools import *
 from .base import (
     Missing,
     MISSING,
-    Number,
     Either,
     Left,
     Right,
-    AType as _AType,
-    BType as _BType,
-    CType as _CType,
-    add_ as _add_,
+    SupportsCounting as _SupportsCounting,
     identity as _identity,
 )
 
 
-def count_(start: Number = 0, step: Number = 1) -> _t.Iterator[Number]:
-    """`itertools.count` for arbitrary `Number`s."""
-    if isinstance(start, (int, float)) and isinstance(step, (int, float)):
-        yield from count(start, step)
-        return
-
-    n = start
-    while True:
-        yield n
-        n = _add_(n, step)
-
-
-def count_from_to(start: Number, stop: Number, step: Number = 1) -> _t.Iterator[Number]:
-    """`count`, but with a `stop`. Essentially, `range` for arbitrary types."""
-    return takewhile(lambda x: x < stop, count_(start, step))
+def range_[A: _SupportsCounting](start: A, stop: A, step: A) -> _t.Iterator[A]:
+    """`range` for arbitrary types supporting `SupportsCounting` `Protocol`."""
+    if step == 0:
+        raise ValueError("range_() arg 3 must not be zero")
+    x = start
+    if start < stop and step > 0:
+        while x < stop:
+            yield x
+            x += step
+    elif start > stop and step < 0:
+        while x > stop:
+            yield x
+            x += step
 
 
 def first[A](iterable: _t.Iterable[A], default: A | Missing = MISSING) -> A:

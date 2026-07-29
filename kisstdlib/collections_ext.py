@@ -34,47 +34,34 @@ from sortedcontainers import SortedList, SortedKeyList, SortedDict  # pylint: di
 from kisstdlib.base import (
     Decimal as _Decimal,
     Number as _Number,
-    AnyNumber as _AnyNumber,
+    SupportsCounting as _SupportsCounting,
     is_infinite as _is_infinite,
-    add_ as _add_,
-    sub_ as _sub_,
+    is_closer as _is_closer,
 )
-
 from kisstdlib.itertools_ext import (
     chain as _chain,
     first as _first,
     take as _take,
 )
 
-
-def nearer_to_than(ideal: _AnyNumber, value: _AnyNumber, other: _AnyNumber) -> bool | None:
-    """Check whether `value` is nearer to `ideal` than `other`.
-    Return `None` if `other` and `value` are the same.
-    """
-    if other == value:
-        return None
-    if _is_infinite(ideal):
-        return (ideal < 0) ^ (other < value)  # type: ignore
-    return abs(ideal - value) < abs(ideal - other)  # type: ignore
-
-
 KeyType = _t.TypeVar("KeyType")
+ValueKey = _t.TypeVar("ValueKey", bound=_SupportsCounting)
 ValueType = _t.TypeVar("ValueType")
 
 
-class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=_abc.ABCMeta):
+class AbstractSortedIndex(_t.Generic[KeyType, ValueKey, ValueType], metaclass=_abc.ABCMeta):
     """Essentially, `SortedDict[KeyType, SortedList[ValueType]]` + a pair of
     functions:
 
     - `key_key: KeyType -> ComparableKey`,
-    - `value_key: ValueType -> AnyNumber`.
+    - `value_key: ValueType -> ValueKey`.
 
     with some uselful indexing-relevant operations on top.
     """
 
     # Sorting key functions.
     key_key: _t.Callable[[KeyType], _t.Any]
-    value_key: _t.Callable[[ValueType], _AnyNumber]
+    value_key: _t.Callable[[ValueType], ValueKey]
 
     # Total number of stored elements.
     size: int
@@ -107,8 +94,8 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
     def internal_from_to(
         self,
         key: KeyType,
-        start: _Number,
-        end: _Number,
+        start: ValueKey,
+        end: ValueKey,
         *,
         include_start: bool = True,
         include_end: bool = False,
@@ -120,7 +107,7 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
         raise NotImplementedError()
 
     @_abc.abstractmethod
-    def internal_from_nearest(self, key: KeyType, ideal: _Number) -> _t.Iterator[ValueType]:
+    def internal_from_nearest(self, key: KeyType, ideal: ValueKey) -> _t.Iterator[ValueType]:
         """Iterate over `self[key]` elements in order of ascending distance from
         `ideal`.
         """
@@ -129,9 +116,9 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
     def internal_from_to_step(
         self,
         key: KeyType,
-        start: _Number,
-        end: _Number,
-        step: _Number = 0,
+        start: ValueKey,
+        end: ValueKey,
+        step: int | ValueKey = 0,
         *,
         include_start: bool = True,
         include_end: bool = False,
@@ -160,16 +147,16 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
                 if prev is not None:
                     # check that `e` is no less than `step` away from `prev`
                     if forwards:
-                        if _sub_(e, prev) < step:
-                            start = _add_(prev, step)
+                        if e - prev < step:
+                            start = prev + step
                             if start > end:
                                 return
                             include_start = True
                             again = True
                             break
                     else:
-                        if _sub_(prev, e) < step:
-                            start = _sub_(prev, step)
+                        if prev - e < step:
+                            start = prev - step
                             if start < end:
                                 return
                             include_start = True
@@ -181,9 +168,9 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
     def iter_range(
         self,
         key: KeyType,
-        start: _Number,
-        end: _Number,
-        step: _Number = 0,
+        start: ValueKey,
+        end: ValueKey,
+        step: int | ValueKey = 0,
         predicate: _t.Callable[[ValueType], bool] | None = None,
         *,
         include_start: bool = True,
@@ -210,7 +197,7 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
     def iter_nearest(
         self,
         key: KeyType,
-        ideal: _Number,
+        ideal: ValueKey,
         predicate: _t.Callable[[ValueType], bool] | None = None,
     ) -> _t.Iterator[ValueType]:
         """Iterate over `self[key]` elements satisfying `predicate` in order of
@@ -228,7 +215,7 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
         self,
         n: int,
         key: KeyType,
-        ideal: _Number,
+        ideal: ValueKey,
         predicate: _t.Callable[[ValueType], bool] | None = None,
     ) -> list[ValueType]:
         """Of `self[key]` elements satisfying `predicate`, get `n` closest to `ideal`."""
@@ -237,7 +224,7 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
     def get_nearest1(
         self,
         key: KeyType,
-        ideal: _Number,
+        ideal: ValueKey,
         predicate: _t.Callable[[ValueType], bool] | None = None,
     ) -> ValueType | None:
         """Of `self[key]` elements satisfying `predicate`, get the one closest to `ideal`."""
@@ -247,8 +234,8 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
         self,
         n: int,
         key: KeyType,
-        ideal: _Number,
-        step: _Number = 0,
+        ideal: ValueKey,
+        step: int | ValueKey = 0,
         predicate: _t.Callable[[ValueType], bool] | None = None,
         *,
         include_start: bool = False,
@@ -270,8 +257,8 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
             n,
             self.iter_range(
                 key,
-                _sub_(ideal, step),
-                _Decimal("-inf"),
+                ideal - step,
+                _Decimal("-inf"),  # type: ignore
                 step,
                 predicate,
                 include_start=include_start,
@@ -281,8 +268,8 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
             n,
             self.iter_range(
                 key,
-                _add_(ideal, step),
-                _Decimal("+inf"),
+                ideal + step,
+                _Decimal("+inf"),  # type: ignore
                 step,
                 predicate,
                 include_start=include_start,
@@ -293,8 +280,8 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
     def get_neighboring2(
         self,
         key: KeyType,
-        ideal: _Number,
-        step: _Number = 0,
+        ideal: ValueKey,
+        step: int | ValueKey = 0,
         predicate: _t.Callable[[ValueType], bool] | None = None,
     ) -> tuple[ValueType | None, ValueType | None]:
         """For `self[key]`, get its two closest neighbours satisfying `predicate`, to
@@ -309,8 +296,8 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
         left = _first(
             self.iter_range(
                 key,
-                _sub_(ideal, step),
-                _Decimal("-inf"),
+                ideal - step,
+                _Decimal("-inf"),  # type: ignore
                 step,
                 predicate,
                 include_start=include_start,
@@ -320,8 +307,8 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
         right = _first(
             self.iter_range(
                 key,
-                _add_(ideal, step),
-                _Decimal("+inf"),
+                ideal + step,
+                _Decimal("+inf"),  # type: ignore
                 step,
                 predicate,
                 include_start=include_start,
@@ -333,8 +320,8 @@ class AbstractSortedIndex(_t.Generic[KeyType, _AnyNumber, ValueType], metaclass=
 
 class SortedIndex(
     SortedDict[KeyType, SortedList[ValueType]],  # type: ignore
-    AbstractSortedIndex[KeyType, _AnyNumber, ValueType],
-    _t.Generic[KeyType, _AnyNumber, ValueType],
+    AbstractSortedIndex[KeyType, ValueKey, ValueType],
+    _t.Generic[KeyType, ValueKey, ValueType],
 ):
     """`AbstractSortedIndex` implementation over a simple
     `SortedDict[KeyType, SortedList[ValueType]]`.
@@ -346,8 +333,8 @@ class SortedIndex(
     def __init__(
         self,
         key_key: _t.Callable[[KeyType], _t.Any],
-        value_key: _t.Callable[[ValueType], _AnyNumber],
-        ideal: _AnyNumber | None = None,
+        value_key: _t.Callable[[ValueType], ValueKey],
+        ideal: ValueKey | None = None,
     ) -> None:
         super().__init__(key_key)
         self.key_key = key_key
@@ -365,7 +352,7 @@ class SortedIndex(
             self[key] = SortedKeyList([value], key=self.value_key)
             self.size += 1
         elif self.ideal is not None:
-            if nearer_to_than(self.ideal, self.value_key(value), iobjs[0][0]):
+            if _is_closer(self.ideal, self.value_key(value), iobjs[0][0]):
                 iobjs.clear()
                 iobjs.add(value)
             else:
@@ -378,8 +365,8 @@ class SortedIndex(
     def internal_from_to(
         self,
         key: KeyType,
-        start: _Number,
-        end: _Number,
+        start: ValueKey,
+        end: ValueKey,
         *,
         include_start: bool = True,
         include_end: bool = False,
@@ -431,7 +418,7 @@ class SortedIndex(
                 else:
                     return
 
-    def internal_from_nearest(self, key: KeyType, ideal: _Number) -> _t.Iterator[ValueType]:
+    def internal_from_nearest(self, key: KeyType, ideal: ValueKey) -> _t.Iterator[ValueType]:
         try:
             iobjs = self[key]
         except KeyError:
@@ -462,7 +449,7 @@ class SortedIndex(
             ileft = iobjs[left]
             iright = iobjs[right]
             while True:
-                if nearer_to_than(ideal, ileft[0], iright[0]):
+                if _is_closer(ideal, ileft[0], iright[0]):
                     yield ileft
                     left -= 1
                     if left >= 0:

@@ -22,6 +22,7 @@
 
 """Testing basic `kisstdlib` modules."""
 
+import math as _math
 import typing as _t
 import urllib.parse as _up
 
@@ -37,6 +38,20 @@ def test_basics() -> None:
     assert clamp(0, 1, 0) == 0
     assert clamp(0, 1, 1) == 1
     assert clamp(0, 1, 2) == 1
+
+    for i in range(-10, 10):
+        for j in range(-100, 100):
+            for k in range(-100, 100):
+                assert is_closer(i, j, k) == (abs(i - j) < abs(i - k))
+
+    def sane_is_closer[A: (int, float, Decimal)](i: A, a: A, b: A) -> None:
+        assert is_closer(i, a, b)
+        assert is_closer(i, b, a) is False
+
+    sane_is_closer(-Decimal("+inf"), Decimal(0), Decimal(1))
+    sane_is_closer(Decimal("+inf"), Decimal(1), Decimal(0))
+    sane_is_closer(-_math.inf, 0.0, 1.0)
+    sane_is_closer(_math.inf, 1.0, 0.0)
 
     assert add_(Decimal(1), 1.0) == 2
     assert sub_(Decimal(1), 1.0) == 0

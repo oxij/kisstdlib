@@ -142,12 +142,42 @@ class Right[A, B](Either[A, B]):
 ### Operations on Numbers
 
 
+class SupportsCmp(_t.Protocol):
+    # `__eq__` and `__ne__` belong to `object` and are always available
+    def __lt__(self, x: int | _t.Self) -> bool: ...
+    def __le__(self, x: int | _t.Self) -> bool: ...
+    def __gt__(self, x: int | _t.Self) -> bool: ...
+    def __ge__(self, x: int | _t.Self) -> bool: ...
+
+
+class SupportsCounting(SupportsCmp, _t.Protocol):
+    def __add__(self, x: int | _t.Self) -> _t.Self: ...
+    def __sub__(self, x: int | _t.Self) -> _t.Self: ...
+
+    # because this can be implemented using the above
+    # note that from the result, only `SupportsCmp` is required
+    def __abs__(self) -> SupportsCmp: ...
+
+
 def clamp[A: (int, float, Decimal)](minv: A, maxv: A, v: A) -> A:
     return min(maxv, max(minv, v))
 
 
 def is_infinite(x: _t.Any) -> bool:
     return isinstance(x, float) and _math.isinf(x) or hasattr(x, "is_infinite") and x.is_infinite()
+
+
+def is_closer[A: SupportsCounting](ideal: A, a: A, b: A) -> bool:
+    """Check whether `a` is closer to `ideal` than `b` is. That is, essentially, `abs(ideal - a) <
+    abs(ideal - b)`, but with infinite `ideal` cases handled properly.
+
+    Note that the above implies that this function always returns `False` when `a == b`.
+    """
+    if is_infinite(ideal):
+        if ideal < 0:
+            return a < b
+        return b < a
+    return abs(ideal - a) < abs(ideal - b)
 
 
 def add_(x: Number, y: Number) -> Number:
