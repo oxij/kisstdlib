@@ -41,7 +41,7 @@ from os import fsencode, fsdecode
 from .base import POSIX as _POSIX, identity as _identity
 from .io.base import *
 from .string_ext import escape_path as _escape_path
-from .time import Timestamp as _Timestamp
+from .time import TimeStamp as _TimeStamp
 
 sep = _op.sep
 sepb = _os.fsencode(_op.sep)
@@ -466,7 +466,7 @@ def describe_forest[AnyStr: (
                 [
                     "mtime",
                     "["
-                    + _Timestamp.from_ns(stat.st_mtime_ns).format(
+                    + _TimeStamp.from_ns(stat.st_mtime_ns).format(
                         precision=time_precision, utc=True
                     )
                     + "]",

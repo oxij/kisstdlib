@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""`Timestamp`, `Timerange`, and related things."""
+"""Time-related things."""
 
 import calendar as _calendar
 import dataclasses as _dc
@@ -35,14 +35,14 @@ import kisstdlib.parsing as _p
 from kisstdlib.base import Number as _Number
 
 
-class Timevalue(_dec.Decimal):
+class TimeValue(_dec.Decimal):
     """Generic time value of arbitrary precision."""
 
     @staticmethod
-    def now() -> "Timevalue":
+    def now() -> "TimeValue":
         raise NotImplementedError()
 
-    def to_Timestamp(self) -> "Timestamp":
+    def to_TimeStamp(self) -> "TimeStamp":
         raise NotImplementedError()
 
     def is_neg_inf(self) -> bool:
@@ -52,26 +52,26 @@ class Timevalue(_dec.Decimal):
         return self.is_infinite() and self > 0
 
 
-class Timestamp(Timevalue):
+class TimeStamp(TimeValue):
     """Seconds since UNIX epoch, with arbitrary precision."""
 
     @staticmethod
-    def from_ms(value: int) -> "Timestamp":
-        return Timestamp(_dec.Decimal(value) / 1000)
+    def from_ms(value: int) -> "TimeStamp":
+        return TimeStamp(_dec.Decimal(value) / 1000)
 
     @staticmethod
-    def from_ns(value: int) -> "Timestamp":
-        return Timestamp(_dec.Decimal(value) / 1000000000)
+    def from_ns(value: int) -> "TimeStamp":
+        return TimeStamp(_dec.Decimal(value) / 1000000000)
 
     @staticmethod
-    def now() -> "Timestamp":
-        return Timestamp.from_ns(_time.time_ns())
+    def now() -> "TimeStamp":
+        return TimeStamp.from_ns(_time.time_ns())
 
-    def to_Timestamp(self) -> "Timestamp":
+    def to_TimeStamp(self) -> "TimeStamp":
         return self
 
     def __repr__(self) -> str:
-        return f"<Timestamp {self.format(precision=9, utc=True)}>"
+        return f"<TimeStamp {self.format(precision=9, utc=True)}>"
 
     def format(
         self, fmt: str = "%Y-%m-%d %H:%M:%S", *, precision: int = 0, utc: bool = False
@@ -92,15 +92,15 @@ class Timestamp(Timevalue):
             res += "." + x + "0" * (precision - len(x))
         return res
 
-    def __add__(self, value: _Number) -> "Timestamp":
+    def __add__(self, value: _Number) -> "TimeStamp":
         if isinstance(value, float):
             value = _dec.Decimal(value)
-        return Timestamp(_dec.Decimal.__add__(self, value))
+        return TimeStamp(_dec.Decimal.__add__(self, value))
 
-    def __sub__(self, value: _Number) -> "Timestamp":
+    def __sub__(self, value: _Number) -> "TimeStamp":
         if isinstance(value, float):
             value = _dec.Decimal(value)
-        return Timestamp(_dec.Decimal.__sub__(self, value))
+        return TimeStamp(_dec.Decimal.__sub__(self, value))
 
 
 at_timestamp_re = _re.compile(r"@(\d+)(?:\.(\d+))?")
@@ -109,18 +109,18 @@ iso_timestamp_re = _re.compile(
 )
 
 
-def parse_Timestamp(value: str, *, utc: bool = False) -> tuple[tuple[Timestamp, Timestamp], str]:
-    """Parse a given string `value` into a pair of `Timestamp` values which
+def parse_TimeStamp(value: str, *, utc: bool = False) -> tuple[tuple[TimeStamp, TimeStamp], str]:
+    """Parse a given string `value` into a pair of `TimeStamp` values which
     represent the inclusive start and the non-inclusive end of the continiuous
     time interval for which all timestamps can be described as being part of
     given `value`.
 
     E.g.
 
-    - `parse_Timestamp("2024") == (timestamp("2024-01-01 00:00:00"), timestamp("2025-01-01 00:00:00")), ""`
-    - `parse_Timestamp("2024-12") == (timestamp("2024-12-01 00:00:00"), timestamp("2025-01-01 00:00:00")), ""`
-    - `parse_Timestamp("2024-12-01 12:00:16") == (timestamp("2024-12-01 12:00:16"), timestamp("2024-12-01 12:00:17")), ""`
-    - `parse_Timestamp("2024-12-01 12:00:16.5") == (timestamp("2024-12-01 12:00:16.5"), timestamp("2024-12-01 12:00:16.6")), ""`
+    - `parse_TimeStamp("2024") == (timestamp("2024-01-01 00:00:00"), timestamp("2025-01-01 00:00:00")), ""`
+    - `parse_TimeStamp("2024-12") == (timestamp("2024-12-01 00:00:00"), timestamp("2025-01-01 00:00:00")), ""`
+    - `parse_TimeStamp("2024-12-01 12:00:16") == (timestamp("2024-12-01 12:00:16"), timestamp("2024-12-01 12:00:17")), ""`
+    - `parse_TimeStamp("2024-12-01 12:00:16.5") == (timestamp("2024-12-01 12:00:16.5"), timestamp("2024-12-01 12:00:16.6")), ""`
 
     Also, return leftover part of `value`.
 
@@ -194,14 +194,14 @@ def parse_Timestamp(value: str, *, utc: bool = False) -> tuple[tuple[Timestamp, 
     hrem = _dec.Decimal(r) / (10**rp)
     erem = _dec.Decimal(r + 1) / (10**rp) if ending else _dec.Decimal(0)
 
-    return (Timestamp(_dec.Decimal(hs) + hrem), Timestamp(_dec.Decimal(es) + erem)), value[
+    return (TimeStamp(_dec.Decimal(hs) + hrem), TimeStamp(_dec.Decimal(es) + erem)), value[
         m.span()[1] :
     ]
 
 
-def timestamp(value: str, start: bool = True, *, utc: bool = False) -> Timestamp:
-    """A simple wrapper over `parse_Timestamp`."""
-    (sres, eres), left = parse_Timestamp(value, utc=utc)
+def timestamp(value: str, start: bool = True, *, utc: bool = False) -> TimeStamp:
+    """A simple wrapper over `parse_TimeStamp`."""
+    (sres, eres), left = parse_TimeStamp(value, utc=utc)
     if len(left) > 0:
         raise _p.ParsingFailure("failed to parse `%s` as a timestamp", value)
     return sres if start else eres
@@ -213,22 +213,22 @@ timerange_delimiter_re = _re.compile("--?")
 
 
 @_dc.dataclass
-class Timerange:
-    """A continuous time interval between two `Timestamp`s."""
+class TimeRange:
+    """A continuous time interval between two `TimeStamp`s."""
 
-    start: Timestamp
-    end: Timestamp
+    start: TimeStamp
+    end: TimeStamp
     includes_start: bool = _dc.field(default=True)
     includes_end: bool = _dc.field(default=False)
 
-    def __contains__(self, value: Timestamp) -> bool:
+    def __contains__(self, value: TimeStamp) -> bool:
         if self.includes_start and value == self.start or self.includes_end and value == self.end:
             return True
         return self.start < value < self.end
 
     @property
-    def middle(self) -> Timestamp:
-        return Timestamp((self.start + self.end) / 2)
+    def middle(self) -> TimeStamp:
+        return TimeStamp((self.start + self.end) / 2)
 
     @property
     def delta(self) -> _dec.Decimal:
@@ -244,7 +244,7 @@ class Timerange:
         )
 
     def __repr__(self) -> str:
-        return f"<Timerange {'[' if self.includes_start else '('}{self.format(precision=9, utc=True)}{']' if self.includes_end else ')'}>"
+        return f"<TimeRange {'[' if self.includes_start else '('}{self.format(precision=9, utc=True)}{']' if self.includes_end else ')'}>"
 
     def format_org_delta(self, precision: int = 0) -> str:
         r = self.delta
@@ -264,17 +264,17 @@ class Timerange:
         return f"[{self.start.format(precision=precision, utc=utc)}]--[{self.end.format(precision=precision, utc=utc)}] => {self.format_org_delta(precision=precision)}"
 
 
-anytime = Timerange(Timestamp("-inf"), Timestamp("+inf"), True, True)
+anytime = TimeRange(TimeStamp("-inf"), TimeStamp("+inf"), True, True)
 
 
-def parse_Timerange(value: str, *, utc: bool = False) -> tuple[Timerange, str]:
-    """Parse a given string `value` into `Timerange`."""
+def parse_TimeRange(value: str, *, utc: bool = False) -> tuple[TimeRange, str]:
+    """Parse a given string `value` into `TimeRange`."""
     p = _p.Parser(value)
     if p.opt_string("*"):
         return anytime, p.leftovers
     try:
         p.opt_regex(timerange_pre_re)
-        start, end = p.chomp(parse_Timestamp, utc=utc)
+        start, end = p.chomp(parse_TimeStamp, utc=utc)
         stop = p.opt_string("*")
         p.opt_regex(timerange_post_re)
         if not stop:
@@ -284,16 +284,16 @@ def parse_Timerange(value: str, *, utc: bool = False) -> tuple[Timerange, str]:
                 pass
             else:
                 p.opt_regex(timerange_pre_re)
-                _, end = p.chomp(parse_Timestamp, utc=utc)
+                _, end = p.chomp(parse_TimeStamp, utc=utc)
                 p.opt_regex(timerange_post_re)
-        return Timerange(start, end), p.leftovers
+        return TimeRange(start, end), p.leftovers
     except _p.ParsingFailure as exc:
         raise _p.ParsingFailure("failed to parse `%s` as a time interval", value) from exc
 
 
-def timerange(value: str, utc: bool = False) -> Timerange:
-    """A simple wrapper over `parse_Timerange`."""
-    res, left = parse_Timerange(value, utc=utc)
+def timerange(value: str, utc: bool = False) -> TimeRange:
+    """A simple wrapper over `parse_TimeRange`."""
+    res, left = parse_TimeRange(value, utc=utc)
     if len(left) > 0:
         raise _p.ParsingFailure("failed to parse `%s` as a time interval", value)
     return res
