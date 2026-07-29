@@ -32,6 +32,7 @@ from .base import *
 from .failure import *
 from .string_ext import *
 from .itertools_ext import *
+from .collections_ext import *
 from .io.stdio import *
 from .logging_ext import *
 from .signal_ext import *
