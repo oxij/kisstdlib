@@ -58,6 +58,13 @@ def test_basics() -> None:
     assert mul_(Decimal(1), 1.0) == 1
     assert truediv_(Decimal(1), 1.0) == 1
 
+    for i in range(-10, 10):
+        for j in range(-10, 10):
+            for k in range(-11, 11):
+                if k == 0:
+                    continue
+                assert list(range_(i, j, k)) == list(range(i, j, k))
+
     assert first([], None) == first((), None) == None
     assert last([], None) == last((), None) == None
     assert first([123], None) == first((123,), None) == 123
