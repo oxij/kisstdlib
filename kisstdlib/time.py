@@ -24,18 +24,16 @@
 
 import calendar as _calendar
 import dataclasses as _dc
-import decimal as _dec
 import re as _re
 import time as _time
 import typing as _t
 
-import kisstdlib.failure as _f
-import kisstdlib.parsing as _p
+from .base import Decimal as _Decimal
+from . import failure as _f
+from . import parsing as _p
 
-from kisstdlib.base import Number as _Number
 
-
-class TimeValue(_dec.Decimal):
+class TimeValue(_Decimal):
     """Generic time value of arbitrary precision."""
 
     @staticmethod
@@ -57,11 +55,11 @@ class TimeStamp(TimeValue):
 
     @staticmethod
     def from_ms(value: int) -> "TimeStamp":
-        return TimeStamp(_dec.Decimal(value) / 1000)
+        return TimeStamp(_Decimal(value) / 1000)
 
     @staticmethod
     def from_ns(value: int) -> "TimeStamp":
-        return TimeStamp(_dec.Decimal(value) / 1000000000)
+        return TimeStamp(_Decimal(value) / 1000000000)
 
     @staticmethod
     def now() -> "TimeStamp":
@@ -82,7 +80,7 @@ class TimeStamp(TimeValue):
             return "+inf"
 
         i = int(self)
-        r = _dec.Decimal(self) - i
+        r = _Decimal(self) - i
         if fmt == "@":
             res = "@" + str(i)
         else:
@@ -92,15 +90,15 @@ class TimeStamp(TimeValue):
             res += "." + x + "0" * (precision - len(x))
         return res
 
-    def __add__(self, value: _Number) -> "TimeStamp":
+    def __add__(self, value: int | float | _Decimal) -> "TimeStamp":
         if isinstance(value, float):
-            value = _dec.Decimal(value)
-        return TimeStamp(_dec.Decimal.__add__(self, value))
+            value = _Decimal(value)
+        return TimeStamp(_Decimal.__add__(self, value))
 
-    def __sub__(self, value: _Number) -> "TimeStamp":
+    def __sub__(self, value: int | float | _Decimal) -> "TimeStamp":
         if isinstance(value, float):
-            value = _dec.Decimal(value)
-        return TimeStamp(_dec.Decimal.__sub__(self, value))
+            value = _Decimal(value)
+        return TimeStamp(_Decimal.__sub__(self, value))
 
 
 at_timestamp_re = _re.compile(r"@(\d+)(?:\.(\d+))?")
@@ -191,12 +189,10 @@ def parse_TimeStamp(value: str, *, utc: bool = False) -> tuple[tuple[TimeStamp, 
     else:
         r, rp = 0, 0
 
-    hrem = _dec.Decimal(r) / (10**rp)
-    erem = _dec.Decimal(r + 1) / (10**rp) if ending else _dec.Decimal(0)
+    hrem = _Decimal(r) / (10**rp)
+    erem = _Decimal(r + 1) / (10**rp) if ending else _Decimal(0)
 
-    return (TimeStamp(_dec.Decimal(hs) + hrem), TimeStamp(_dec.Decimal(es) + erem)), value[
-        m.span()[1] :
-    ]
+    return (TimeStamp(_Decimal(hs) + hrem), TimeStamp(_Decimal(es) + erem)), value[m.span()[1] :]
 
 
 def timestamp(value: str, start: bool = True, *, utc: bool = False) -> TimeStamp:
@@ -231,7 +227,7 @@ class TimeRange:
         return TimeStamp((self.start + self.end) / 2)
 
     @property
-    def delta(self) -> _dec.Decimal:
+    def delta(self) -> _Decimal:
         return self.end - self.start
 
     def format(

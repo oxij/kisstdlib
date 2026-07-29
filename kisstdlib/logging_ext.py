@@ -44,7 +44,7 @@ from logging import (  # pylint: disable=unused-import
     CRITICAL,
 )
 
-from .base import Number as _Number
+from .base import Decimal as _Decimal
 from .io.stdio import (
     TIOWrappedWriter as _TIOWrappedWriter,
     ANSIColor as _ANSIColor,
@@ -113,7 +113,7 @@ class ANSILogHandler(_logging.StreamHandler[_TIOWrappedWriter]):
         *,
         level: int = WARNING,
         ephemeral_below: int = 0,
-        ephemeral_timeout: _Number = 0,
+        ephemeral_timeout: int | float | _Decimal = 0,
         debug_color: int = _ANSIColor.MAGENTA,
         info_color: int = _ANSIColor.BLUE,
         warning_color: int = _ANSIColor.YELLOW,
@@ -127,7 +127,11 @@ class ANSILogHandler(_logging.StreamHandler[_TIOWrappedWriter]):
         self.formatter = formatter
         self.level = level
         self.ephemeral_below = ephemeral_below
-        self.ephemeral_timeout = ephemeral_timeout
+        self.ephemeral_timeout = (
+            float(ephemeral_timeout)
+            if isinstance(ephemeral_timeout, _Decimal)
+            else ephemeral_timeout
+        )
 
         self.debug_color = debug_color
         self.info_color = info_color
