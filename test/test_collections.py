@@ -26,7 +26,7 @@ import math as _math
 import typing as _t
 
 from kisstdlib import *
-from kisstdlib.sorted import *
+from kisstdlib.collections_ext import *
 
 
 def test_nearer_to_than() -> None:
