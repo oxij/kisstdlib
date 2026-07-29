@@ -53,11 +53,6 @@ def test_basics() -> None:
     sane_is_closer(-_math.inf, 0.0, 1.0)
     sane_is_closer(_math.inf, 1.0, 0.0)
 
-    assert add_(Decimal(1), 1.0) == 2
-    assert sub_(Decimal(1), 1.0) == 0
-    assert mul_(Decimal(1), 1.0) == 1
-    assert truediv_(Decimal(1), 1.0) == 1
-
     for i in range(-10, 10):
         for j in range(-10, 10):
             for k in range(-11, 11):

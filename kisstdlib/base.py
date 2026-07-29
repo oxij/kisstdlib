@@ -35,22 +35,8 @@ from functools import partial, partialmethod  # pylint: disable=unused-import
 
 ### Primitive types
 
-# Placeholders
-AType = _t.TypeVar("AType")
-BType = _t.TypeVar("BType")
-CType = _t.TypeVar("CType")
-DType = _t.TypeVar("DType")
-EType = _t.TypeVar("EType")
-AParamSpec = _t.ParamSpec("AParamSpec")
-BParamSpec = _t.ParamSpec("BParamSpec")
-
 # Bytes-like object
 BytesLike = bytes | bytearray | memoryview
-
-# Numbers
-Number = Decimal | float | int
-AnyNumber = _t.TypeVar("AnyNumber", bound=Number)
-
 
 ### Common constants
 
@@ -178,42 +164,6 @@ def is_closer[A: SupportsCounting](ideal: A, a: A, b: A) -> bool:
             return a < b
         return b < a
     return abs(ideal - a) < abs(ideal - b)
-
-
-def add_(x: Number, y: Number) -> Number:
-    """`x + y` that always works."""
-    if isinstance(x, float) and isinstance(y, Decimal):
-        return Decimal(x) + y
-    if isinstance(x, Decimal) and isinstance(y, float):
-        return x + Decimal(y)
-    return x + y  # type: ignore
-
-
-def sub_(x: Number, y: Number) -> Number:
-    """`x - y` that always works."""
-    if isinstance(x, float) and isinstance(y, Decimal):
-        return Decimal(x) - y
-    if isinstance(x, Decimal) and isinstance(y, float):
-        return x - Decimal(y)
-    return x - y  # type: ignore
-
-
-def mul_(x: Number, y: Number) -> Number:
-    """`x * y` that always works."""
-    if isinstance(x, float) and isinstance(y, Decimal):
-        return Decimal(x) * y
-    if isinstance(x, Decimal) and isinstance(y, float):
-        return x * Decimal(y)
-    return x * y  # type: ignore
-
-
-def truediv_(x: Number, y: Number) -> Number:
-    """`x / y` that always works."""
-    if isinstance(x, float) and isinstance(y, Decimal):
-        return Decimal(x) / y
-    if isinstance(x, Decimal) and isinstance(y, float):
-        return x / Decimal(y)
-    return x / y  # type: ignore
 
 
 ### Simple functions

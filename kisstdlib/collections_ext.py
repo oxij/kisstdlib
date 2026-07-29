@@ -33,7 +33,6 @@ from sortedcontainers import SortedList, SortedKeyList, SortedDict  # pylint: di
 
 from kisstdlib.base import (
     Decimal as _Decimal,
-    Number as _Number,
     SupportsCounting as _SupportsCounting,
     is_infinite as _is_infinite,
     is_closer as _is_closer,
