@@ -59,12 +59,12 @@ def test_iter_subtree(tmp_path: str) -> None:
 def atomic1(defer: bool, tmp_path: str) -> None:
     os.chdir(tmp_path)
 
-    sync: DeferredSync[str] | bool = True
+    sync: Deferred[str] | bool = True
     if defer:
-        sync = DeferredSync(True)
+        sync = Deferred(True)
 
     def check(es: list[list[str]], ed: list[list[str]] | None = None) -> None:
-        if isinstance(sync, DeferredSync):
+        if isinstance(sync, Deferred):
             gs: list[list[str]] = []
             sync.copy().sync(True, gs)
             assert es == gs
@@ -187,7 +187,7 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["fsync_dir", "a"],
         ]
     )
-    if isinstance(sync, DeferredSync):
+    if isinstance(sync, Deferred):
         sync.flush()
     check(
         [],
@@ -214,7 +214,7 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["fsync_dir", "."],
         ]
     )
-    if isinstance(sync, DeferredSync):
+    if isinstance(sync, Deferred):
         sync.flush()
     check([])
 
@@ -239,7 +239,7 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["fsync_dir", "x"],
         ]
     )
-    if isinstance(sync, DeferredSync):
+    if isinstance(sync, Deferred):
         sync.flush()
     check(
         [],
@@ -288,7 +288,7 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["fsync_dir", "."],
         ]
     )
-    if isinstance(sync, DeferredSync):
+    if isinstance(sync, Deferred):
         sync.flush()
     check(
         [],
@@ -335,9 +335,9 @@ def atomic1(defer: bool, tmp_path: str) -> None:
     ]
 
 
-def test_without_DeferredSync(tmp_path: str) -> None:
+def test_without_Deferred(tmp_path: str) -> None:
     return atomic1(False, tmp_path)
 
 
-def test_with_DeferredSync(tmp_path: str) -> None:
+def test_with_Deferred(tmp_path: str) -> None:
     return atomic1(True, tmp_path)

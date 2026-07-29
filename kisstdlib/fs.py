@@ -493,7 +493,7 @@ def describe_forest[AnyStr: (
 type DeferredRename[T] = tuple[T, T, bool, T, T]
 
 
-class DeferredSync[AnyStr: (str, bytes)]:
+class Deferred[AnyStr: (str, bytes)]:
     """Deferred file system `replace`s, `rename`s, `unlink`s, and `fsync`s.
 
     Basically, this exists to defer `os.replace`, `os.rename`, `os.unlink`, and
@@ -512,7 +512,7 @@ class DeferredSync[AnyStr: (str, bytes)]:
     rename_file: _c.deque[DeferredRename[AnyStr]]
 
     # if all of the above succeed, also do these
-    _after: _t.Optional["DeferredSync[AnyStr]"]
+    _after: _t.Optional["Deferred[AnyStr]"]
 
     def __init__(self, defer: bool) -> None:
         self.defer = defer
@@ -529,9 +529,9 @@ class DeferredSync[AnyStr: (str, bytes)]:
         self._after = None
 
     @property
-    def after(self) -> "DeferredSync[AnyStr]":
+    def after(self) -> "Deferred[AnyStr]":
         if self._after is None:
-            self._after = DeferredSync(self.defer)
+            self._after = Deferred(self.defer)
         return self._after
 
     def __repr__(self) -> str:
@@ -548,11 +548,11 @@ after="""
             + ">"
         )
 
-    def copy(self) -> "DeferredSync[AnyStr]":
+    def copy(self) -> "Deferred[AnyStr]":
         """Return a shallow copy of this object (elements describing operations are not
         copied, only the structure is).
         """
-        res: DeferredSync[AnyStr] = DeferredSync(self.defer)
+        res: Deferred[AnyStr] = Deferred(self.defer)
         res.tmp_file = set(self.tmp_file)
         res.unlink_file = set(self.unlink_file)
         res.fsync_file = set(self.fsync_file)
@@ -803,19 +803,19 @@ def unlink_many[AnyStr: (
 def atomic_unlink[AnyStr: (
     str,
     bytes,
-)](path: AnyStr, *, sync: DeferredSync[AnyStr] | bool = True,) -> None:
+)](path: AnyStr, *, sync: Deferred[AnyStr] | bool = True,) -> None:
     """Atomically unlink `path`."""
 
     dirname, _ = dirname_dot(path)
 
-    if isinstance(sync, DeferredSync) and sync.defer:
+    if isinstance(sync, Deferred) and sync.defer:
         sync.unlink_file.add(path)
         sync.fsync_dir.add(dirname)
         return
 
     _os.unlink(path)
 
-    if isinstance(sync, DeferredSync):
+    if isinstance(sync, Deferred):
         sync.fsync_dir.add(dirname)
         return
 
@@ -864,7 +864,7 @@ def atomic_rename[AnyStr: (
     allow_overwrites: bool,
     *,
     makedirs: bool = True,
-    sync: DeferredSync[AnyStr] | bool = True,
+    sync: Deferred[AnyStr] | bool = True,
 ) -> None:
     """Atomically rename a file, performing all necesary `fsync`s."""
 
@@ -874,13 +874,13 @@ def atomic_rename[AnyStr: (
     if makedirs and nondot:
         _os.makedirs(dst_dir, exist_ok=True)
 
-    if isinstance(sync, DeferredSync) and sync.defer:
+    if isinstance(sync, Deferred) and sync.defer:
         sync.rename_file.append((src_path, dst_path, allow_overwrites, src_dir, dst_dir))
         return
 
     rename(src_path, dst_path, allow_overwrites, makedirs=False, dst_dir=dst_dir)
 
-    if isinstance(sync, DeferredSync):
+    if isinstance(sync, Deferred):
         sync.fsync_dir.add(dst_dir)
         return
 
@@ -903,7 +903,7 @@ def make_file[AnyStr: (
     allow_overwrites: bool = False,
     *,
     makedirs: bool = True,
-    sync: DeferredSync[AnyStr] | bool = True,
+    sync: Deferred[AnyStr] | bool = True,
 ) -> None:
     """Create a file using a given `make_dst` function."""
 
@@ -917,7 +917,7 @@ def make_file[AnyStr: (
         _os.makedirs(dst_dir, exist_ok=True)
     make_dst(dst_path, isinstance(sync, bool))
 
-    if isinstance(sync, DeferredSync):
+    if isinstance(sync, Deferred):
         sync.fsync_file.add(dst_path)
         sync.fsync_dir.add(dst_dir)
         return
@@ -939,7 +939,7 @@ def atomic_make_file[AnyStr: (
     allow_overwrites: bool = False,
     *,
     makedirs: bool = True,
-    sync: DeferredSync[AnyStr] | bool = True,
+    sync: Deferred[AnyStr] | bool = True,
 ) -> None:
     """Atomically create a file using a given `make_dst` function. This
     runs `make_dst` on a `.part` path first, `fsync`s it, then does
@@ -963,7 +963,7 @@ def atomic_make_file[AnyStr: (
         _os.makedirs(dst_dir, exist_ok=True)
     make_dst(tmp_path, isinstance(sync, bool) and sync)
 
-    if isinstance(sync, DeferredSync) and sync.defer:
+    if isinstance(sync, Deferred) and sync.defer:
         sync.tmp_file.add(tmp_path)
         sync.fsync_file.add(tmp_path)
         sync.rename_file.append((tmp_path, dst_path, allow_overwrites, dst_dir, dst_dir))
@@ -977,7 +977,7 @@ def atomic_make_file[AnyStr: (
         unlink_maybe(tmp_path)
         raise
 
-    if isinstance(sync, DeferredSync):
+    if isinstance(sync, Deferred):
         sync.fsync_dir.add(dst_dir)
         return
 
@@ -995,7 +995,7 @@ def atomic_write[AnyStr: (
     allow_overwrites: bool = False,
     *,
     makedirs: bool = True,
-    sync: DeferredSync[AnyStr] | bool = True,
+    sync: Deferred[AnyStr] | bool = True,
 ) -> None:
     """Atomically write given `data` to `dst_path`."""
 
@@ -1023,7 +1023,7 @@ def atomic_copy2[AnyStr: (
     *,
     follow_symlinks: bool = True,
     makedirs: bool = True,
-    sync: DeferredSync[AnyStr] | bool = True,
+    sync: Deferred[AnyStr] | bool = True,
 ) -> None:
     """Atomically copy `src_path` to `dst_path`."""
 
@@ -1059,7 +1059,7 @@ def atomic_link[AnyStr: (
     *,
     follow_symlinks: bool = True,
     makedirs: bool = True,
-    sync: DeferredSync[AnyStr] | bool = True,
+    sync: Deferred[AnyStr] | bool = True,
 ) -> None:
     """Atomically hardlink `src_path` to `dst_path`."""
 
@@ -1070,7 +1070,7 @@ def atomic_link[AnyStr: (
         _os.link(src_path, dst_path, follow_symlinks=follow_symlinks)
 
     # _os.link is atomic, so non-atomic make_file is ok
-    if allow_overwrites or (isinstance(sync, DeferredSync) and sync.defer):
+    if allow_overwrites or (isinstance(sync, Deferred) and sync.defer):
         atomic_make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
     else:
         make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
@@ -1086,7 +1086,7 @@ def atomic_symlink[AnyStr: (
     *,
     follow_symlinks: bool = True,
     makedirs: bool = True,
-    sync: DeferredSync[AnyStr] | bool = True,
+    sync: Deferred[AnyStr] | bool = True,
 ) -> None:
     """Atomically symlink `src_path` to `dst_path`."""
 
@@ -1097,7 +1097,7 @@ def atomic_symlink[AnyStr: (
         _os.symlink(src_path, dst_path)
 
     # _os.symlink is atomic, so non-atomic make_file is ok
-    if allow_overwrites or (isinstance(sync, DeferredSync) and sync.defer):
+    if allow_overwrites or (isinstance(sync, Deferred) and sync.defer):
         atomic_make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
     else:
         make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
@@ -1113,7 +1113,7 @@ def atomic_link_or_copy2[AnyStr: (
     *,
     follow_symlinks: bool = True,
     makedirs: bool = True,
-    sync: DeferredSync[AnyStr] | bool = True,
+    sync: Deferred[AnyStr] | bool = True,
 ) -> None:
     """Atomically hardlink or copy `src_path` to `dst_path`."""
 
@@ -1135,7 +1135,7 @@ def atomic_move[AnyStr: (
     *,
     follow_symlinks: bool = False,
     makedirs: bool = True,
-    sync: DeferredSync[AnyStr] | bool = True,
+    sync: Deferred[AnyStr] | bool = True,
 ) -> None:
     """Atomically move `src_path` to `dst_path`.
 
@@ -1147,7 +1147,7 @@ def atomic_move[AnyStr: (
 
     atomic_link_or_copy2(src_path, dst_path, allow_overwrites, follow_symlinks=follow_symlinks, makedirs=makedirs, sync=sync)  # fmt: skip
 
-    if isinstance(sync, DeferredSync):
+    if isinstance(sync, Deferred):
         after = sync.after
         after.unlink_file.add(src_path)
         after.fsync_dir.add(src_dir)
