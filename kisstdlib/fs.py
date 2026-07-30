@@ -80,20 +80,25 @@ def read_file_maybe(path: str | bytes) -> bytes | None:
         return None
 
 
-def file_data_equals(path: str | bytes, data: bytes) -> bool:
-    """Check if contents of the given file `path` is equal to `data`."""
-    try:
-        with open(path, "rb") as f:
-            return fileobj_data_equals(f, data)
-    except FileNotFoundError:
-        return False
-
-
-def same_file_data(path1: str | bytes, path2: str | bytes) -> bool:
+def same_file_data(
+    path1: str | bytes, path2: str | bytes, chunk_size: int = FILE_CHUNK_SIZE
+) -> bool:
     """Check if two given files have exactly the same content."""
     with open(path1, "rb") as f1:
         with open(path2, "rb") as f2:
-            return same_fileobj_data(f1, f2)
+            return same_fileobj_data(f1, f2, chunk_size)
+
+
+def file_data_equals(path: str | bytes, data: bytes, chunk_size: int = FILE_CHUNK_SIZE) -> bool:
+    """Check if contents of the given file `path` is equal to `data`.
+
+    Returns `False` if `path` does not exists.
+    """
+    try:
+        with open(path, "rb") as f:
+            return fileobj_data_equals(f, data, chunk_size)
+    except FileNotFoundError:
+        return False
 
 
 def same_symlink_data(path1: str | bytes, path2: str | bytes) -> bool:

@@ -116,8 +116,12 @@ def write_all(write_func: _t.Callable[[BytesLike], int | None], data: BytesLike)
         done += res
 
 
-def same_fileobj_data(a: _io.IOBase, b: _io.IOBase, chunk_size: int = 8 * MiB) -> bool:
-    """Check if content data of two `io.IOBase` objects are equal.
+FILE_CHUNK_SIZE = 8 * MiB
+
+
+def same_fileobj_data(a: _io.IOBase, b: _io.IOBase, chunk_size: int = FILE_CHUNK_SIZE) -> bool:
+    """Check if content data of two given `io.IOBase` objects are equal.
+
     The result is unspecified if either argument is in non-blocking mode.
     """
     a_read = a.read
@@ -131,10 +135,10 @@ def same_fileobj_data(a: _io.IOBase, b: _io.IOBase, chunk_size: int = 8 * MiB) -
             return True
 
 
-def fileobj_data_equals(f: _io.IOBase, data: bytes) -> bool:
+def fileobj_data_equals(f: _io.IOBase, data: bytes, chunk_size: int = FILE_CHUNK_SIZE) -> bool:
     """Check if content data of the given `io.IOBase` object is equal to `data`."""
     buf = _io.BytesIO(data)
-    return same_fileobj_data(f, buf)
+    return same_fileobj_data(f, buf, chunk_size)
 
 
 class MinimalIO(metaclass=_abc.ABCMeta):
