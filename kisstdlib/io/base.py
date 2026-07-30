@@ -35,6 +35,15 @@ from ..base import POSIX as _POSIX, BytesLike, KiB, MiB, GiB  # pylint: disable=
 if _POSIX:
     import fcntl as _fcntl
 
+
+class _BytesIOReader(_io.BytesIO):
+    def peek(self, size: int = 0) -> bytes:
+        return self.getvalue()[self.tell() : size]
+
+
+# BytesIO variant that pretends to be io.BufferedReader
+BytesIOReader = _t.cast(_t.Callable[[bytes], _io.BufferedReader], _BytesIOReader)
+
 _logger = _logging.getLogger("kisstdlib")
 
 # file descriptor number
