@@ -89,6 +89,7 @@ class AppDB[SettingsType]:
     APPLICATION_ID: int = 0
     MIN_VERSION: int = 1
     MAX_VERSION: int = 1
+    SETTINGS_TABLE: str = "_settings"
 
     db: Connection
     _path: str
@@ -270,8 +271,8 @@ class AppDB[SettingsType]:
                             reopened_version,
                         )
 
-            if "_settings" in tables:
-                cur.execute("SELECT name, value FROM _settings")
+            if self.SETTINGS_TABLE in tables:
+                cur.execute(f"SELECT name, value FROM {self.SETTINGS_TABLE}")
                 self._settings = self.deserialize_settings(self._version, dict(cur))
             else:
                 self._settings = default_settings
@@ -441,12 +442,12 @@ class AppDB[SettingsType]:
             cur.execute(f"PRAGMA application_id={self.APPLICATION_ID}")
             cur.execute(f"PRAGMA user_version={self._version}")
 
-            cur.execute("DROP TABLE IF EXISTS _settings")
+            cur.execute(f"DROP TABLE IF EXISTS {self.SETTINGS_TABLE}")
             cur.execute(
-                "CREATE TABLE _settings (name TEXT NOT NULL PRIMARY KEY, value ANY) WITHOUT ROWID, STRICT"
+                f"CREATE TABLE {self.SETTINGS_TABLE} (name TEXT NOT NULL PRIMARY KEY, value ANY) WITHOUT ROWID, STRICT"
             )
             for k, v in settings.items():
-                cur.execute("INSERT INTO _settings VALUES (?, ?)", (k, v))
+                cur.execute(f"INSERT INTO {self.SETTINGS_TABLE} VALUES (?, ?)", (k, v))
 
             cur.close()
         self.db.commit()
