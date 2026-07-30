@@ -22,9 +22,11 @@
 
 """Testing `kisstdlib.sorted` module."""
 
+import json as _json
 import typing as _t
 
 from kisstdlib import *
+import kisstdlib.sqlite3_ext as sqlite3
 
 
 def prefill_Index[ValueKey: SupportsCounting](
@@ -167,3 +169,32 @@ def test_SortedDictIndex_slow(maxi: int = 102) -> None:
 
 def test_SortedDictIndex_quick() -> None:
     test_SortedDictIndex_slow(10)
+
+
+def str_decimal(x: _t.Any) -> _t.Any:
+    if isinstance(x, Decimal):
+        return str(x)
+    return x
+
+
+def test_SqliteIndex_slow(maxi: int = 102) -> None:
+    db = sqlite3.connect(":memory:")
+    idx = sqlite3.SortedSqliteIndex(
+        db,
+        "sorted_index",
+        serialize_key=identity,
+        deserialize_key=identity,
+        serialize_values=lambda values: _json.dumps(
+            list(values), default=str_decimal, ensure_ascii=False
+        ).encode("utf-8"),
+        deserialize_values=lambda blob: list(
+            map(lambda x: (Decimal(x[0]), x[1]), _json.loads(blob.decode("utf-8")))
+        ),
+        value_key=fst,
+    )
+    idx.init_db()
+    check_Index(idx, Decimal, maxi)
+
+
+def test_SqliteIndex_quick() -> None:
+    test_SqliteIndex_slow(10)
