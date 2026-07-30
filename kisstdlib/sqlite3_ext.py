@@ -34,7 +34,7 @@ import typing as _t
 
 from sqlite3 import *  # pylint: disable=redefined-builtin
 
-import kisstdlib.failure as _kf
+from . import failure as _kf
 
 
 def iter_fetchmany(cur: Cursor) -> _t.Iterator[_t.Any]:
@@ -462,7 +462,7 @@ class AppDB[SettingsType]:
 
         self.db.rollback()
 
-    def upgrade(self, cur: Cursor, target_version: int) -> bool | None:
+    def upgrade(self, cur: Cursor, target_version: int) -> None:
         """Create or upgrade the database.
 
         This is where `cur.execute("CREATE TABLE ...", ...)` and/or
