@@ -34,7 +34,9 @@ import typing as _t
 
 from sqlite3 import *  # pylint: disable=redefined-builtin
 
+from . import base as _kb
 from . import failure as _kf
+from . import collections_ext as _kc
 
 
 def iter_fetchmany(cur: Cursor) -> _t.Iterator[_t.Any]:
@@ -549,3 +551,81 @@ class JSONSettingsAppDB(AppDB[_t.Any]):
     @staticmethod
     def deserialize_settings(version: int, data: DictSettings) -> _t.Any:
         return load_overwritable_settings(data, "_json", _json.loads)
+
+
+class SortedSqliteIndex[Key, ValueKey: _kb.SupportsCounting, Value](
+    _kc.ABCIndex[Key, ValueKey, Value]
+):
+    """`ABCIndex` implementation over an SQLite database.
+
+    This class uses the same semantics as `SortedDictIndex`, but requires a bunch of serializers-deserializers.
+    """
+
+    def __init__(
+        self,
+        db: Connection,
+        table: str,
+        serialize_key: _t.Callable[[Key], _t.Any],
+        deserialize_key: _t.Callable[[_t.Any], Key],
+        serialize_values: _t.Callable[[_t.Iterable[Value]], _t.Any],
+        deserialize_values: _t.Callable[[_t.Any], list[Value]],
+        value_key: _t.Callable[[Value], ValueKey],
+    ) -> None:
+        _kc.ABCIndex.__init__(self, value_key)
+        self.db = db
+        self.table = table
+        self.serialize_key = serialize_key
+        self.deserialize_key = deserialize_key
+        self.serialize_values = serialize_values
+        self.deserialize_values = deserialize_values
+
+    def init_db(self) -> None:
+        self.db.execute(
+            f"CREATE TABLE IF NOT EXISTS {self.table} (si_key ANY PRIMARY KEY, si_values ANY) WITHOUT ROWID"
+        )
+
+    def __len__(self) -> int:
+        return _t.cast(
+            int,
+            self.db.execute(f"SELECT count(si_key) FROM {self.table}").fetchone()[0],
+        )
+
+    def __contains__(self, key: Key) -> bool:
+        res = _t.cast(
+            int,
+            self.db.execute(
+                f"SELECT count(si_key) FROM {self.table} WHERE si_key = ?",
+                (self.serialize_key(key),),
+            ).fetchone()[0],
+        )
+        return res != 0
+
+    def __getitem__(self, key: Key) -> _kc.SortedKeyList[Value]:
+        res: tuple[_t.Any] | None = self.db.execute(
+            f"SELECT si_values FROM {self.table} WHERE si_key = ?",
+            (self.serialize_key(key),),
+        ).fetchone()
+        if res is None:
+            raise KeyError(key)
+        return _kc.SortedKeyList(self.deserialize_values(res[0]), key=self.value_key)
+
+    def keys(self) -> _t.Iterator[Key]:
+        for key in self.db.execute(f"SELECT si_key FROM {self.table}"):
+            yield self.deserialize_key(key)
+
+    def values(self) -> _t.Iterator[Value]:
+        for values in self.db.execute(f"SELECT si_values FROM {self.table}"):
+            yield from self.deserialize_values(values)
+
+    def insert(self, key: Key, value: Value) -> bool:
+        try:
+            values = self[key]
+        except KeyError:
+            values = [value]
+        else:
+            values.add(value)
+        self.db.execute(
+            f"REPLACE INTO {self.table} VALUES (?, ?)",
+            (self.serialize_key(key), self.serialize_values(values)),
+        )
+        return True
