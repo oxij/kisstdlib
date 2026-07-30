@@ -26,11 +26,9 @@ import typing as _t
 
 from kisstdlib import *
 
-A = _t.TypeVar("A")
 
-
-def prefill_Index(
-    index: AbstractSortedIndex[str, ValueKey, tuple[ValueKey, None]],
+def prefill_Index[ValueKey: SupportsCounting](
+    index: ABCIndex[str, ValueKey, tuple[ValueKey, None]],
     key: str,
     ranges: list[tuple[ValueKey, ValueKey, ValueKey]],
     elements: list[tuple[ValueKey, None]],
@@ -42,7 +40,9 @@ def prefill_Index(
             elements.append(e)
 
 
-def skip(step: ValueKey, xs: _t.Iterable[tuple[ValueKey, A]]) -> _t.Iterator[tuple[ValueKey, A]]:
+def skip[ValueKey: SupportsCounting, A](
+    step: ValueKey, xs: _t.Iterable[tuple[ValueKey, A]]
+) -> _t.Iterator[tuple[ValueKey, A]]:
     prev = None
     for x in xs:
         if prev is not None and abs(prev[0] - x[0]) < step:
@@ -51,7 +51,7 @@ def skip(step: ValueKey, xs: _t.Iterable[tuple[ValueKey, A]]) -> _t.Iterator[tup
         prev = x
 
 
-def iter_range_result(
+def iter_range_result[ValueKey: SupportsCounting, A](
     elements: list[tuple[ValueKey, A]],
     start: ValueKey,
     end: ValueKey,
@@ -78,8 +78,8 @@ def iter_range_result(
     return list(skip(step, l))
 
 
-def check_Index_range(
-    index: AbstractSortedIndex[str, ValueKey, tuple[ValueKey, A]],
+def check_Index_range[ValueKey: SupportsCounting, A](
+    index: ABCIndex[str, ValueKey, tuple[ValueKey, A]],
     key: str,
     elements: list[tuple[ValueKey, A]],
     mini: ValueKey,
@@ -102,8 +102,8 @@ def check_Index_range(
                         assert r == iter_range_result(elements, i, j, step, i_s, i_e)
 
 
-def check_Index_closest(
-    index: AbstractSortedIndex[str, ValueKey, tuple[ValueKey, A]],
+def check_Index_closest[ValueKey: SupportsCounting, A](
+    index: ABCIndex[str, ValueKey, tuple[ValueKey, A]],
     key: str,
     elements: list[tuple[ValueKey, A]],
     mini: ValueKey,
@@ -112,7 +112,7 @@ def check_Index_closest(
 ) -> None:
     for i in range_(mini, maxi, nstep):
         # print(i)
-        r = list(index.iter_nearest(key, i))
+        r = list(index.iter_closest(key, i))
         # because right-most elements go first
         s: list[tuple[ValueKey, A]]
         s = list(filter(lambda x: x[0] >= i, elements))  # pylint: disable=cell-var-from-loop
@@ -121,13 +121,15 @@ def check_Index_closest(
         assert r == s
 
 
-def check_Index(
-    index: AbstractSortedIndex[str, ValueKey, tuple[ValueKey, None]],
+def check_Index[ValueKey: SupportsCounting](
+    index: ABCIndex[str, ValueKey, tuple[ValueKey, None]],
     f: _t.Callable[[int | str], ValueKey],
     maxi: int,
 ) -> None:
     elements_a: list[tuple[ValueKey, None]] = []
     prefill_Index(index, "a", [(f(30), f(50), f(1))], elements_a)
+    assert "a" in index
+    assert "b" not in index
 
     elements_b: list[tuple[ValueKey, None]] = []
     prefill_Index(
@@ -141,16 +143,27 @@ def check_Index(
         ],
         elements_b,
     )
+    assert "a" in index
+    assert "b" in index
 
     for k, els in [("a", elements_a), ("b", elements_b)]:
         check_Index_closest(index, k, els, f(-2), f(102), f("0.5"))
         check_Index_range(index, k, els, f(-2), f(maxi), f(0), f(3), f("0.5"))
 
 
-def test_SortedIndex_slow(maxi: int = 102) -> None:
-    check_Index(SortedIndex(key_key=identity, value_key=fst), float, maxi)
-    check_Index(SortedIndex(key_key=identity, value_key=fst), Decimal, maxi)
+def test_DictIndex_slow(maxi: int = 102) -> None:
+    check_Index(DictIndex(value_key=fst), float, maxi)
+    check_Index(DictIndex(value_key=fst), Decimal, maxi)
 
 
-def test_SortedIndex_quick() -> None:
-    test_SortedIndex_slow(10)
+def test_DictIndex_quick() -> None:
+    test_DictIndex_slow(10)
+
+
+def test_SortedDictIndex_slow(maxi: int = 102) -> None:
+    check_Index(SortedDictIndex(key_key=identity, value_key=fst), float, maxi)
+    check_Index(SortedDictIndex(key_key=identity, value_key=fst), Decimal, maxi)
+
+
+def test_SortedDictIndex_quick() -> None:
+    test_SortedDictIndex_slow(10)

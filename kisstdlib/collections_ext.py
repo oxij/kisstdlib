@@ -23,65 +23,79 @@
 """Various sorted containers."""
 
 import abc as _abc
-import collections.abc as _cabc
 import dataclasses as _dc
 import typing as _t
 
 from bisect import bisect_left as _bisect_left, bisect_right as _bisect_right
 
-from sortedcontainers import SortedList, SortedKeyList, SortedDict  # pylint: disable=unused-import
+from sortedcontainers import SortedList, SortedKeyList, SortedDict
 
-from kisstdlib.base import (
-    Decimal as _Decimal,
+from .base import (
     SupportsCounting as _SupportsCounting,
     is_infinite as _is_infinite,
     is_closer as _is_closer,
 )
-from kisstdlib.itertools_ext import (
+from .itertools_ext import (
     chain as _chain,
     first as _first,
     take as _take,
 )
 
-KeyType = _t.TypeVar("KeyType")
-ValueKey = _t.TypeVar("ValueKey", bound=_SupportsCounting)
-ValueType = _t.TypeVar("ValueType")
 
-
-class AbstractSortedIndex(_t.Generic[KeyType, ValueKey, ValueType], metaclass=_abc.ABCMeta):
-    """Essentially, `SortedDict[KeyType, SortedList[ValueType]]` + a pair of
-    functions:
-
-    - `key_key: KeyType -> ComparableKey`,
-    - `value_key: ValueType -> ValueKey`.
-
-    with some uselful indexing-relevant operations on top.
+class ABCIndex[Key, ValueKey: _SupportsCounting, Value](metaclass=_abc.ABCMeta):
+    """Essentially, `dict[Key, SortedList[Value]]` where `Value`s are ordered via
+    `value_key: Value -> ValueKey`, with some uselful indexing-relevant operations on top.
     """
 
-    # Sorting key functions.
-    key_key: _t.Callable[[KeyType], _t.Any]
-    value_key: _t.Callable[[ValueType], ValueKey]
+    value_key: _t.Callable[[Value], ValueKey]
 
-    # Total number of stored elements.
-    size: int
+    def __init__(self, value_key: _t.Callable[[Value], ValueKey]) -> None:
+        self.value_key = value_key
 
     @_abc.abstractmethod
     def __len__(self) -> int:
         """Total number of stored keys."""
         raise NotImplementedError()
 
+    @property
+    def size(self) -> int:
+        """Total number of stored elements."""
+        n = 0
+        for _ in self.values():
+            n += 1
+        return n
+
     @_abc.abstractmethod
-    def keys(self) -> _t.Iterable[KeyType]:
+    def __contains__(self, key: Key) -> bool:
+        """Check if a key is present."""
+        raise NotImplementedError()
+
+    @_abc.abstractmethod
+    def __getitem__(self, key: Key) -> SortedKeyList[Value]:
+        """Get all elements associated with a key."""
+        raise NotImplementedError()
+
+    def get(self, key: Key, default: list[Value] | None = None) -> SortedKeyList[Value] | None:
+        """Get all elements associated with a key, or `default`."""
+        try:
+            return self[key]
+        except KeyError:
+            if default is None:
+                return default
+            return SortedKeyList(default, key=self.value_key)
+
+    @_abc.abstractmethod
+    def keys(self) -> _t.Iterable[Key]:
         """Iterable over keys."""
         raise NotImplementedError()
 
     @_abc.abstractmethod
-    def values(self) -> _t.Iterable[ValueType]:
+    def values(self) -> _t.Iterable[Value]:
         """Iterable over values."""
         raise NotImplementedError()
 
     @_abc.abstractmethod
-    def insert(self, key: KeyType, value: ValueType) -> bool:
+    def insert(self, key: Key, value: Value) -> bool:
         """`self[key].add(value)`, except the implementation can accept some `value`s,
         while rejecting others.
 
@@ -89,287 +103,19 @@ class AbstractSortedIndex(_t.Generic[KeyType, ValueKey, ValueType], metaclass=_a
         """
         raise NotImplementedError()
 
-    @_abc.abstractmethod
-    def internal_from_to(
+    def _iter_from_to(
         self,
-        key: KeyType,
+        key: Key,
         start: ValueKey,
         end: ValueKey,
         *,
         include_start: bool = True,
         include_end: bool = False,
-    ) -> _t.Iterator[ValueType]:
+    ) -> _t.Iterator[Value]:
         """Iterate over `self[key]` elements from `start` to `end`.
 
-        The case of `end < start` should be supported, iterating in reverse.
+        When `end < start`, iterates in reverse.
         """
-        raise NotImplementedError()
-
-    @_abc.abstractmethod
-    def internal_from_nearest(self, key: KeyType, ideal: ValueKey) -> _t.Iterator[ValueType]:
-        """Iterate over `self[key]` elements in order of ascending distance from
-        `ideal`.
-        """
-        raise NotImplementedError()
-
-    def internal_from_to_step(
-        self,
-        key: KeyType,
-        start: ValueKey,
-        end: ValueKey,
-        step: int | ValueKey = 0,
-        *,
-        include_start: bool = True,
-        include_end: bool = False,
-    ) -> _t.Iterator[ValueType]:
-        """`internal_from_to` with `step` support.
-
-        This implements a default implementation that works well when
-        `internal_from_to` does logarithmic search. In other cases, a subclass
-        can redefine this and define `internal_from_to` through this instead.
-        """
-        if step == 0:
-            yield from self.internal_from_to(
-                key, start, end, include_start=include_start, include_end=include_end
-            )
-            return
-
-        forwards = start <= end
-        prev = None
-        again = True
-        while again:
-            again = False
-            for el in self.internal_from_to(
-                key, start, end, include_start=include_start, include_end=include_end
-            ):
-                e = self.value_key(el)
-                if prev is not None:
-                    # check that `e` is no less than `step` away from `prev`
-                    if forwards:
-                        if e - prev < step:
-                            start = prev + step
-                            if start > end:
-                                return
-                            include_start = True
-                            again = True
-                            break
-                    else:
-                        if prev - e < step:
-                            start = prev - step
-                            if start < end:
-                                return
-                            include_start = True
-                            again = True
-                            break
-                yield el
-                prev = e
-
-    def iter_range(
-        self,
-        key: KeyType,
-        start: ValueKey,
-        end: ValueKey,
-        step: int | ValueKey = 0,
-        predicate: _t.Callable[[ValueType], bool] | None = None,
-        *,
-        include_start: bool = True,
-        include_end: bool = False,
-    ) -> _t.Iterator[ValueType]:
-        """Iterate over `self[key]` elements satisfying `predicate` from `start` to
-        `end`, producing elements separated with no less than `step`.
-
-        By default, this includes the start and excludes the end, like `range`
-        does, but bounds can be toggled.
-        """
-        if predicate is None:
-            yield from self.internal_from_to_step(
-                key, start, end, step, include_start=include_start, include_end=include_end
-            )
-            return
-
-        for e in self.internal_from_to_step(
-            key, start, end, step, include_start=include_start, include_end=include_end
-        ):
-            if predicate(e):
-                yield e
-
-    def iter_nearest(
-        self,
-        key: KeyType,
-        ideal: ValueKey,
-        predicate: _t.Callable[[ValueType], bool] | None = None,
-    ) -> _t.Iterator[ValueType]:
-        """Iterate over `self[key]` elements satisfying `predicate` in order of
-        ascending distance from `ideal`.
-        """
-        if predicate is None:
-            yield from self.internal_from_nearest(key, ideal)
-            return
-
-        for e in self.internal_from_nearest(key, ideal):
-            if predicate(e):
-                yield e
-
-    def get_nearest(
-        self,
-        n: int,
-        key: KeyType,
-        ideal: ValueKey,
-        predicate: _t.Callable[[ValueType], bool] | None = None,
-    ) -> list[ValueType]:
-        """Of `self[key]` elements satisfying `predicate`, get `n` closest to `ideal`."""
-        return _take(n, self.iter_nearest(key, ideal, predicate))
-
-    def get_nearest1(
-        self,
-        key: KeyType,
-        ideal: ValueKey,
-        predicate: _t.Callable[[ValueType], bool] | None = None,
-    ) -> ValueType | None:
-        """Of `self[key]` elements satisfying `predicate`, get the one closest to `ideal`."""
-        return _first(self.iter_nearest(key, ideal, predicate), None)
-
-    def get_neighboring(
-        self,
-        n: int,
-        key: KeyType,
-        ideal: ValueKey,
-        step: int | ValueKey = 0,
-        predicate: _t.Callable[[ValueType], bool] | None = None,
-        *,
-        include_start: bool = False,
-    ) -> tuple[list[ValueType], list[ValueType]]:
-        """For `self[key]`, get `n` (or less) neighbours of `ideal` satisfying
-        `predicate`, both to its left and to its right, each separated by at
-        least `step`.
-
-        If `include_start` is `False` (the default), the neighbourhood gets
-        punctured at `ideal`, so elements with `order == ideal` will not appear
-        in the output. Setting `step` also widens the puncture by that amount.
-
-        If the index contains elements with `order == ideal`, then calling this
-        with `include_start` set to `True` will return the first such element in
-        both sides of the produced result.
-        """
-        include_start = include_start or step != 0
-        left = _take(
-            n,
-            self.iter_range(
-                key,
-                ideal - step,
-                _Decimal("-inf"),  # type: ignore
-                step,
-                predicate,
-                include_start=include_start,
-            ),
-        )
-        right = _take(
-            n,
-            self.iter_range(
-                key,
-                ideal + step,
-                _Decimal("+inf"),  # type: ignore
-                step,
-                predicate,
-                include_start=include_start,
-            ),
-        )
-        return left, right
-
-    def get_neighboring2(
-        self,
-        key: KeyType,
-        ideal: ValueKey,
-        step: int | ValueKey = 0,
-        predicate: _t.Callable[[ValueType], bool] | None = None,
-    ) -> tuple[ValueType | None, ValueType | None]:
-        """For `self[key]`, get its two closest neighbours satisfying `predicate`, to
-        its left and right.
-
-        The neighbourhood gets punctured at `ideal`, so elements with `order ==
-        ideal` will not appear in the output.
-
-        Setting `step` also widens the puncture by that amount.
-        """
-        include_start = step != 0
-        left = _first(
-            self.iter_range(
-                key,
-                ideal - step,
-                _Decimal("-inf"),  # type: ignore
-                step,
-                predicate,
-                include_start=include_start,
-            ),
-            None,
-        )
-        right = _first(
-            self.iter_range(
-                key,
-                ideal + step,
-                _Decimal("+inf"),  # type: ignore
-                step,
-                predicate,
-                include_start=include_start,
-            ),
-            None,
-        )
-        return left, right
-
-
-class SortedIndex(
-    SortedDict[KeyType, SortedList[ValueType]],  # type: ignore
-    AbstractSortedIndex[KeyType, ValueKey, ValueType],
-    _t.Generic[KeyType, ValueKey, ValueType],
-):
-    """`AbstractSortedIndex` implementation over a simple
-    `SortedDict[KeyType, SortedList[ValueType]]`.
-
-    Except, when `ideal` init parameter is set, `insert` will story only the
-    `value` closest to `ideal`.
-    """
-
-    def __init__(
-        self,
-        key_key: _t.Callable[[KeyType], _t.Any],
-        value_key: _t.Callable[[ValueType], ValueKey],
-        ideal: ValueKey | None = None,
-    ) -> None:
-        super().__init__(key_key)
-        self.key_key = key_key
-        self.value_key = value_key
-        self.ideal = ideal
-        self.size = 0
-
-    def values(self) -> _t.Iterable[ValueType]:
-        return _chain.from_iterable(SortedDict.values(self))
-
-    def insert(self, key: KeyType, value: ValueType) -> bool:
-        iobjs = self.get(key, None)
-        if iobjs is None:
-            # first time seeing this `key`
-            self[key] = SortedKeyList([value], key=self.value_key)
-            self.size += 1
-        elif self.ideal is not None:
-            if _is_closer(self.ideal, self.value_key(value), iobjs[0][0]):
-                iobjs.clear()
-                iobjs.add(value)
-            else:
-                return False
-        else:
-            iobjs.add(value)
-            self.size += 1
-        return True
-
-    def internal_from_to(
-        self,
-        key: KeyType,
-        start: ValueKey,
-        end: ValueKey,
-        *,
-        include_start: bool = True,
-        include_end: bool = False,
-    ) -> _t.Iterator[ValueType]:
         try:
             iobjs = self[key]
         except KeyError:
@@ -417,7 +163,8 @@ class SortedIndex(
                 else:
                     return
 
-    def internal_from_nearest(self, key: KeyType, ideal: ValueKey) -> _t.Iterator[ValueType]:
+    def _iter_closest(self, key: Key, ideal: ValueKey) -> _t.Iterator[Value]:
+        """Iterate over `self[key]` elements in order of ascending distance from `ideal`."""
         try:
             iobjs = self[key]
         except KeyError:
@@ -470,6 +217,292 @@ class SortedIndex(
         elif right >= ilen:
             for i in range(left, -1, -1):
                 yield iobjs[i]
+
+    def _iter_range(
+        self,
+        key: Key,
+        start: ValueKey,
+        end: ValueKey,
+        step: int | ValueKey = 0,
+        *,
+        include_start: bool = True,
+        include_end: bool = False,
+    ) -> _t.Iterator[Value]:
+        """`_iter_from_to` with `step` support.
+
+        This is a default implementation that works well when `_iter_from_to` does logarithmic
+        search, like the above default implementation does. In other cases, a subclass can redefine
+        this and define `_iter_from_to` through this instead.
+        """
+        if step == 0:
+            yield from self._iter_from_to(
+                key, start, end, include_start=include_start, include_end=include_end
+            )
+            return
+
+        forwards = start <= end
+        prev = None
+        again = True
+        while again:
+            again = False
+            for el in self._iter_from_to(
+                key, start, end, include_start=include_start, include_end=include_end
+            ):
+                e = self.value_key(el)
+                if prev is not None:
+                    # check that `e` is no less than `step` away from `prev`
+                    if forwards:
+                        if e - prev < step:
+                            start = prev + step
+                            if start > end:
+                                return
+                            include_start = True
+                            again = True
+                            break
+                    else:
+                        if prev - e < step:
+                            start = prev - step
+                            if start < end:
+                                return
+                            include_start = True
+                            again = True
+                            break
+                yield el
+                prev = e
+
+    def iter_range(
+        self,
+        key: Key,
+        start: ValueKey,
+        end: ValueKey,
+        step: int | ValueKey = 0,
+        predicate: _t.Callable[[Value], bool] | None = None,
+        *,
+        include_start: bool = True,
+        include_end: bool = False,
+    ) -> _t.Iterator[Value]:
+        """Iterate over `self[key]` elements satisfying `predicate` from `start` to `end`, producing
+        elements separated with no less than `step`.
+
+        By default, this includes the start and excludes the end, like `range` does, but bounds can
+        be toggled.
+        """
+        if predicate is None:
+            yield from self._iter_range(
+                key, start, end, step, include_start=include_start, include_end=include_end
+            )
+            return
+
+        for e in self._iter_range(
+            key, start, end, step, include_start=include_start, include_end=include_end
+        ):
+            if predicate(e):
+                yield e
+
+    def iter_closest(
+        self,
+        key: Key,
+        ideal: ValueKey,
+        predicate: _t.Callable[[Value], bool] | None = None,
+    ) -> _t.Iterator[Value]:
+        """Iterate over `self[key]` elements satisfying `predicate` in order of ascending distance from
+        `ideal`.
+        """
+        if predicate is None:
+            yield from self._iter_closest(key, ideal)
+            return
+
+        for e in self._iter_closest(key, ideal):
+            if predicate(e):
+                yield e
+
+    def take_closest(
+        self,
+        n: int,
+        key: Key,
+        ideal: ValueKey,
+        predicate: _t.Callable[[Value], bool] | None = None,
+    ) -> list[Value]:
+        """Of `self[key]` elements satisfying `predicate`, get `n` closest to `ideal`."""
+        return _take(n, self.iter_closest(key, ideal, predicate))
+
+    def get_closest(
+        self,
+        key: Key,
+        ideal: ValueKey,
+        predicate: _t.Callable[[Value], bool] | None = None,
+    ) -> Value | None:
+        """Of `self[key]` elements satisfying `predicate`, get the one closest to `ideal`."""
+        return _first(self.iter_closest(key, ideal, predicate), None)
+
+    def take_adjacent(
+        self,
+        n: int,
+        key: Key,
+        ideal: ValueKey,
+        minimum: ValueKey,
+        maximum: ValueKey,
+        step: int | ValueKey = 0,
+        predicate: _t.Callable[[Value], bool] | None = None,
+        *,
+        include_start: bool = False,
+    ) -> tuple[list[Value], list[Value]]:
+        """For `self[key]`, get `n` (or less) neighbours of `ideal` satisfying `predicate`, both to its left
+        and to its right, each separated by at least `step`.
+
+        If `include_start` is `False` (the default), the neighbourhood gets punctured at `ideal`, so
+        elements with `order == ideal` will not appear in the output. Setting `step` also widens the
+        puncture by that amount.
+
+        If the index contains elements with `order == ideal`, then calling this with `include_start`
+        set to `True` will return them in both tuple elements of the result.
+        """
+        include_start = include_start or step != 0
+        left = _take(
+            n,
+            self.iter_range(
+                key,
+                ideal - step,
+                minimum,
+                step,
+                predicate,
+                include_start=include_start,
+            ),
+        )
+        right = _take(
+            n,
+            self.iter_range(
+                key,
+                ideal + step,
+                maximum,
+                step,
+                predicate,
+                include_start=include_start,
+            ),
+        )
+        return left, right
+
+    def get_adjacent(
+        self,
+        key: Key,
+        ideal: ValueKey,
+        minimum: ValueKey,
+        maximum: ValueKey,
+        step: int | ValueKey = 0,
+        predicate: _t.Callable[[Value], bool] | None = None,
+    ) -> tuple[Value | None, Value | None]:
+        """For `self[key]`, get its two closest neighbours satisfying `predicate`, to its left and right.
+
+        The neighbourhood gets punctured at `ideal`, so elements with `order == ideal` will not
+        appear in the output.
+
+        Setting `step` also widens the puncture by that amount.
+        """
+        include_start = step != 0
+        left = _first(
+            self.iter_range(
+                key,
+                ideal - step,
+                minimum,
+                step,
+                predicate,
+                include_start=include_start,
+            ),
+            None,
+        )
+        right = _first(
+            self.iter_range(
+                key,
+                ideal + step,
+                maximum,
+                step,
+                predicate,
+                include_start=include_start,
+            ),
+            None,
+        )
+        return left, right
+
+
+class DictIndex[Key, ValueKey: _SupportsCounting, Value](ABCIndex[Key, ValueKey, Value]):
+    """`ABCIndex` implementation over a `dict[Key, SortedList[Value]]`, all of which see.
+
+    When `ideal` init parameter is set, `insert` will story only the `value` closest to `ideal`.
+    """
+
+    _dict: dict[Key, SortedList[Value]]
+    ideal: ValueKey | None
+    _size: int
+
+    def __init__(
+        self,
+        value_key: _t.Callable[[Value], ValueKey],
+        ideal: ValueKey | None = None,
+        *,
+        dict_factory: _t.Callable[[], dict[Key, SortedList[Value]]] = lambda: {},
+    ) -> None:
+        ABCIndex.__init__(self, value_key)
+        self._dict = dict_factory()
+        self.ideal = ideal
+        self._size = 0
+
+    def __len__(self) -> int:
+        return len(self._dict)
+
+    @property
+    def size(self) -> int:
+        return self._size
+
+    def __contains__(self, key: Key) -> bool:
+        return key in self._dict
+
+    def __getitem__(self, key: Key) -> SortedKeyList[Value]:
+        return self._dict[key]
+
+    def get(self, key: Key, default: list[Value] | None = None) -> SortedKeyList[Value] | None:
+        return ABCIndex.get(self, key, default)
+
+    def keys(self) -> _t.Iterable[Key]:
+        return self._dict.keys()
+
+    def values(self) -> _t.Iterable[Value]:
+        return _chain.from_iterable(self._dict.values())
+
+    def insert(self, key: Key, value: Value) -> bool:
+        iobjs = self.get(key, None)
+        if iobjs is None:
+            # first time seeing this `key`
+            self._dict[key] = SortedKeyList([value], key=self.value_key)
+            self._size += 1
+        elif self.ideal is not None:
+            if _is_closer(self.ideal, self.value_key(value), iobjs[0][0]):
+                iobjs.clear()
+                iobjs.add(value)
+            else:
+                return False
+        else:
+            iobjs.add(value)
+            self._size += 1
+        return True
+
+
+class SortedDictIndex[Key, ValueKey: _SupportsCounting, Value](
+    DictIndex[Key, ValueKey, Value],
+):
+    """`ABCIndex` implementation over `SortedDict[Key, SortedList[Value]]`, all of which see.
+
+    Internally, this is just a wrapper over `DictIndex` with `dict_factory` set to use a
+    `SortedDict` instead of just `dict`. Thus, all behavioral properties of `DictIndex` apply here
+    too, except for `.keys()` being sorted and such.
+    """
+
+    def __init__(
+        self,
+        key_key: _t.Callable[[Key], _t.Any],
+        value_key: _t.Callable[[Value], ValueKey],
+        ideal: ValueKey | None = None,
+    ) -> None:
+        DictIndex.__init__(self, value_key, ideal, dict_factory=lambda: SortedDict(key_key))
 
 
 # /Sorted
