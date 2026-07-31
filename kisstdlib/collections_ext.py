@@ -26,6 +26,15 @@ import abc as _abc
 import dataclasses as _dc
 import typing as _t
 
+from collections import (  # pylint: disable=unused-import
+    namedtuple,
+    deque,
+    ChainMap,
+    Counter,
+    OrderedDict,
+    defaultdict,
+)
+
 from bisect import bisect_left as _bisect_left, bisect_right as _bisect_right
 
 from sortedcontainers import SortedList, SortedKeyList, SortedDict
