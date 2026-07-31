@@ -28,25 +28,44 @@ import typing as _t
 class CatastrophicFailure(Exception):
     """An `Exception` with printable and i18n-able description."""
 
-    info: list[tuple[str, tuple[_t.Any, ...]]]
+    info: list[tuple[str, tuple[_t.Any, ...]] | list[_t.Self]]
 
-    def __init__(self, what: _t.Any, *args: _t.Any) -> None:
+    def __init__(self, what: str | _t.Self | list[_t.Self], *args: _t.Any) -> None:
         super().__init__()
-        if isinstance(what, CatastrophicFailure):
-            self.info = what.info
-        else:
+        if isinstance(what, str):
             self.info = [(what, args)]
+        elif isinstance(what, list):
+            self.info = [what]
+        else:
+            self.info = what.info
 
-    def get_message(self, gettext: _t.Callable[[str], str], separator: str = ": ") -> str:
+    def get_message(
+        self, gettext: _t.Callable[[str], str], separator: str = ":", indent: int = 0
+    ) -> str:
         res = []
-        for what, args in self.info:
-            try:
-                t = gettext(what) % args
-            except Exception:
-                t = f"{repr(what)} % {repr(args)}"
-            res.append(t)
+        for i in self.info:
+            if isinstance(i, list):
+                res.append(
+                    separator
+                    + "\n"
+                    + "".join(
+                        map(
+                            lambda x: (" " * indent)
+                            + x.get_message(gettext, separator, indent + 1)
+                            + "\n",
+                            i,
+                        )
+                    )
+                )
+            else:
+                what, args = i
+                try:
+                    t = gettext(what) % args
+                except Exception:
+                    t = f"{repr(what)} % {repr(args)}"
+                res.append(t)
         res.reverse()
-        return separator.join(res)
+        return (separator + " ").join(res)
 
     def __str__(self) -> str:
         return self.get_message(lambda x: x)
@@ -54,8 +73,12 @@ class CatastrophicFailure(Exception):
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} {repr(str(self))}>"
 
-    def elaborate(self, what: str, *args: _t.Any) -> _t.Any:
+    def elaborate(self, what: str, *args: _t.Any) -> _t.Self:
         self.info.append((what, args))
+        return self
+
+    def subsume(self, excs: list[_t.Self]) -> _t.Self:
+        self.info.append(excs)
         return self
 
 
