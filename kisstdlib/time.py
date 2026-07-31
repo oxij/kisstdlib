@@ -107,7 +107,9 @@ iso_timestamp_re = _re.compile(
 )
 
 
-def parse_TimeStamp(value: str, *, utc: bool = False) -> tuple[tuple[TimeStamp, TimeStamp], str]:
+def parse_TimeStamp(
+    value: str, pos: int = 0, *, utc: bool = False
+) -> tuple[tuple[TimeStamp, TimeStamp], int]:
     """Parse a given string `value` into a pair of `TimeStamp` values which
     represent the inclusive start and the non-inclusive end of the continiuous
     time interval for which all timestamps can be described as being part of
@@ -126,12 +128,13 @@ def parse_TimeStamp(value: str, *, utc: bool = False) -> tuple[tuple[TimeStamp, 
     """
 
     ending = True
-    m = at_timestamp_re.match(value)
+    m = at_timestamp_re.match(value, pos)
     if m is not None:
         hs_, rs = m.groups()
         hs = es = int(hs_)
     else:
-        m = iso_timestamp_re.match(value)
+        m = iso_timestamp_re.match(value, pos)
+        ending = True
         if m is not None:
             year, month, day, hour, minute, second, rs, sign, tzhour, tzminute = m.groups()
             res = (
@@ -192,19 +195,19 @@ def parse_TimeStamp(value: str, *, utc: bool = False) -> tuple[tuple[TimeStamp, 
     hrem = _Decimal(r) / (10**rp)
     erem = _Decimal(r + 1) / (10**rp) if ending else _Decimal(0)
 
-    return (TimeStamp(_Decimal(hs) + hrem), TimeStamp(_Decimal(es) + erem)), value[m.span()[1] :]
+    return (TimeStamp(_Decimal(hs) + hrem), TimeStamp(_Decimal(es) + erem)), m.span()[1]
 
 
 def timestamp(value: str, start: bool = True, *, utc: bool = False) -> TimeStamp:
     """A simple wrapper over `parse_TimeStamp`."""
-    (sres, eres), left = parse_TimeStamp(value, utc=utc)
-    if len(left) > 0:
+    (sres, eres), pos = parse_TimeStamp(value, utc=utc)
+    if len(value) > pos:
         raise _p.ParsingFailure("failed to parse `%s` as a timestamp", value)
     return sres if start else eres
 
 
-timerange_pre_re = _re.compile(r"[([{<]?")
-timerange_post_re = _re.compile(r"[)\]}>]?")
+timerange_pre_re = _re.compile(r"[([{<]")
+timerange_post_re = _re.compile(r"[)\]}>]")
 timerange_delimiter_re = _re.compile("--?")
 
 
@@ -263,33 +266,33 @@ class TimeRange:
 anytime = TimeRange(TimeStamp("-inf"), TimeStamp("+inf"), True, True)
 
 
-def parse_TimeRange(value: str, *, utc: bool = False) -> tuple[TimeRange, str]:
+def parse_TimeRange(value: str, pos: int = 0, *, utc: bool = False) -> tuple[TimeRange, int]:
     """Parse a given string `value` into `TimeRange`."""
-    p = _p.Parser(value)
-    if p.opt_string("*"):
-        return anytime, p.leftovers
+    p = _p.Parser(value, pos)
+    if p.optional_string("*"):
+        return anytime, p.pos[0]
     try:
-        p.opt_regex(timerange_pre_re)
-        start, end = p.chomp(parse_TimeStamp, utc=utc)
-        stop = p.opt_string("*")
-        p.opt_regex(timerange_post_re)
+        p.optional_regex(timerange_pre_re)
+        start, end = p.run_bare_parser(parse_TimeStamp, None, utc=utc)
+        stop = p.optional_string("*")
+        p.optional_regex(timerange_post_re)
         if not stop:
             try:
                 p.regex(timerange_delimiter_re)
             except _p.ParsingFailure:
                 pass
             else:
-                p.opt_regex(timerange_pre_re)
-                _, end = p.chomp(parse_TimeStamp, utc=utc)
-                p.opt_regex(timerange_post_re)
-        return TimeRange(start, end), p.leftovers
+                p.optional_regex(timerange_pre_re)
+                _, end = p.run_bare_parser(parse_TimeStamp, None, utc=utc)
+                p.optional_regex(timerange_post_re)
+        return TimeRange(start, end), p.pos[0]
     except _p.ParsingFailure as exc:
         raise _p.ParsingFailure("failed to parse `%s` as a time interval", value) from exc
 
 
 def timerange(value: str, utc: bool = False) -> TimeRange:
     """A simple wrapper over `parse_TimeRange`."""
-    res, left = parse_TimeRange(value, utc=utc)
-    if len(left) > 0:
+    res, pos = parse_TimeRange(value, utc=utc)
+    if len(value) > pos:
         raise _p.ParsingFailure("failed to parse `%s` as a time interval", value)
     return res

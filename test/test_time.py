@@ -31,7 +31,8 @@ def test_parse_TimeStamp() -> None:
         if isinstance(xs, str):
             xs = [xs]
         for x in xs:
-            (res, _), left = parse_TimeStamp(x, utc=True)
+            (res, _), pos = parse_TimeStamp(x, utc=True)
+            left = x[pos:]
             if (res, left) != (value, leftover):
                 raise CatastrophicFailure(
                     "while parsing `%s`, expected %s, got %s", x, (value, leftover), (res, left)
@@ -96,7 +97,8 @@ def test_format_TimeStamp() -> None:
 
 def test_parse_TimeStamp_end() -> None:
     def check(x: str, value: TimeStamp, leftover: str = "") -> None:
-        (_, res), left = parse_TimeStamp(x, utc=True)
+        (_, res), pos = parse_TimeStamp(x, utc=True)
+        left = x[pos:]
         if (res, left) != (value, leftover):
             raise CatastrophicFailure(
                 "while parsing `%s`, expected %s, got %s", x, (value, leftover), res
@@ -128,10 +130,11 @@ def test_parse_TimeRange() -> None:
         if isinstance(xs, str):
             xs = [xs]
         for x in xs:
-            res = parse_TimeRange(x, utc=True)
-            if res != (value, leftover):
+            res, pos = parse_TimeRange(x, utc=True)
+            left = x[pos:]
+            if (res, left) != (value, leftover):
                 raise CatastrophicFailure(
-                    "while parsing `%s`, expected %s, got %s", x, (value, leftover), res
+                    "while parsing `%s`, expected %s, got %s", x, (value, leftover), (res, left)
                 )
 
     # fmt: off
