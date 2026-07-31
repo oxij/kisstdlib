@@ -43,12 +43,55 @@ from .base import (
     SupportsCounting as _SupportsCounting,
     is_infinite as _is_infinite,
     is_closer as _is_closer,
+    noop_ as _noop_,
 )
 from .itertools_ext import (
     chain as _chain,
     first as _first,
     take as _take,
 )
+
+
+class LRUCache[Key, Value](OrderedDict[Key, Value]):
+    """LRU Cache derived from OrderedDict.
+
+    Also, this class supports eviction pausing so that
+    ```
+    c = LRUCache(size)
+    with c:
+        f(c)
+    ```
+    would make `c` grow-only while `f` is being computed. It will shrink back to `size` as soon as
+    that `with` block ends.
+    """
+
+    def __init__(
+        self, maxsize: int | None = None, onevict: _t.Callable[[Key, Value], None] = _noop_
+    ) -> None:
+        self.maxsize = maxsize
+        self.onevict = onevict
+
+    def shrink(self) -> None:
+        """Start evicting items until the size reaches `.maxsize`."""
+        if self.maxsize is not None:
+            while len(self) > self.maxsize:
+                kv = self.popitem(last=False)
+                self.onevict(*kv)
+
+    def __setitem__(self, key: Key, value: Value) -> None:
+        OrderedDict.__setitem__(self, key, value)
+        self.move_to_end(key)
+        self.shrink()
+
+    def __enter__(self) -> None:
+        self._maxsize = self.maxsize  # pylint: disable=attribute-defined-outside-init
+        self.maxsize = None
+
+    def __exit__(self, exc_type: _t.Any, exc_value: _t.Any, exc_tb: _t.Any) -> None:
+        if hasattr(self, "._maxsize"):
+            self.maxsize = self._maxsize
+            del self._maxsize
+        self.shrink()
 
 
 class ABCIndex[Key, ValueKey: _SupportsCounting, Value](metaclass=_abc.ABCMeta):
