@@ -169,6 +169,14 @@ def is_closer[A: SupportsCounting](ideal: A, a: A, b: A) -> bool:
 ### Simple functions
 
 
+def noop() -> None:
+    """A noop."""
+
+
+def noop_(*_args: _t.Any, **_kwargs: _t.Any) -> None:
+    """A noop, with a bunch of ignored arguments."""
+
+
 def identity[T](x: T, /) -> T:
     """Identity function."""
     return x
