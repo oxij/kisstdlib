@@ -38,46 +38,106 @@ def test_TimeStamp_parse() -> None:
                     "while parsing `%s`, expected %s, got %s", x, (value, leftover), (res, left)
                 )
 
-    # fmt: off
-    check("@123",                       TimeStamp(123))
-    check("@123.456",                   TimeStamp("123.456"))
-    check("2024",                       TimeStamp(1704067200))
-    check(["2024-12", "202412"],        TimeStamp(1733011200))
-    check(["2024-12-31", "20241231"],   TimeStamp(1735603200))
+    check(
+        "@123",
+        TimeStamp(123),
+    )
+    check(
+        "@123.456",
+        TimeStamp("123.456"),
+    )
+    check(
+        [
+            "2024",
+        ],
+        TimeStamp(1704067200),
+    )
+    check(
+        [
+            "2024-12",
+            "202412",
+        ],
+        TimeStamp(1733011200),
+    )
+    check(
+        [
+            "2024-12-31",
+            "20241231",
+        ],
+        TimeStamp(1735603200),
+    )
 
-    check(["2024-12-31 12:07",
-           "202412311207"],             TimeStamp(1735646820))
+    check(
+        [
+            "2024-12-31 12:07",
+            "202412311207",
+        ],
+        TimeStamp(1735646820),
+    )
 
-    check(["2024-12-31 12:07:16",
-           "2024-12-31_12:07:16",
-           "20241231120716"],           TimeStamp(1735646836))
+    check(
+        [
+            "2024-12-31 12:07:16",
+            "2024-12-31_12:07:16",
+            "20241231120716",
+        ],
+        TimeStamp(1735646836),
+    )
 
-    check(["2024-12-31 12:07:16.456",
-           "20241231_120716.456",
-           "20241231120716.456",
-           "20241231120716456"],        TimeStamp("1735646836.456"))
+    check(
+        [
+            "2024-12-31 12:07:16.456",
+            "20241231_120716.456",
+            "20241231120716.456",
+            "20241231120716456",
+        ],
+        TimeStamp("1735646836.456"),
+    )
 
-    check(["2024-12-31 12:07:16 -01:00",
-           "2024-12-31T12:07:16-01:00",
-           "2024-12-31 12:07:16-01:00",
-           "2024-12-31_12:07:16-0100",
-           "20241231120716-0100"],      timestamp("2024-12-31 13:07:16", utc=True))
+    check(
+        [
+            "2024-12-31 12:07:16 -01:00",
+            "2024-12-31T12:07:16-01:00",
+            "2024-12-31 12:07:16-01:00",
+            "2024-12-31_12:07:16-0100",
+            "20241231120716-0100",
+        ],
+        timestamp("2024-12-31 13:07:16", utc=True),
+    )
 
-    check(["2024-12-31 12:07:16.456 -01:00",
-           "2024-12-31T12:07:16.456-01:00",
-           "2024-12-31T12:07:16,456-01:00",
-           "2024-12-31T12:07:16,456000000-01:00",
-           "20241231 120716.456 -0100",
-           "20241231120716.456 -0100",
-           "20241231120716.456-0100",
-           "20241231120716456-0100"],   timestamp("2024-12-31 13:07:16.456", utc=True))
+    check(
+        [
+            "2024-12-31 12:07:16.456 -01:00",
+            "2024-12-31T12:07:16.456-01:00",
+            "2024-12-31T12:07:16,456-01:00",
+            "2024-12-31T12:07:16,456000000-01:00",
+            "20241231 120716.456 -0100",
+            "20241231120716.456 -0100",
+            "20241231120716.456-0100",
+            "20241231120716456-0100",
+        ],
+        timestamp("2024-12-31 13:07:16.456", utc=True),
+    )
 
-    check("2022-11-20 23:32:16+00:30",  timestamp("2022-11-20 23:02:16", utc=True))
-    check("2022-11-20 23:32:16 -00:30", timestamp("2022-11-21 00:02:16", utc=True))
+    check(
+        "2022-11-20 23:32:16+00:30",
+        timestamp("2022-11-20 23:02:16", utc=True),
+    )
+    check(
+        "2022-11-20 23:32:16 -00:30",
+        timestamp("2022-11-21 00:02:16", utc=True),
+    )
 
-    check("20241231120716456-0100 or so",     TimeStamp("1735650436.456"), " or so")
-    check("2024-12-31 12:07:16 -0100 or so",  TimeStamp(1735650436), " or so")
-    # fmt: on
+    check(
+        "20241231120716456-0100 or so",
+        TimeStamp("1735650436.456"),
+        " or so",
+    )
+    check(
+        "2024-12-31 12:07:16 -0100 or so",
+        TimeStamp(1735650436),
+        " or so",
+    )
 
 
 def test_TimeStamp_format() -> None:
@@ -104,25 +164,74 @@ def test_TimeStamp_parse_end() -> None:
                 "while parsing `%s`, expected %s, got %s", x, (value, leftover), res
             )
 
-    # fmt: off
-    check("@123",                       TimeStamp(124))
-    check("@123.456",                   TimeStamp("123.457"))
-    check("2024",                       timestamp("2025-01-01", utc=True))
-    check("2024-11",                    timestamp("2024-12-01", utc=True))
-    check("2024-12",                    timestamp("2025-01-01", utc=True))
-    check("2024-10-30",                 timestamp("2024-10-31", utc=True))
-    check("2024-11-30",                 timestamp("2024-12-01", utc=True))
-    check("2024-12-31",                 timestamp("2025-01-01", utc=True))
-    check("2024-12-31 12",              timestamp("2024-12-31 13:00", utc=True))
-    check("2024-11-30 23",              timestamp("2024-12-01 00:00", utc=True))
-    check("2024-12-31 23",              timestamp("2025-01-01 00:00", utc=True))
-    check("2024-12-31 23:30",           timestamp("2024-12-31 23:31", utc=True))
-    check("2024-12-31 23:59",           timestamp("2025-01-01 00:00", utc=True))
-    check("2024-12-31 23:59:30",        timestamp("2024-12-31 23:59:31", utc=True))
-    check("2024-12-31 23:59:59",        timestamp("2025-01-01 00:00", utc=True))
-    check("2024-12-31 23:59:59.5",      timestamp("2024-12-31 23:59:59.6", utc=True))
-    check("2024-12-31 23:59:59.9",      timestamp("2025-01-01 00:00", utc=True))
-    # fmt: on
+    check(
+        "@123",
+        TimeStamp(124),
+    )
+    check(
+        "@123.456",
+        TimeStamp("123.457"),
+    )
+    check(
+        "2024",
+        timestamp("2025-01-01", utc=True),
+    )
+    check(
+        "2024-11",
+        timestamp("2024-12-01", utc=True),
+    )
+    check(
+        "2024-12",
+        timestamp("2025-01-01", utc=True),
+    )
+    check(
+        "2024-10-30",
+        timestamp("2024-10-31", utc=True),
+    )
+    check(
+        "2024-11-30",
+        timestamp("2024-12-01", utc=True),
+    )
+    check(
+        "2024-12-31",
+        timestamp("2025-01-01", utc=True),
+    )
+    check(
+        "2024-12-31 12",
+        timestamp("2024-12-31 13:00", utc=True),
+    )
+    check(
+        "2024-11-30 23",
+        timestamp("2024-12-01 00:00", utc=True),
+    )
+    check(
+        "2024-12-31 23",
+        timestamp("2025-01-01 00:00", utc=True),
+    )
+    check(
+        "2024-12-31 23:30",
+        timestamp("2024-12-31 23:31", utc=True),
+    )
+    check(
+        "2024-12-31 23:59",
+        timestamp("2025-01-01 00:00", utc=True),
+    )
+    check(
+        "2024-12-31 23:59:30",
+        timestamp("2024-12-31 23:59:31", utc=True),
+    )
+    check(
+        "2024-12-31 23:59:59",
+        timestamp("2025-01-01 00:00", utc=True),
+    )
+    check(
+        "2024-12-31 23:59:59.5",
+        timestamp("2024-12-31 23:59:59.6", utc=True),
+    )
+    check(
+        "2024-12-31 23:59:59.9",
+        timestamp("2025-01-01 00:00", utc=True),
+    )
 
 
 def test_TimeRange_parse() -> None:
@@ -137,21 +246,43 @@ def test_TimeRange_parse() -> None:
                     "while parsing `%s`, expected %s, got %s", x, (value, leftover), (res, left)
                 )
 
-    # fmt: off
-    check("*",                          anytime)
-    check(["@123--@125",
-           "<@123>--<@125>"],           TimeRange(TimeStamp(123), TimeStamp(126)))
-    check(["2024-12-31",
-           "2024-12-31*",
-           "[2024-12-31]"],             TimeRange(timestamp("2024-12-31 00:00", utc=True),
-                                                  timestamp("2025-01-01 00:00", utc=True)))
-    check("2024-12-31 12",              TimeRange(timestamp("2024-12-31 12:00", utc=True),
-                                                  timestamp("2024-12-31 13:00", utc=True)))
-    check("2024-12-31 12:00",           TimeRange(timestamp("2024-12-31 12:00", utc=True),
-                                                  timestamp("2024-12-31 12:01", utc=True)))
-    check("2024-12-31 23:59",           TimeRange(timestamp("2024-12-31 23:59", utc=True),
-                                                  timestamp("2025-01-01 00:00", utc=True)))
-    check("[2024-12-31 23:59]--[2025-01-02]",
-                                        TimeRange(timestamp("2024-12-31 23:59", utc=True),
-                                                  timestamp("2025-01-03 00:00", utc=True)))
-    # fmt: on
+    check("*", anytime)
+    check(
+        [
+            "@123--@125",
+            "<@123>--<@125>",
+        ],
+        TimeRange(TimeStamp(123), TimeStamp(126)),
+    )
+    check(
+        [
+            "2024-12-31",
+            "2024-12-31*",
+            "[2024-12-31]",
+        ],
+        TimeRange(timestamp("2024-12-31 00:00", utc=True), timestamp("2025-01-01 00:00", utc=True)),
+    )
+    check(
+        [
+            "2024-12-31 12",
+        ],
+        TimeRange(timestamp("2024-12-31 12:00", utc=True), timestamp("2024-12-31 13:00", utc=True)),
+    )
+    check(
+        [
+            "2024-12-31 12:00",
+        ],
+        TimeRange(timestamp("2024-12-31 12:00", utc=True), timestamp("2024-12-31 12:01", utc=True)),
+    )
+    check(
+        [
+            "2024-12-31 23:59",
+        ],
+        TimeRange(timestamp("2024-12-31 23:59", utc=True), timestamp("2025-01-01 00:00", utc=True)),
+    )
+    check(
+        [
+            "[2024-12-31 23:59]--[2025-01-02]",
+        ],
+        TimeRange(timestamp("2024-12-31 23:59", utc=True), timestamp("2025-01-03 00:00", utc=True)),
+    )
