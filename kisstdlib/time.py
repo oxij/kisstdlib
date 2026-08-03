@@ -231,7 +231,7 @@ class TimeRange:
 
     @property
     def delta(self) -> _Decimal:
-        return self.end - self.start
+        return _Decimal(self.end) - self.start
 
     def format(
         self, fmt: str = "%Y-%m-%d %H:%M:%S", *, precision: int = 0, utc: bool = False
