@@ -46,16 +46,23 @@ WINDOWS = _os.name == "nt"
 
 # Time lengths, in seconds
 MINUTE = 60
-HOUR = 60 * MINUTE
-DAY = 24 * HOUR
-AVG_MONTH = 30 * DAY
-AVG_YEAR = 365 * DAY
+HOUR = 3600
+DAY = 86400
+WEEK = 604800
+
+# Common metric prefixes
+MILLI = Decimal((0, (1,), -3))
+MICRO = Decimal((0, (1,), -6))
+NANO = Decimal((0, (1,), -9))
 
 # Common byte sizes
-KiB = 1024
-MiB = 1024 * KiB
-GiB = 1024 * MiB
+KB = 1000
+MB = 1000000
+GB = 1000000000
 
+KiB = 1024
+MiB = 1048576
+GiB = 1073741824
 
 ### Placeholder values
 

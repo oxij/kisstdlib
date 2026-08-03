@@ -28,7 +28,14 @@ import re as _re
 import time as _time
 import typing as _t
 
-from .base import Decimal as _Decimal
+from .base import (
+    Decimal as _Decimal,
+    MINUTE as _MINUTE,
+    HOUR as _HOUR,
+    DAY as _DAY,
+    MILLI as _MILLI,
+    NANO as _NANO,
+)
 from . import failure as _f
 from . import parsing as _p
 
@@ -55,11 +62,11 @@ class TimeStamp(TimeValue):
 
     @staticmethod
     def from_ms(value: int) -> "TimeStamp":
-        return TimeStamp(_Decimal(value) / 1000)
+        return TimeStamp(_Decimal(value) * _MILLI)
 
     @staticmethod
     def from_ns(value: int) -> "TimeStamp":
-        return TimeStamp(_Decimal(value) / 1000000000)
+        return TimeStamp(_Decimal(value) * _NANO)
 
     @staticmethod
     def from_now() -> "TimeStamp":
@@ -162,7 +169,9 @@ def parse_TimeStamp(
                 ending = False
 
             if tzhour is not None:
-                offset = (1 if sign == "+" else -1) * (3600 * int(tzhour) + 60 * int(tzminute))
+                offset = (1 if sign == "+" else -1) * (
+                    int(tzhour) * _HOUR + int(tzminute) * _MINUTE
+                )
                 utc = True
             else:
                 offset = 0
@@ -176,13 +185,13 @@ def parse_TimeStamp(
 
             if ending:
                 if hour is None:
-                    es += 86400
+                    es += _DAY
                     ending = False
                 elif minute is None:
-                    es += 3600
+                    es += _HOUR
                     ending = False
                 elif second is None:
-                    es += 60
+                    es += _MINUTE
                     ending = False
         else:
             raise _p.ParsingFailure("failed to parse `%s` as a timestamp", value)
@@ -253,10 +262,10 @@ class TimeRange:
 
     def format_org_delta(self, precision: int = 0) -> str:
         r = self.delta
-        hours = r // 3600
-        r = r % 3600
-        minutes = r // 60
-        r = r % 60
+        hours = r // _HOUR
+        r = r % _HOUR
+        minutes = r // _MINUTE
+        r = r % _MINUTE
         seconds = int(r)
         r = r - seconds
         res = str(hours) + ":" + format(minutes, "02") + ":" + format(seconds, "02")
