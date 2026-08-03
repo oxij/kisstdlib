@@ -37,7 +37,7 @@ class TimeValue(_Decimal):
     """Generic time value of arbitrary precision."""
 
     @staticmethod
-    def now() -> "TimeValue":
+    def from_now() -> "TimeValue":
         raise NotImplementedError()
 
     def to_TimeStamp(self) -> "TimeStamp":
@@ -62,7 +62,7 @@ class TimeStamp(TimeValue):
         return TimeStamp(_Decimal(value) / 1000000000)
 
     @staticmethod
-    def now() -> "TimeStamp":
+    def from_now() -> "TimeStamp":
         return TimeStamp.from_ns(_time.time_ns())
 
     def to_TimeStamp(self) -> "TimeStamp":
