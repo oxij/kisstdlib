@@ -298,3 +298,26 @@ def test_TimeRange_parse() -> None:
         ],
         TimeRange(timestamp("2024-12-31 23:59", utc=True), timestamp("2025-01-03 00:00", utc=True)),
     )
+
+
+def test_TimeRange_order() -> None:
+    assert timerange("2025*", utc=True) == timerange("2025*", utc=True)
+
+    def check(x: TimeRange, y: TimeRange) -> None:
+        assert x < y
+        assert y > x
+        if x == y:
+            assert x <= y
+            assert y >= x
+
+    def no_start(x: TimeRange) -> TimeRange:
+        x.includes_start = False
+        return x
+
+    def yes_end(x: TimeRange) -> TimeRange:
+        x.includes_end = True
+        return x
+
+    check(timerange("2024*", utc=True), timerange("2025*", utc=True))
+    check(timerange("2025*", utc=True), no_start(timerange("2025*", utc=True)))
+    check(timerange("2025*", utc=True), yes_end(timerange("2025*", utc=True)))
