@@ -28,6 +28,8 @@ import re as _re
 import time as _time
 import typing as _t
 
+from functools import total_ordering as _total_ordering
+
 from .base import (
     Decimal as _Decimal,
     MINUTE as _MINUTE,
@@ -220,6 +222,7 @@ timerange_post_re = _re.compile(r"[)\]}>]")
 timerange_delimiter_re = _re.compile("--?")
 
 
+@_total_ordering
 @_dc.dataclass
 class TimeRange:
     """A continuous time interval between two `TimeStamp`s."""
@@ -228,6 +231,20 @@ class TimeRange:
     end: TimeStamp
     includes_start: bool = _dc.field(default=True)
     includes_end: bool = _dc.field(default=False)
+
+    # For `total_ordering`
+
+    def __lt__(self, other: "TimeRange") -> bool:
+        if self.start < other.start:
+            return True
+        if self.start == other.start and self.includes_start != other.includes_start:
+            # NB: contra-intuitive! This is why we can't just do `@dataclass(order=True)`.
+            return self.includes_start > other.includes_start
+        if self.end < other.end:
+            return True
+        if self.end == other.end and self.includes_end != other.includes_end:
+            return self.includes_end < other.includes_end
+        return False
 
     # Operations
 
