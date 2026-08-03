@@ -26,7 +26,7 @@ from kisstdlib.time import *
 from kisstdlib.failure import *
 
 
-def test_parse_TimeStamp() -> None:
+def test_TimeStamp_parse() -> None:
     def check(xs: str | list[str], value: TimeStamp, leftover: str = "") -> None:
         if isinstance(xs, str):
             xs = [xs]
@@ -80,7 +80,7 @@ def test_parse_TimeStamp() -> None:
     # fmt: on
 
 
-def test_format_TimeStamp() -> None:
+def test_TimeStamp_format() -> None:
     assert (
         timestamp("2024-12-31 12:07:16.456789", utc=True).format(precision=3, utc=True)
         == "2024-12-31 12:07:16.456"
@@ -95,7 +95,7 @@ def test_format_TimeStamp() -> None:
     )
 
 
-def test_parse_TimeStamp_end() -> None:
+def test_TimeStamp_parse_end() -> None:
     def check(x: str, value: TimeStamp, leftover: str = "") -> None:
         (_, res), pos = parse_TimeStamp(x, utc=True)
         left = x[pos:]
@@ -125,7 +125,7 @@ def test_parse_TimeStamp_end() -> None:
     # fmt: on
 
 
-def test_parse_TimeRange() -> None:
+def test_TimeRange_parse() -> None:
     def check(xs: str | list[str], value: TimeRange, leftover: str = "") -> None:
         if isinstance(xs, str):
             xs = [xs]
