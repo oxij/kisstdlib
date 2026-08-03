@@ -220,6 +220,8 @@ class TimeRange:
     includes_start: bool = _dc.field(default=True)
     includes_end: bool = _dc.field(default=False)
 
+    # Operations
+
     def __contains__(self, value: TimeStamp) -> bool:
         if self.includes_start and value == self.start or self.includes_end and value == self.end:
             return True
@@ -227,11 +229,15 @@ class TimeRange:
 
     @property
     def middle(self) -> TimeStamp:
+        """The exact middle of the interval."""
         return TimeStamp((self.start + self.end) / 2)
 
     @property
     def delta(self) -> _Decimal:
+        """The length of the interval."""
         return _Decimal(self.end) - self.start
+
+    # Printing
 
     def format(
         self, fmt: str = "%Y-%m-%d %H:%M:%S", *, precision: int = 0, utc: bool = False
