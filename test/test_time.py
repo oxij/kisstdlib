@@ -22,8 +22,12 @@
 
 """Testing `kisstdlib.time` module."""
 
+import locale
+
 from kisstdlib.time import *
 from kisstdlib.failure import *
+
+IS_ENG = locale.getlocale()[0] in ("C", "en_US")
 
 
 def test_TimeStamp_parse() -> None:
@@ -298,6 +302,45 @@ def test_TimeRange_parse() -> None:
         ],
         TimeRange(timestamp("2024-12-31 23:59", utc=True), timestamp("2025-01-03 00:00", utc=True)),
     )
+
+
+def test_TimeRange_format() -> None:
+    # fmt: off
+    x = timerange("2026-01-01 12:00:00.1*", utc=True)
+    assert x.format_delta()            == "0:00:00.1"
+    assert x.format_delta(precision=0) == "0:00:00"
+    assert x.format_delta(precision=1) == "0:00:00.1"
+    assert x.format_delta(precision=2) == "0:00:00.10"
+    assert x.format3(utc=True)         == "2026-01-01 12:00:00.1 -- 2026-01-01 12:00:00.2 => 0:00:00.1"
+    if IS_ENG:
+        assert x.format_org(utc=True)  == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 12:00] =>  0:00"
+
+    x = timerange("2026-01-01 12:00*", utc=True)
+    assert x.format_delta()            == "0:01:00"
+    assert x.format_delta(precision=0) == "0:01:00"
+    assert x.format_delta(precision=1) == "0:01:00.0"
+    assert x.format_delta(precision=2) == "0:01:00.00"
+    assert x.format3(utc=True)         == "2026-01-01 12:00:00 -- 2026-01-01 12:01:00 => 0:01:00"
+    assert x.format3(precision=0, utc=True) == "2026-01-01 12:00:00 -- 2026-01-01 12:01:00 => 0:01:00"
+    assert x.format3(precision=1, utc=True) == "2026-01-01 12:00:00.0 -- 2026-01-01 12:01:00.0 => 0:01:00.0"
+    if IS_ENG:
+        assert x.format_org(utc=True)  == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 12:01] =>  0:01"
+
+    x = TimeRange(x.end, x.start)
+    assert x.format_delta()            == "-0:01:00"
+    assert x.format3(utc=True)         == "2026-01-01 12:01:00 -- 2026-01-01 12:00:00 => -0:01:00"
+
+    x = timerange("2026-01-01 12*", utc=True)
+    assert x.format_delta()            == "1:00:00"
+    assert x.format3(utc=True)         == "2026-01-01 12:00:00 -- 2026-01-01 13:00:00 => 1:00:00"
+    if IS_ENG:
+        assert x.format_org(utc=True)  == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 13:00] =>  1:00"
+
+    x = timerange("2026-01-01 00:00--2026-01-02 12:00", utc=True)
+    assert x.format_delta()            == "36:01:00"
+    if IS_ENG:
+        assert x.format_org(utc=True)  == "[2026-01-01 Thu 00:00]--[2026-01-02 Fri 12:01] => 36:01"
+    # fmt: on
 
 
 def test_TimeRange_order() -> None:
