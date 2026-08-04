@@ -29,6 +29,7 @@ import time as _time
 import typing as _t
 
 from functools import total_ordering as _total_ordering
+from string import Formatter as _Formatter
 
 from .base import (
     Decimal as _Decimal,
@@ -40,6 +41,58 @@ from .base import (
 )
 from . import failure as _f
 from . import parsing as _p
+
+
+class TimeFormatter(_Formatter):
+    """A `time.strftime`-alike `string.Formatter` implementation.
+
+    See `TimeStamp.format` for more info.
+    """
+
+    default_time_fmt = "{Y:04}-{m:02}-{d:02} {H:02}:{M:02}:{S:02}{f}"
+    default_delta_fmt = "{sign}{H}:{M:02}:{S:02}{f}"
+
+    _map: dict[str, int] = {"Y": 0, "m": 1, "d": 2, "H": 3, "M": 4, "S": 5}
+
+    def get_value(
+        self, key: int | str, args: _t.Sequence[_t.Any], kwargs: _t.Mapping[str, _t.Any]
+    ) -> _t.Any:
+        if not isinstance(key, str):
+            raise KeyError()
+
+        try:
+            return kwargs[key]
+        except KeyError:
+            pass
+
+        if key == "f":
+            r: _Decimal = kwargs["remainder"]
+            precision: int = kwargs.get("precision", None)
+
+            if precision is None:
+                rs = str(r)[2:]
+            elif precision > 0:
+                x = str(r)[2 : precision + 2]
+                rs = x + "0" * (precision - len(x))
+            else:
+                rs = ""
+
+            if len(rs) == 0:
+                return rs
+            return kwargs.get("decimal_point", ".") + rs
+
+        if not isinstance(args, _time.struct_time):
+            raise ValueError()
+
+        try:
+            return args[TimeFormatter._map[key]]
+        except KeyError:
+            pass
+
+        return _time.strftime("%" + key, args)
+
+
+_TimeFormatter = TimeFormatter()
 
 
 class TimeValue(_Decimal):
@@ -77,27 +130,53 @@ class TimeStamp(TimeValue):
     def to_TimeStamp(self) -> "TimeStamp":
         return self
 
-    def __repr__(self) -> str:
-        return f"<TimeStamp {self.format(precision=9, utc=True)}>"
-
     def format(
-        self, fmt: str = "%Y-%m-%d %H:%M:%S", *, precision: int = 0, utc: bool = False
+        self,
+        fmt: str = TimeFormatter.default_time_fmt,
+        precision: int | None = None,
+        *,
+        utc: bool = False,
+        formatter: _Formatter = _TimeFormatter,
+        **kwargs: _t.Any,
     ) -> str:
-        if self.is_infinite():
-            if self < 0:
+        """Format `self: TimeStamp` into a human-readable string by using given formatting options.
+
+        The `fmt` argument uses the `str.format`/`string.Formatter` formatting, while supporting all
+        the same directives as `time.strftime`, with the following additions/modifications:
+
+        - The "f" directive (`str`) gets replaced by the sub-second floating point remainder of "s"
+          (UNIX epoch) or "S" (seconds) directives.
+
+          Thus, floating point UNIX epoch value can be produced with "{s}{f}" and floating point number
+          of seconds can be produced with "{S}{f}".
+
+          The number of digits after the floating point is controlled by "precision" `kwargs` element. If
+          that value is `None`, the natural precision of `self` is used. If "precision" is `0` or less,
+          "f" will be an empty string. The natural precision is the default.
+
+          The "decimal_point" `kwargs` element controls the symbol used as a prefix for non-empty
+          resulting values of "f". The `"."` is the default.
+        """
+        t = self
+        if t.is_infinite():
+            if t < 0:
                 return "-inf"
             return "+inf"
 
-        i = int(self)
-        r = _Decimal(self) - i
-        if fmt == "@":
-            res = "@" + str(i)
-        else:
-            res = _time.strftime(fmt, _time.gmtime(i) if utc else _time.localtime(i))
-        if precision > 0:
-            x = str(r)[2 : precision + 2]
-            res += "." + x + "0" * (precision - len(x))
-        return res
+        i = int(t)
+        st = _time.gmtime(i) if utc else _time.localtime(i)
+
+        kwargs["s"] = i
+        kwargs["remainder"] = _Decimal(t) - i
+        kwargs["precision"] = precision
+
+        return formatter.vformat(fmt, st, kwargs)
+
+    def __str__(self) -> str:
+        return f"[{self.format(utc=True)}]"
+
+    def __repr__(self) -> str:
+        return f"<TimeStamp {str(self)}>"
 
     def __add__(self, value: int | float | _Decimal) -> "TimeStamp":
         if isinstance(value, float):
@@ -266,33 +345,95 @@ class TimeRange:
     # Printing
 
     def format(
-        self, fmt: str = "%Y-%m-%d %H:%M:%S", *, precision: int = 0, utc: bool = False
+        self,
+        fmt: str = TimeFormatter.default_time_fmt,
+        range_fmt: str = "{0}--{1}",
+        precision: int | None = None,
+        *,
+        utc: bool = False,
+        **kwargs: _t.Any,
     ) -> str:
-        return (
-            self.start.format(fmt, precision=precision, utc=utc)
-            + "--"
-            + self.end.format(fmt, precision=precision, utc=utc)
+        """Format `TimeRange` into a human-readable string by using given formatting options."""
+        return range_fmt.format(
+            self.start.format(fmt, precision, utc=utc, **kwargs),
+            self.end.format(fmt, precision, utc=utc, **kwargs),
         )
 
+    def format_delta(
+        self,
+        fmt: str = TimeFormatter.default_delta_fmt,
+        precision: int | None = None,
+        *,
+        formatter: _Formatter = _TimeFormatter,
+        **kwargs: _t.Any,
+    ) -> str:
+        """Format the length of `TimeRange` interval into a human-readable string by using given formatting
+        options.
+
+        This function uses `string.Formatter` machinery to do the formatting and the actual
+        `formatter` can be overridden. The default is `formatter = TimeFormatter()`.
+        """
+        t = self.delta
+        if t.is_infinite():
+            if t < 0:
+                return "-inf"
+            return "+inf"
+
+        if t < 0:
+            kwargs["sign"] = "-"
+            t = -t
+        else:
+            kwargs["sign"] = ""
+
+        hours = t // _HOUR
+        t = t % _HOUR
+        minutes = t // _MINUTE
+        t = t % _MINUTE
+        seconds = int(t)
+
+        kwargs["H"] = hours
+        kwargs["M"] = minutes
+        kwargs["S"] = seconds
+        kwargs["remainder"] = t - seconds
+        kwargs["precision"] = precision
+
+        return formatter.vformat(fmt, (), kwargs)
+
+    def format3(
+        self,
+        fmt: str = TimeFormatter.default_time_fmt,
+        delta_fmt: str = TimeFormatter.default_delta_fmt,
+        range_fmt: str = "{0} -- {1} => {2}",
+        precision: int | None = None,
+        *,
+        utc: bool = False,
+        **kwargs: _t.Any,
+    ) -> str:
+        """Format `TimeRange` and its length into a human-readable string by using given formatting options.
+
+        See `TimeRange.format` and `TimeRange.format_delta` for more info.
+        """
+        return range_fmt.format(
+            self.start.format(fmt, precision, utc=utc, **kwargs),
+            self.end.format(fmt, precision, utc=utc, **kwargs),
+            self.format_delta(delta_fmt, precision, **kwargs),
+        )
+
+    def format_org(self, *, utc: bool = False, **kwargs: _t.Any) -> str:
+        """Format `TimeRange` by using the format used by Emacs org-mode."""
+        return self.format3(
+            "{Y:04}-{m:02}-{d:02} {a} {H:02}:{M:02}",
+            "{H}:{M:02}",
+            "[{0}]--[{1}] => {2:>5}",
+            utc=utc,
+            **kwargs,
+        )
+
+    def __str__(self) -> str:
+        return f"{'[' if self.includes_start else '('}{self.format(utc=True)}{']' if self.includes_end else ')'}"
+
     def __repr__(self) -> str:
-        return f"<TimeRange {'[' if self.includes_start else '('}{self.format(precision=9, utc=True)}{']' if self.includes_end else ')'}>"
-
-    def format_org_delta(self, precision: int = 0) -> str:
-        r = self.delta
-        hours = r // _HOUR
-        r = r % _HOUR
-        minutes = r // _MINUTE
-        r = r % _MINUTE
-        seconds = int(r)
-        r = r - seconds
-        res = str(hours) + ":" + format(minutes, "02") + ":" + format(seconds, "02")
-        if precision > 0:
-            x = str(r)[2 : precision + 2]
-            res += "." + x + "0" * (precision - len(x))
-        return res
-
-    def format_org(self, *, precision: int = 0, utc: bool = False) -> str:
-        return f"[{self.start.format(precision=precision, utc=utc)}]--[{self.end.format(precision=precision, utc=utc)}] => {self.format_org_delta(precision=precision)}"
+        return f"<TimeRange {str(self)}>"
 
 
 anytime = TimeRange(TimeStamp("-inf"), TimeStamp("+inf"), True, True)
