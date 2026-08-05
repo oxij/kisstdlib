@@ -24,6 +24,7 @@
 
 import locale
 
+import kisstdlib.parsing as _p
 from kisstdlib.time import *
 from kisstdlib.failure import *
 
@@ -31,16 +32,12 @@ IS_ENG = locale.getlocale()[0] in ("C", "en_US")
 
 
 def test_TimeStamp_parse() -> None:
-    def check(xs: str | list[str], value: TimeStamp, leftover: str = "") -> None:
+    def check(xs: str | list[str], value: TimeStamp, leftovers: str = "") -> None:
         if isinstance(xs, str):
             xs = [xs]
         for x in xs:
-            (res, _), pos = parse_TimeStamp(x, utc=True)
-            left = x[pos:]
-            if (res, left) != (value, leftover):
-                raise CatastrophicFailure(
-                    "while parsing `%s`, expected %s, got %s", x, (value, leftover), (res, left)
-                )
+            (res, _), p = _p.run_parser(TimeStamp.parse2, False, x, utc=True)
+            assert (res, p.leftovers()) == (value, leftovers)
 
     check(
         "@123",
@@ -163,13 +160,12 @@ def test_TimeStamp_format() -> None:
 
 
 def test_TimeStamp_parse_end() -> None:
-    def check(x: str, value: TimeStamp, leftover: str = "") -> None:
-        (_, res), pos = parse_TimeStamp(x, utc=True)
-        left = x[pos:]
-        if (res, left) != (value, leftover):
-            raise CatastrophicFailure(
-                "while parsing `%s`, expected %s, got %s", x, (value, leftover), res
-            )
+    def check(xs: str | list[str], value: TimeStamp, leftovers: str = "") -> None:
+        if isinstance(xs, str):
+            xs = [xs]
+        for x in xs:
+            (_, res), p = _p.run_parser(TimeStamp.parse2, False, x, utc=True)
+            assert (res, p.leftovers()) == (value, leftovers)
 
     check(
         "@123",
@@ -242,16 +238,12 @@ def test_TimeStamp_parse_end() -> None:
 
 
 def test_TimeRange_parse() -> None:
-    def check(xs: str | list[str], value: TimeRange, leftover: str = "") -> None:
+    def check(xs: str | list[str], value: TimeRange, leftovers: str = "") -> None:
         if isinstance(xs, str):
             xs = [xs]
         for x in xs:
-            res, pos = parse_TimeRange(x, utc=True)
-            left = x[pos:]
-            if (res, left) != (value, leftover):
-                raise CatastrophicFailure(
-                    "while parsing `%s`, expected %s, got %s", x, (value, leftover), (res, left)
-                )
+            res, p = _p.run_parser(TimeRange.parse, False, x, utc=True)
+            assert (res, p.leftovers()) == (value, leftovers)
 
     check("*", anytime)
     check(
