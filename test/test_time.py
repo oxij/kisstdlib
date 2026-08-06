@@ -249,6 +249,9 @@ def test_TimeStamp_format() -> None:
     )
 
     assert timestamp("2024-12-31 12:07:16", 3600).format(gmtoff=0) == "2024-12-31 11:07:16 +0000"
+    assert (
+        timestamp("2024-12-31 12:07:16", 3600).format(gmtoff=3723) == "2024-12-31 12:09:19 +010203"
+    )
     assert timestamp("2024-12-31 12:07:16", 5400).format(gmtoff=7200) == "2024-12-31 12:37:16 +0200"
 
     assert (
@@ -389,6 +392,7 @@ def test_TimeRange_format() -> None:
     assert x.format(gmtoff="saved") == "2025-01-02 12:00:00 +0100--2025-01-02 12:00:00 +0000"
     assert x.format(gmtoff="saved_start") == "2025-01-02 12:00:00 +0100--2025-01-02 13:00:00 +0100"
     assert x.format(gmtoff="saved_end") == "2025-01-02 11:00:00 +0000--2025-01-02 12:00:00 +0000"
+    assert x.format(gmtoff=3723) == "2025-01-02 12:02:03 +010203--2025-01-02 13:02:03 +010203"
     # fmt: on
 
 
