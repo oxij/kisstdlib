@@ -32,12 +32,16 @@ IS_ENG = locale.getlocale()[0] in ("C", "en_US")
 
 
 def test_TimeStamp_parse() -> None:
-    def check(xs: str | list[str], value: TimeStamp, leftovers: str = "") -> None:
+    def check(
+        xs: str | list[str], value: TimeStamp, leftovers: str = "", strict: bool = False
+    ) -> None:
         if isinstance(xs, str):
             xs = [xs]
         for x in xs:
             (res, _), p = _p.run_parser(TimeStamp.parse2, False, x, 0)
             assert (res, p.leftovers()) == (value, leftovers)
+            if strict:
+                assert res.gmtoff == value.gmtoff
 
     check(
         "@123",
@@ -95,8 +99,16 @@ def test_TimeStamp_parse() -> None:
         TimeStamp("1735646836.456"),
     )
 
-    # $ date +%s -d '2024-12-31 12:07:16 -01:00'
-    assert timestamp("2024-12-31 12:07:16 -01:00") == 1735650436
+    check(
+        [
+            "2024-12-31 12:07:16 -01:00",
+            "2024-12-31 12:07:16.0 -01:00",
+            "2024-12-31 12:07:16.000 -01:00",
+        ],
+        # $ date +%s -d '2024-12-31 12:07:16 -01:00'
+        TimeStamp(1735650436, -3600),
+        strict=True,
+    )
 
     check(
         [
@@ -141,21 +153,6 @@ def test_TimeStamp_parse() -> None:
         "2024-12-31 12:07:16 -0100 or so",
         TimeStamp(1735650436),
         " or so",
-    )
-
-
-def test_TimeStamp_format() -> None:
-    assert (
-        timestamp("2024-12-31 12:07:16.456789", 0).format(precision=3, gmtoff=0)
-        == "2024-12-31 12:07:16.456 +0000"
-    )
-    assert (
-        timestamp("2024-12-31 12:07:16.450", 0).format(precision=3, gmtoff=0)
-        == "2024-12-31 12:07:16.450 +0000"
-    )
-    assert (
-        timestamp("2024-12-31 12:07:16", 0).format(precision=3, gmtoff=0)
-        == "2024-12-31 12:07:16.000 +0000"
     )
 
 
@@ -237,13 +234,59 @@ def test_TimeStamp_parse_end() -> None:
     )
 
 
+def test_TimeStamp_format() -> None:
+    assert timestamp("2024-12-31 12:07:16").format().startswith("2024-12-31 12:07:16 ")
+
+    assert (
+        timestamp("2024-12-31 12:07:16", 0).format(gmtoff=0)
+        == timestamp("2024-12-31 12:07:16 +0000").format(gmtoff=0)
+        == timestamp("2024-12-31 12:07:16 +0000", 0).format(gmtoff=0)
+        == timestamp("2024-12-31 13:07:16 +0100").format(gmtoff=0)
+        == timestamp("2024-12-31 13:07:16 +0100", 0).format(gmtoff=0)
+        == timestamp("2024-12-31 13:07:16 +0100", 3600).format(gmtoff=0)
+        == timestamp("2024-12-31 13:07:16 +0100", 7200).format(gmtoff=0)
+        == "2024-12-31 12:07:16 +0000"
+    )
+
+    assert timestamp("2024-12-31 12:07:16", 3600).format(gmtoff=0) == "2024-12-31 11:07:16 +0000"
+    assert timestamp("2024-12-31 12:07:16", 5400).format(gmtoff=7200) == "2024-12-31 12:37:16 +0200"
+
+    assert (
+        timestamp("2024-12-31 12:07:16", 0).format(precision=3, gmtoff=0)
+        == "2024-12-31 12:07:16.000 +0000"
+    )
+    assert (
+        timestamp("2024-12-31 12:07:16.001", 0).format(gmtoff=0) == "2024-12-31 12:07:16.001 +0000"
+    )
+    assert (
+        timestamp("2024-12-31 12:07:16.450", 0).format(gmtoff=0) == "2024-12-31 12:07:16.45 +0000"
+    )
+    assert (
+        timestamp("2024-12-31 12:07:16.450", 0).format(precision=3, gmtoff=0)
+        == "2024-12-31 12:07:16.450 +0000"
+    )
+    assert (
+        timestamp("2024-12-31 12:07:16.456789", 0).format(gmtoff=0)
+        == "2024-12-31 12:07:16.456789 +0000"
+    )
+    assert (
+        timestamp("2024-12-31 12:07:16.456789", 0).format(precision=3, gmtoff=0)
+        == "2024-12-31 12:07:16.456 +0000"
+    )
+
+
 def test_TimeRange_parse() -> None:
-    def check(xs: str | list[str], value: TimeRange, leftovers: str = "") -> None:
+    def check(
+        xs: str | list[str], value: TimeRange, leftovers: str = "", strict: bool = False
+    ) -> None:
         if isinstance(xs, str):
             xs = [xs]
         for x in xs:
             res, p = _p.run_parser(TimeRange.parse, False, x, 0)
             assert (res, p.leftovers()) == (value, leftovers)
+            if strict:
+                assert res.start.gmtoff == value.start.gmtoff
+                assert res.end.gmtoff == value.end.gmtoff
 
     check("*", anytime)
     check(
@@ -295,6 +338,14 @@ def test_TimeRange_parse() -> None:
         TimeRange(timestamp("2024-12-31 23:59", 0), timestamp("2025-01-03 00:00", 0)),
     )
 
+    check(
+        [
+            "[2024-12-31 23:59:00 +0100]--[2025-01-01 12:00:00 +0200]",
+        ],
+        TimeRange(timestamp("2024-12-31 23:59:00", 3600), timestamp("2025-01-01 12:00:01", 7200)),
+        strict=True,
+    )
+
 
 def test_TimeRange_format() -> None:
     # fmt: off
@@ -332,6 +383,12 @@ def test_TimeRange_format() -> None:
     assert x.format_delta()            == "36:01:00"
     if IS_ENG:
         assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 00:00]--[2026-01-02 Fri 12:01] => 36:01"
+
+    x = timerange("2025-01-02 12*", 3600)
+    x.end.gmtoff = 0
+    assert x.format(gmtoff="saved") == "2025-01-02 12:00:00 +0100--2025-01-02 12:00:00 +0000"
+    assert x.format(gmtoff="saved_start") == "2025-01-02 12:00:00 +0100--2025-01-02 13:00:00 +0100"
+    assert x.format(gmtoff="saved_end") == "2025-01-02 11:00:00 +0000--2025-01-02 12:00:00 +0000"
     # fmt: on
 
 
