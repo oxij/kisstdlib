@@ -43,6 +43,23 @@ from . import failure as _f
 from . import parsing as _p
 
 
+def _gmtoff_to_timezone_str(gmtoff: int) -> str:
+    if gmtoff >= 0:
+        s = "+"
+    else:
+        gmtoff = -gmtoff
+        s = "-"
+    hours = gmtoff // _HOUR
+    gmtoff = gmtoff % _HOUR
+    minutes = gmtoff // _MINUTE
+    gmtoff = gmtoff % _MINUTE
+    seconds = int(gmtoff)
+    tz = f"{s}{hours:02}{minutes:02}"
+    if seconds > 0:
+        tz += f"{seconds:02}"
+    return tz
+
+
 class TimeFormatter(_Formatter):
     """A `time.strftime`-alike `string.Formatter` implementation.
 
@@ -83,6 +100,9 @@ class TimeFormatter(_Formatter):
 
         if not isinstance(args, _time.struct_time):
             raise ValueError()
+
+        if key == "z":
+            return _gmtoff_to_timezone_str(args.tm_gmtoff)
 
         try:
             return args[TimeFormatter._map[key]]
@@ -221,6 +241,9 @@ class TimeStamp(_Decimal):
 
           The "decimal_point" `kwargs` element controls the symbol used as a prefix for non-empty
           resulting values of "f". The `"."` is the default.
+
+        - The "%z" directive (`str`) is formatted as "[+-]HHMMSS" when sub-minute precision is needed.
+          When it's not, the normal "[+-]HHMM" format is used.
 
         The `gmtoff` argument controls the time zone of the output:
 
