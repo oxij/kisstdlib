@@ -36,7 +36,7 @@ def test_TimeStamp_parse() -> None:
         if isinstance(xs, str):
             xs = [xs]
         for x in xs:
-            (res, _), p = _p.run_parser(TimeStamp.parse2, False, x, utc=True)
+            (res, _), p = _p.run_parser(TimeStamp.parse2, False, x, 0)
             assert (res, p.leftovers()) == (value, leftovers)
 
     check(
@@ -106,7 +106,7 @@ def test_TimeStamp_parse() -> None:
             "2024-12-31_12:07:16-0100",
             "20241231120716-0100",
         ],
-        timestamp("2024-12-31 13:07:16", utc=True),
+        timestamp("2024-12-31 13:07:16", 0),
     )
 
     check(
@@ -120,16 +120,16 @@ def test_TimeStamp_parse() -> None:
             "20241231120716.456-0100",
             "20241231120716456-0100",
         ],
-        timestamp("2024-12-31 13:07:16.456", utc=True),
+        timestamp("2024-12-31 13:07:16.456", 0),
     )
 
     check(
         "2022-11-20 23:32:16+00:30",
-        timestamp("2022-11-20 23:02:16", utc=True),
+        timestamp("2022-11-20 23:02:16", 0),
     )
     check(
         "2022-11-20 23:32:16 -00:30",
-        timestamp("2022-11-21 00:02:16", utc=True),
+        timestamp("2022-11-21 00:02:16", 0),
     )
 
     check(
@@ -146,16 +146,16 @@ def test_TimeStamp_parse() -> None:
 
 def test_TimeStamp_format() -> None:
     assert (
-        timestamp("2024-12-31 12:07:16.456789", utc=True).format(precision=3, utc=True)
-        == "2024-12-31 12:07:16.456"
+        timestamp("2024-12-31 12:07:16.456789", 0).format(precision=3, gmtoff=0)
+        == "2024-12-31 12:07:16.456 +0000"
     )
     assert (
-        timestamp("2024-12-31 12:07:16.450", utc=True).format(precision=3, utc=True)
-        == "2024-12-31 12:07:16.450"
+        timestamp("2024-12-31 12:07:16.450", 0).format(precision=3, gmtoff=0)
+        == "2024-12-31 12:07:16.450 +0000"
     )
     assert (
-        timestamp("2024-12-31 12:07:16", utc=True).format(precision=3, utc=True)
-        == "2024-12-31 12:07:16.000"
+        timestamp("2024-12-31 12:07:16", 0).format(precision=3, gmtoff=0)
+        == "2024-12-31 12:07:16.000 +0000"
     )
 
 
@@ -164,7 +164,7 @@ def test_TimeStamp_parse_end() -> None:
         if isinstance(xs, str):
             xs = [xs]
         for x in xs:
-            (_, res), p = _p.run_parser(TimeStamp.parse2, False, x, utc=True)
+            (_, res), p = _p.run_parser(TimeStamp.parse2, False, x, 0)
             assert (res, p.leftovers()) == (value, leftovers)
 
     check(
@@ -177,63 +177,63 @@ def test_TimeStamp_parse_end() -> None:
     )
     check(
         "2024",
-        timestamp("2025-01-01", utc=True),
+        timestamp("2025-01-01", 0),
     )
     check(
         "2024-11",
-        timestamp("2024-12-01", utc=True),
+        timestamp("2024-12-01", 0),
     )
     check(
         "2024-12",
-        timestamp("2025-01-01", utc=True),
+        timestamp("2025-01-01", 0),
     )
     check(
         "2024-10-30",
-        timestamp("2024-10-31", utc=True),
+        timestamp("2024-10-31", 0),
     )
     check(
         "2024-11-30",
-        timestamp("2024-12-01", utc=True),
+        timestamp("2024-12-01", 0),
     )
     check(
         "2024-12-31",
-        timestamp("2025-01-01", utc=True),
+        timestamp("2025-01-01", 0),
     )
     check(
         "2024-12-31 12",
-        timestamp("2024-12-31 13:00", utc=True),
+        timestamp("2024-12-31 13:00", 0),
     )
     check(
         "2024-11-30 23",
-        timestamp("2024-12-01 00:00", utc=True),
+        timestamp("2024-12-01 00:00", 0),
     )
     check(
         "2024-12-31 23",
-        timestamp("2025-01-01 00:00", utc=True),
+        timestamp("2025-01-01 00:00", 0),
     )
     check(
         "2024-12-31 23:30",
-        timestamp("2024-12-31 23:31", utc=True),
+        timestamp("2024-12-31 23:31", 0),
     )
     check(
         "2024-12-31 23:59",
-        timestamp("2025-01-01 00:00", utc=True),
+        timestamp("2025-01-01 00:00", 0),
     )
     check(
         "2024-12-31 23:59:30",
-        timestamp("2024-12-31 23:59:31", utc=True),
+        timestamp("2024-12-31 23:59:31", 0),
     )
     check(
         "2024-12-31 23:59:59",
-        timestamp("2025-01-01 00:00", utc=True),
+        timestamp("2025-01-01 00:00", 0),
     )
     check(
         "2024-12-31 23:59:59.5",
-        timestamp("2024-12-31 23:59:59.6", utc=True),
+        timestamp("2024-12-31 23:59:59.6", 0),
     )
     check(
         "2024-12-31 23:59:59.9",
-        timestamp("2025-01-01 00:00", utc=True),
+        timestamp("2025-01-01 00:00", 0),
     )
 
 
@@ -242,7 +242,7 @@ def test_TimeRange_parse() -> None:
         if isinstance(xs, str):
             xs = [xs]
         for x in xs:
-            res, p = _p.run_parser(TimeRange.parse, False, x, utc=True)
+            res, p = _p.run_parser(TimeRange.parse, False, x, 0)
             assert (res, p.leftovers()) == (value, leftovers)
 
     check("*", anytime)
@@ -259,7 +259,7 @@ def test_TimeRange_parse() -> None:
             "2024-12-31*",
             "[2024-12-31]",
         ],
-        TimeRange(timestamp("2024-12-31 00:00", utc=True), timestamp("2025-01-01 00:00", utc=True)),
+        TimeRange(timestamp("2024-12-31 00:00", 0), timestamp("2025-01-01 00:00", 0)),
     )
     check(
         [
@@ -268,7 +268,7 @@ def test_TimeRange_parse() -> None:
             "[2024-12-31 12]",
             "[2024-12-31 12*]",
         ],
-        TimeRange(timestamp("2024-12-31 12:00", utc=True), timestamp("2024-12-31 13:00", utc=True)),
+        TimeRange(timestamp("2024-12-31 12:00", 0), timestamp("2024-12-31 13:00", 0)),
     )
     check(
         [
@@ -277,7 +277,7 @@ def test_TimeRange_parse() -> None:
             "[2024-12-31 12:00]",
             "[2024-12-31 12:00*]",
         ],
-        TimeRange(timestamp("2024-12-31 12:00", utc=True), timestamp("2024-12-31 12:01", utc=True)),
+        TimeRange(timestamp("2024-12-31 12:00", 0), timestamp("2024-12-31 12:01", 0)),
     )
     check(
         [
@@ -286,57 +286,57 @@ def test_TimeRange_parse() -> None:
             "[2024-12-31 23:59]",
             "[2024-12-31 23:59*]",
         ],
-        TimeRange(timestamp("2024-12-31 23:59", utc=True), timestamp("2025-01-01 00:00", utc=True)),
+        TimeRange(timestamp("2024-12-31 23:59", 0), timestamp("2025-01-01 00:00", 0)),
     )
     check(
         [
             "[2024-12-31 23:59]--[2025-01-02]",
         ],
-        TimeRange(timestamp("2024-12-31 23:59", utc=True), timestamp("2025-01-03 00:00", utc=True)),
+        TimeRange(timestamp("2024-12-31 23:59", 0), timestamp("2025-01-03 00:00", 0)),
     )
 
 
 def test_TimeRange_format() -> None:
     # fmt: off
-    x = timerange("2026-01-01 12:00:00.1*", utc=True)
+    x = timerange("2026-01-01 12:00:00.1*", 0)
     assert x.format_delta()            == "0:00:00.1"
     assert x.format_delta(precision=0) == "0:00:00"
     assert x.format_delta(precision=1) == "0:00:00.1"
     assert x.format_delta(precision=2) == "0:00:00.10"
-    assert x.format3(utc=True)         == "2026-01-01 12:00:00.1 -- 2026-01-01 12:00:00.2 => 0:00:00.1"
+    assert x.format3(gmtoff=0)         == "2026-01-01 12:00:00.1 +0000 -- 2026-01-01 12:00:00.2 +0000 => 0:00:00.1"
     if IS_ENG:
-        assert x.format_org(utc=True)  == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 12:00] =>  0:00"
+        assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 12:00] =>  0:00"
 
-    x = timerange("2026-01-01 12:00*", utc=True)
+    x = timerange("2026-01-01 12:00*", 0)
     assert x.format_delta()            == "0:01:00"
     assert x.format_delta(precision=0) == "0:01:00"
     assert x.format_delta(precision=1) == "0:01:00.0"
     assert x.format_delta(precision=2) == "0:01:00.00"
-    assert x.format3(utc=True)         == "2026-01-01 12:00:00 -- 2026-01-01 12:01:00 => 0:01:00"
-    assert x.format3(precision=0, utc=True) == "2026-01-01 12:00:00 -- 2026-01-01 12:01:00 => 0:01:00"
-    assert x.format3(precision=1, utc=True) == "2026-01-01 12:00:00.0 -- 2026-01-01 12:01:00.0 => 0:01:00.0"
+    assert x.format3(gmtoff=0)         == "2026-01-01 12:00:00 +0000 -- 2026-01-01 12:01:00 +0000 => 0:01:00"
+    assert x.format3(precision=0, gmtoff=0) == "2026-01-01 12:00:00 +0000 -- 2026-01-01 12:01:00 +0000 => 0:01:00"
+    assert x.format3(precision=1, gmtoff=0) == "2026-01-01 12:00:00.0 +0000 -- 2026-01-01 12:01:00.0 +0000 => 0:01:00.0"
     if IS_ENG:
-        assert x.format_org(utc=True)  == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 12:01] =>  0:01"
+        assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 12:01] =>  0:01"
 
     x = TimeRange(x.end, x.start)
     assert x.format_delta()            == "-0:01:00"
-    assert x.format3(utc=True)         == "2026-01-01 12:01:00 -- 2026-01-01 12:00:00 => -0:01:00"
+    assert x.format3(gmtoff=0)         == "2026-01-01 12:01:00 +0000 -- 2026-01-01 12:00:00 +0000 => -0:01:00"
 
-    x = timerange("2026-01-01 12*", utc=True)
+    x = timerange("2026-01-01 12*", 0)
     assert x.format_delta()            == "1:00:00"
-    assert x.format3(utc=True)         == "2026-01-01 12:00:00 -- 2026-01-01 13:00:00 => 1:00:00"
+    assert x.format3(gmtoff=0)         == "2026-01-01 12:00:00 +0000 -- 2026-01-01 13:00:00 +0000 => 1:00:00"
     if IS_ENG:
-        assert x.format_org(utc=True)  == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 13:00] =>  1:00"
+        assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 13:00] =>  1:00"
 
-    x = timerange("2026-01-01 00:00--2026-01-02 12:00", utc=True)
+    x = timerange("2026-01-01 00:00--2026-01-02 12:00", 0)
     assert x.format_delta()            == "36:01:00"
     if IS_ENG:
-        assert x.format_org(utc=True)  == "[2026-01-01 Thu 00:00]--[2026-01-02 Fri 12:01] => 36:01"
+        assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 00:00]--[2026-01-02 Fri 12:01] => 36:01"
     # fmt: on
 
 
 def test_TimeRange_order() -> None:
-    assert timerange("2025*", utc=True) == timerange("2025*", utc=True)
+    assert timerange("2025*", 0) == timerange("2025*", 0)
 
     def check(x: TimeRange, y: TimeRange) -> None:
         assert x < y
@@ -353,6 +353,6 @@ def test_TimeRange_order() -> None:
         x.includes_end = True
         return x
 
-    check(timerange("2024*", utc=True), timerange("2025*", utc=True))
-    check(timerange("2025*", utc=True), no_start(timerange("2025*", utc=True)))
-    check(timerange("2025*", utc=True), yes_end(timerange("2025*", utc=True)))
+    check(timerange("2024*", 0), timerange("2025*", 0))
+    check(timerange("2025*", 0), no_start(timerange("2025*", 0)))
+    check(timerange("2025*", 0), yes_end(timerange("2025*", 0)))
