@@ -67,6 +67,7 @@ class TimeFormatter(_Formatter):
     """
 
     default_time_fmt = "{Y:04}-{m:02}-{d:02} {H:02}:{M:02}:{S:02}{f} {z}"
+    default_inf_fmt = "@{s} {z}"
     default_delta_fmt = "{sign}{H}:{M:02}:{S:02}{f}"
 
     _map: dict[str, int] = {"Y": 0, "m": 1, "d": 2, "H": 3, "M": 4, "S": 5}
@@ -235,6 +236,7 @@ class TimeStamp(_Decimal):
     def format(
         self,
         fmt: str = TimeFormatter.default_time_fmt,
+        inf_fmt: str = TimeFormatter.default_inf_fmt,
         precision: int | None = None,
         gmtoff: int | None | _t.Literal["saved"] = None,
         *,
@@ -243,8 +245,9 @@ class TimeStamp(_Decimal):
     ) -> str:
         """Format `self: TimeStamp` into a human-readable string by using given formatting options.
 
-        The `fmt` argument uses the `str.format`/`string.Formatter` formatting, while supporting all
-        the same directives as `time.strftime`, with the following additions/modifications:
+        The `fmt` and `inf_fmt` arguments use the `str.format`/`string.Formatter` formatting, while
+        supporting all the same directives as `time.strftime`, with the following
+        additions/modifications:
 
         - The "f" directive (`str`) gets replaced by the sub-second floating point remainder of "s"
           (UNIX epoch) or "S" (seconds) directives.
@@ -267,17 +270,24 @@ class TimeStamp(_Decimal):
         - If `gmtoff` is an `int`, its value will be used as the time zone offset, ignoring the
           saved value of `self.gmtoff` completely.
 
-        - If `gmtoff` is `"saved"`, the saved value of `self.gmtoff` will be used as `gmtoff`.
+        - If `gmtoff` is `"saved"` or if `gmtoff` is `None` and `self` is infinite, the saved value
+          of `self.gmtoff` will be used as `gmtoff`.
 
-        - If `gmtoff` is `None`, the output will be formatted in local time.
+        - If `gmtoff` is `None` and `self` is finite, the output will be formatted in local time.
 
-        The latter option is the default.
+        For finite timestamps, the latter option is the default. For infinite timestamp, the middle
+        option is the default.
+
         """
         t = self
         if t.is_infinite():
-            if t < 0:
-                return "-inf"
-            return "+inf"
+            gmtoff = self.gmtoff if gmtoff is None or gmtoff == "saved" else gmtoff
+            st = _time.struct_time((1, 1, 1, 0, 0, 0, 0, 1, 0, "", gmtoff))
+
+            kwargs["s"] = "-inf" if t < 0 else "+inf"
+            kwargs["f"] = ""
+
+            return formatter.vformat(inf_fmt, st, kwargs)
 
         i = int(t)
         st = _ts_to_struct_time(i, self.gmtoff, gmtoff)
@@ -495,6 +505,7 @@ class TimeRange:
     def format(
         self,
         fmt: str = TimeFormatter.default_time_fmt,
+        inf_fmt: str = TimeFormatter.default_inf_fmt,
         range_fmt: str = "{0}--{1}",
         precision: int | None = None,
         gmtoff: int | None | _t.Literal["saved", "saved_start", "saved_end"] = None,
@@ -512,8 +523,8 @@ class TimeRange:
         elif gmtoff == "saved_end":
             gmtoff = self.start.gmtoff if self.end.is_infinite() else self.end.gmtoff
         return range_fmt.format(
-            self.start.format(fmt, precision, gmtoff, **kwargs),
-            self.end.format(fmt, precision, gmtoff, **kwargs),
+            self.start.format(fmt, inf_fmt, precision, gmtoff, **kwargs),
+            self.end.format(fmt, inf_fmt, precision, gmtoff, **kwargs),
         )
 
     def format_delta(
@@ -559,6 +570,7 @@ class TimeRange:
     def format3(
         self,
         fmt: str = TimeFormatter.default_time_fmt,
+        inf_fmt: str = TimeFormatter.default_inf_fmt,
         delta_fmt: str = TimeFormatter.default_delta_fmt,
         range_fmt: str = "{0} -- {1} => {2}",
         precision: int | None = None,
@@ -574,8 +586,8 @@ class TimeRange:
         elif gmtoff == "saved_end":
             gmtoff = self.start.gmtoff if self.end.is_infinite() else self.end.gmtoff
         return range_fmt.format(
-            self.start.format(fmt, precision, gmtoff, **kwargs),
-            self.end.format(fmt, precision, gmtoff, **kwargs),
+            self.start.format(fmt, inf_fmt, precision, gmtoff, **kwargs),
+            self.end.format(fmt, inf_fmt, precision, gmtoff, **kwargs),
             self.format_delta(delta_fmt, precision, **kwargs),
         )
 
@@ -587,6 +599,7 @@ class TimeRange:
         """Format `TimeRange` by using the format used by Emacs org-mode."""
         return self.format3(
             "{Y:04}-{m:02}-{d:02} {a} {H:02}:{M:02}",
+            "@{s}",
             "{H}:{M:02}",
             "[{0}]--[{1}] => {2:>5}",
             0,
