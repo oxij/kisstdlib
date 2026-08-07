@@ -73,16 +73,36 @@ def test_TimeStamp_parse() -> None:
         "01h00m00s",
     ]
 
+    tninf = TimeStamp("-inf")
+    tpinf = TimeStamp("inf")
+    tn123 = TimeStamp(-123)
     t123 = TimeStamp(123)
+    tn123d456 = TimeStamp("-123.456")
     t123d456 = TimeStamp("123.456")
 
     for itz in [""] + itz0 + [s + v for s in ("+", "-", " +", " -") for v in tz1]:
         check(
-            f"@123{itz}",
+            f"@-inf{itz}",
+            tninf,
+        )
+        check(
+            [f"@inf{itz}", f"@+inf{itz}"],
+            tpinf,
+        )
+        check(
+            f"@-123{itz}",
+            tn123,
+        )
+        check(
+            [f"@123{itz}", f"@+123{itz}"],
             t123,
         )
         check(
-            f"@123.456{itz}",
+            f"@-123.456{itz}",
+            tn123d456,
+        )
+        check(
+            [f"@123.456{itz}", f"@+123.456{itz}"],
             t123d456,
         )
 
@@ -252,8 +272,24 @@ def test_TimeStamp_parse_end() -> None:
             assert (res, p.leftovers()) == (value, leftovers)
 
     check(
-        "@123",
+        "@-inf",
+        TimeStamp("-inf"),
+    )
+    check(
+        ["@inf", "@+inf"],
+        TimeStamp("inf"),
+    )
+    check(
+        "@-123",
+        TimeStamp(-122),
+    )
+    check(
+        ["@123", "@+123"],
         TimeStamp(124),
+    )
+    check(
+        "@-123.456",
+        TimeStamp("-123.455"),
     )
     check(
         "@123.456",
