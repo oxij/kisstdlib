@@ -116,7 +116,7 @@ _TimeFormatter = TimeFormatter()
 
 
 # Parsing regexes
-_at_timestamp_re = _re.compile(r"@(\d+)(?:\.(\d+))?")
+_at_timestamp_re = _re.compile(r"@([+-]?(?:\d+(?:\.(\d+))?|inf))")
 _iso_like_datetime_re = _re.compile(
     r"""
 # year
@@ -317,22 +317,15 @@ class TimeStamp(_Decimal):
         the number of digits after the decimal point, if any. See `TimeStamp.format` and `TimeStamp.parse2`
         for more info.
         """
-        ti, tr = p.regex(_at_timestamp_re)
-        assert ti is not None
+        whole, rs = p.regex(_at_timestamp_re)
+        assert whole is not None
 
         gmtoff = TimeStamp._parse_timezone(p, gmtoff, parse_gmtoff)
 
-        t = int(ti)
-        if tr is not None:
-            r = int(tr)
-            rp = len(tr)
-        else:
-            r = rp = 0
+        d = _Decimal(whole)
+        e = _Decimal(1) / (10 ** (len(rs))) if rs is not None else 1
 
-        sr = _Decimal(r) / (10**rp)
-        er = _Decimal(r + 1) / (10**rp)
-
-        return TimeStamp(_Decimal(t) + sr, gmtoff), TimeStamp(_Decimal(t) + er, gmtoff)
+        return TimeStamp(d, gmtoff), TimeStamp(d + e, gmtoff)
 
     @staticmethod
     def parse_iso_like(
