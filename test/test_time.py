@@ -358,6 +358,26 @@ def test_TimeStamp_parse_end() -> None:
 
 
 def test_TimeStamp_format() -> None:
+    for i in ("-inf", "inf", "+inf"):
+        ui = "+inf" if i == "inf" else i
+
+        til = timestamp(f"@{i}")
+        ti0 = timestamp(f"@{i}", 0)
+        ti1 = timestamp(f"@{i}", 3600)
+
+        assert til.format().startswith(f"@{ui} ")
+
+        assert (
+            ti0.format(inf_fmt="{Y:04}-{m:02}-{d:02} {H:02}:{M:02}:{S:02}") == "0001-01-01 00:00:00"
+        )
+        assert ti0.format() == ti0.format(gmtoff="saved") == ti0.format(gmtoff=0) == f"@{ui} +0000"
+        assert ti0.format(gmtoff=3600) == f"@{ui} +0100"
+        assert ti0.format(gmtoff=3723) == f"@{ui} +010203"
+
+        assert (
+            ti1.format() == ti1.format(gmtoff="saved") == ti1.format(gmtoff=3600) == f"@{ui} +0100"
+        )
+
     assert timestamp("2024-12-31 12:07:16").format().startswith("2024-12-31 12:07:16 ")
 
     assert (
@@ -475,6 +495,16 @@ def test_TimeRange_parse() -> None:
 
 def test_TimeRange_format() -> None:
     # fmt: off
+    x = anytime
+    assert x.format_delta()            == "+inf"
+    assert x.format3()                 == "@-inf +0000 -- @+inf +0000 => +inf"
+    assert x.format_org()              == "[@-inf]--[@+inf] =>  +inf"
+
+    x = TimeRange(anytime.end, anytime.start)
+    assert x.format_delta()            == "-inf"
+    assert x.format3()                 == "@+inf +0000 -- @-inf +0000 => -inf"
+    assert x.format_org()              == "[@+inf]--[@-inf] =>  -inf"
+
     x = timerange("2026-01-01 12:00:00.1*", 0)
     assert x.format_delta()            == "0:00:00.1"
     assert x.format_delta(precision=0) == "0:00:00"
