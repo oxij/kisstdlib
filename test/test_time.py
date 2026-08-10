@@ -642,7 +642,7 @@ def test_TimeRange_parse() -> None:
         if isinstance(xs, str):
             xs = [xs]
         for x in xs:
-            res, p = _p.run_parser(TimeRange.parse, False, x, 0)
+            (res, _), p = _p.run_parser(TimeRange.parse, False, x, 0)
             assert (res, p.leftovers()) == (value, leftovers)
             if strict:
                 assert res.start.gmtoff == value.start.gmtoff
@@ -654,7 +654,7 @@ def test_TimeRange_parse() -> None:
             "@123--@125",
             "<@123>--<@125>",
         ],
-        TimeRange(TimeStamp(123), TimeStamp(126)),
+        TimeRange(TimeStamp(123), TimeStamp(125)),
     )
     check(
         [
@@ -695,14 +695,14 @@ def test_TimeRange_parse() -> None:
         [
             "[2024-12-31 23:59]--[2025-01-02]",
         ],
-        TimeRange(timestamp("2024-12-31 23:59", 0), timestamp("2025-01-03 00:00", 0)),
+        TimeRange(timestamp("2024-12-31 23:59", 0), timestamp("2025-01-02 00:00", 0)),
     )
 
     check(
         [
             "[2024-12-31 23:59:00 +0100]--[2025-01-01 12:00:00 +0200]",
         ],
-        TimeRange(timestamp("2024-12-31 23:59:00", 3600), timestamp("2025-01-01 12:00:01", 7200)),
+        TimeRange(timestamp("2024-12-31 23:59:00", 3600), timestamp("2025-01-01 12:00:00", 7200)),
         strict=True,
     )
 
@@ -750,9 +750,9 @@ def test_TimeRange_format() -> None:
         assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 13:00] =>  1:00"
 
     x = timerange("2026-01-01 00:00--2026-01-02 12:00", 0)
-    assert x.format_delta()            == "36:01:00"
+    assert x.format_delta()            == "36:00:00"
     if IS_ENG:
-        assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 00:00]--[2026-01-02 Fri 12:01] => 36:01"
+        assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 00:00]--[2026-01-02 Fri 12:00] => 36:00"
 
     x = timerange("2025-01-02 12*", 3600)
     x.end.gmtoff = 0

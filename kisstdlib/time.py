@@ -1104,26 +1104,139 @@ class TimeRange:
     # Parsing
 
     @staticmethod
-    def parse(
-        p: _p.Parser, gmtoff: int | None = None, parse_gmtoff: bool | None = None
-    ) -> "TimeRange":
-        """Parse a given string `value` into `TimeRange`."""
-        if p.optional_string("*"):
-            return anytime
+    def _parse1(
+        p: _p.Parser,
+        now: TimeStamp | None,
+        prev: tuple[TimeStamp, TimeStamp] | None,
+        gmtoff: int | None = None,
+        parse_gmtoff: bool | None = None,
+    ) -> tuple[TimeStamp | None, TimeStamp, TimeStamp, bool]:
         p.skip_optional_regex(_timestamp_pre_re)
-        start, end = TimeStamp.parse_bare2(p, gmtoff, parse_gmtoff)
-        stop = p.optional_string("*")
+
+        tf = p.optional(TimeFun.parse_human)
+        if tf is not None:
+            if now is None:
+                now = TimeStamp.from_now(gmtoff)
+            start, end = tf.apply2(now)
+            wide = start is not end
+        else:
+            apply_to = p.optional_string_in([".^", ".$"])
+            if apply_to is not None:
+                if prev is None:
+                    p.fail(
+                        "initial `.^` and `.$` operators can only be used in the second part of the format"
+                    )
+                start = end = prev[0] if apply_to == ".^" else prev[1]
+                wide = False
+
+                tf = p.optional(TimeFun.parse)
+                if tf is not None:
+                    start, end = tf.apply2(start)
+                    wide = start is not end
+            else:
+                start, end = TimeStamp.parse_bare2(p, gmtoff, parse_gmtoff)
+                wide = p.optional_string("*") is not None
+
+        reduce_to = p.optional_string_in([".^", ".$"])
+        shift = p.optional(TimeFun.parse)
+        if reduce_to is not None:
+            start = end = start if reduce_to == ".^" else end
+            wide = False
+            if shift is not None:
+                start = end = shift(start)
+        elif shift is not None:
+            start = shift(start)
+            end = shift(end)
+
         p.skip_optional_regex(_timestamp_post_re)
-        if not stop and p.skip_optional_regex(_timerange_delimiter_re):
-            p.skip_optional_regex(_timestamp_pre_re)
-            _, end = TimeStamp.parse_bare2(p, gmtoff, parse_gmtoff)
-            p.skip_optional_regex(_timestamp_post_re)
-        return TimeRange(start, end)
+
+        return now, start, end, wide
+
+    @staticmethod
+    def parse(
+        p: _p.Parser,
+        gmtoff: int | None = None,
+        parse_gmtoff: bool | None = None,
+        *,
+        includes_start: bool = True,
+        includes_end: bool = False,
+        now: TimeStamp | None = None,
+    ) -> tuple["TimeRange", bool]:
+        """Parse a given string `value` into a `TimeRange` and a `bool` that signifies if the input was
+        actually formatted as an interval.
+
+        It can be used to simply wrap `TimeStamp.parse2` with an optional "*" at the end into a
+        `TimeRange`:
+
+        ```
+        parse(TimeRange.parse, "2024") == TimeRange(timestamp("2024-01-01 00:00:00"), timestamp("2025-01-01 00:00:00")), False
+        parse(TimeRange.parse, "2024*") == TimeRange(timestamp("2024-01-01 00:00:00"), timestamp("2025-01-01 00:00:00")), True
+        ```
+
+        But this function also admits two operators that narrow intervals back into `TimeStamps`:
+
+        ```
+        parse(TimeRange.parse, "2024*.^") == TimeRange(timestamp("2024-01-01 00:00:00"), timestamp("2024-01-01 00:00:00")), False
+        parse(TimeRange.parse, "2024*.$") == TimeRange(timestamp("2025-01-01 00:00:00"), timestamp("2025-01-01 00:00:00")), False
+        ```
+
+        As well as `TimeFun`s, optionally followed by said narrowing operators:
+
+        ```
+        parse(TimeRange.parse, "today", now=now)
+        parse(TimeRange.parse, "today.^", now=now)
+        parse(TimeRange.parse, "today.$", now=now)
+        parse(TimeRange.parse, "next year", now=now)
+        parse(TimeRange.parse, "this month+1m5d", now=now)
+        ```
+
+        As well as explicit intervals:
+
+        ```
+        parse(TimeRange.parse, "*") == anytime, True
+        parse(TimeRange.parse, "2024-02--2025") == parse(TimeRange.parse, "2024-02*--2025") == TimeRange(timestamp("2024-02-01 00:00:00"), timestamp("2025-01-01 00:00:00")), True
+        parse(TimeRange.parse, "2024-02.$--2025") == parse(TimeRange.parse, "2024-03--2025") == TimeRange(timestamp("2024-03-01 00:00:00"), timestamp("2025-01-01 00:00:00")), True
+        ```
+
+        As well as mixes and matches of all of them:
+
+        ```
+        parse(TimeRange.parse, "2025-02-01.^+1m--last week+2d", now=now)
+        parse(TimeRange.parse, "today-1m2d--.$+1w", now=now) == parse(TimeRange.parse, "today-1m2d--today-1m2d.$+1w", now=now)
+        ```
+
+        Note how a narrowing operator written right after a "--" starts its computations from the
+        value before the "--".
+        """
+        if p.optional_string("*"):
+            return anytime, True
+
+        now, start, end, is_interval = TimeRange._parse1(p, now, None, gmtoff, parse_gmtoff)
+        if p.skip_optional_regex(_timerange_delimiter_re):
+            _, end, _, _ = TimeRange._parse1(p, now, (start, end), gmtoff, parse_gmtoff)
+            is_interval = True
+
+        return TimeRange(start, end, includes_start, includes_end), is_interval
 
 
 anytime = TimeRange(TimeStamp("-inf"), TimeStamp("+inf"), True, True)
 
 
-def timerange(value: str, gmtoff: int | None = None, parse_gmtoff: bool | None = None) -> TimeRange:
+def timerange(
+    value: str,
+    gmtoff: int | None = None,
+    parse_gmtoff: bool | None = None,
+    *,
+    includes_start: bool = True,
+    includes_end: bool = False,
+) -> TimeRange:
     """A simple wrapper over `TimeRange.parse`."""
-    return _p.run_parser(TimeRange.parse, True, value, gmtoff, parse_gmtoff)[0]
+    return _p.run_parser(
+        TimeRange.parse,
+        True,
+        value,
+        gmtoff,
+        parse_gmtoff,
+        includes_start=includes_start,
+        includes_end=includes_end,
+    )[0][0]
