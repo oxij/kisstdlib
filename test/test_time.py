@@ -23,7 +23,9 @@
 """Testing `kisstdlib.time` module."""
 
 import locale
+import typing as _t
 
+import kisstdlib.base as _b
 import kisstdlib.parsing as _p
 from kisstdlib.time import *
 from kisstdlib.failure import *
@@ -419,6 +421,218 @@ def test_TimeStamp_format() -> None:
         timestamp("2024-12-31 12:07:16.456789", 0).format(precision=3, gmtoff=0)
         == "2024-12-31 12:07:16.456 +0000"
     )
+
+
+def test_TimeDiff_parse() -> None:
+    def check(xs: str | list[str], value: TimeDiff, leftovers: str = "") -> None:
+        if isinstance(xs, str):
+            xs = [xs]
+        for x in xs:
+            res, p = _p.run_parser(TimeDiff.parse, False, x)
+            assert (res, p.leftovers()) == (value, leftovers)
+
+    for sg, s in (("+", 1), ("-", -1)):
+        check(
+            [
+                f"{sg}0y",
+                f"{sg}0m",
+                f"{sg}0w",
+                f"{sg}0d",
+                f"{sg}0h",
+                f"{sg}0min",
+                f"{sg}0s",
+            ],
+            TimeDiff(),
+        )
+
+        check(
+            f"{sg}1y",
+            TimeDiff(s * 12),
+        )
+        check(
+            f"{sg}1m",
+            TimeDiff(s * 1),
+        )
+        check(
+            f"{sg}1w",
+            TimeDiff(0, s * 7 * _b.DAY),
+        )
+        check(
+            f"{sg}1d",
+            TimeDiff(0, s * _b.DAY),
+        )
+        check(
+            f"{sg}1h",
+            TimeDiff(0, s * _b.HOUR),
+        )
+        check(
+            f"{sg}1min",
+            TimeDiff(0, s * _b.MINUTE),
+        )
+        check(
+            f"{sg}1s",
+            TimeDiff(0, s),
+        )
+        check(
+            f"{sg}1.1s",
+            TimeDiff(0, s * _b.Decimal("1.1")),
+        )
+
+        check(
+            [
+                f"{sg}1m1min",
+                f"{sg}1m{sg}1min",
+                f"{sg}1mo{sg}1min",
+            ],
+            TimeDiff(s, s * _b.MINUTE),
+        )
+
+        check(
+            f"{sg}1y2m3w5d6h7min8.912s",
+            TimeDiff(s * 14, s * (26 * _b.DAY + 6 * _b.HOUR + 7 * _b.MINUTE + _b.Decimal("8.912"))),
+        )
+
+    check(
+        [
+            "+1y6m",
+            "+6m1y",
+            "+18m",
+            "+2y-6m",
+        ],
+        TimeDiff(18),
+    )
+    check(
+        [
+            "+1y6m1w1d1h1min1s",
+            "+1y6m1w1d2h-0h59min+1s",
+            "+2y-6m+1w1d2h-0h59min+1s",
+            "+1y6m-1w+15d2h-0d59min+1s",
+        ],
+        TimeDiff(18, 8 * _b.DAY + _b.HOUR + _b.MINUTE + 1),
+    )
+
+
+def test_TimeDiff_Timefun_format_parse() -> None:
+    def check(x: TimeDiff, s: str, **kwargs: _t.Any) -> None:
+        assert x.format(**kwargs) == s
+
+        tf, p = _p.run_parser(TimeFun.parse, False, s)
+        assert p.leftovers() == ""
+        assert tf[0] == x
+
+        assert TimeFun([x]).format(**kwargs) == s
+
+    check(TimeDiff(0, _b.Decimal(1)), "+1s")
+    check(TimeDiff(0, _b.Decimal(-1)), "-1s")
+    check(TimeDiff(0, _b.Decimal(2 * _b.MINUTE + 3)), "+2min3s")
+    check(TimeDiff(0, _b.Decimal(_b.HOUR + 2 * _b.MINUTE + 3)), "+1h2min3s")
+    check(
+        TimeDiff(0, _b.Decimal(_b.HOUR + 2 * _b.MINUTE + 3) + _b.Decimal("0.456")),
+        "+1h2min3.456s",
+    )
+    check(TimeDiff(1, _b.MINUTE), "+1m1min")
+    check(TimeDiff(-1, -_b.MINUTE), "-1m1min")
+    check(TimeDiff(9, _b.HOUR + 2 * _b.MINUTE + 3), "+9m1h2min3s")
+    check(TimeDiff(-9, _b.HOUR + 2 * _b.MINUTE + 3), "-9m+1h2min3s")
+    check(TimeDiff(0, _b.Decimal(3661)), "+1h1min1s")
+    check(
+        TimeDiff(18, 8 * _b.DAY + _b.HOUR + _b.MINUTE + _b.Decimal("1.123")),
+        "+1y6m1w1d1h1min1.123s",
+    )
+    check(TimeDiff(0, _b.Decimal("0.123")), "+0.123000000s", precision=9)
+
+
+def test_TimeFun_parse_call_format_parse() -> None:
+    def check(ts: TimeStamp, xs: str | list[str], y: str, z: str | None = None) -> None:
+        if isinstance(xs, str):
+            xs = [xs]
+        for s in xs:
+            sh, p = _p.run_parser(TimeFun.parse_human, False, s)
+            assert p.leftovers() == ""
+            res = sh(ts)
+            value = timestamp(y, 0)
+            assert res == value
+
+            s2 = sh.format()
+            if z is not None:
+                assert s2 == z
+                assert sh.format_human() == "now" + z
+            elif s.startswith("now"):
+                assert s2 == s[3:]
+                assert sh.format_human() == s
+
+            sh2, p = _p.run_parser(TimeFun.parse, False, s2)
+            assert p.leftovers() == ""
+            assert sh == sh2
+
+    v = timestamp("2025-01-01 00:00:00", 0)
+    check(v, "now-1y", "2024-01-01 00:00:00")
+    check(v, "now+1y", "2026-01-01 00:00:00")
+    check(v, "now-1m", "2024-12-01 00:00:00")
+    check(v, "now+1m", "2025-02-01 00:00:00")
+    check(v, "now-1d", "2024-12-31 00:00:00")
+    check(v, "now+1d", "2025-01-02 00:00:00")
+    check(v, "now-1s", "2024-12-31 23:59:59")
+    check(v, "now+1s", "2025-01-01 00:00:01")
+    check(v, "now-0.5s", "2024-12-31 23:59:59.5")
+    check(v, "now+0.5s", "2025-01-01 00:00:00.5")
+
+    v = timestamp("2025-01-01 12:34:45", 0)
+    check(v, "now-1d", "2024-12-31 12:34:45")
+    check(v, "now+1d", "2025-01-02 12:34:45")
+    check(v, "now-1m", "2024-12-01 12:34:45")
+    check(v, "now+1m", "2025-02-01 12:34:45")
+    check(v, "now-1m1d", "2024-11-30 12:34:45")
+    check(v, "now+1m1d", "2025-02-02 12:34:45")
+    check(v, "now-1y", "2024-01-01 12:34:45")
+    check(v, "now+1y", "2026-01-01 12:34:45")
+    check(v, "now-1y1d", "2023-12-31 12:34:45")
+    check(v, "now+1y1d", "2026-01-02 12:34:45")
+    check(v, "now-18m", "2023-07-01 12:34:45", "-1y6m")
+    check(v, "now+18m", "2026-07-01 12:34:45", "+1y6m")
+    check(v, "now-18m7d3h2min1.25s", "2023-06-24 09:32:43.75", "-1y6m1w3h2min1.25s")
+    check(v, "now+18m7d3h2min1.25s", "2026-07-08 15:36:46.25", "+1y6m1w3h2min1.25s")
+
+    def prev(x: str) -> list[str]:
+        return [f"last {x}", f"prev {x}", f"previous {x}"]
+
+    def foll(x: str) -> list[str]:
+        return [f"next {x}", f"following {x}"]
+
+    v = timestamp("2026-06-18 12:34:45.123", 0)
+    check(v, "this second", "2026-06-18 12:34:45", "-%s")
+    check(v, prev("second"), "2026-06-18 12:34:44", "-%s-1s")
+    check(v, foll("second"), "2026-06-18 12:34:46", "-%s+1s")
+    check(v, "this second-1d", "2026-06-17 12:34:45", "-%s-1d")
+    check(v, "this second+1d", "2026-06-19 12:34:45", "-%s+1d")
+    check(v, "this minute", "2026-06-18 12:34:00", "-%min")
+    check(v, prev("minute"), "2026-06-18 12:33:00")
+    check(v, foll("minute"), "2026-06-18 12:35:00")
+    check(v, "this minute-1d", "2026-06-17 12:34:00")
+    check(v, "this minute+1d", "2026-06-19 12:34:00")
+    check(v, "this hour", "2026-06-18 12:00:00", "-%h")
+    check(v, prev("hour"), "2026-06-18 11:00:00")
+    check(v, foll("hour"), "2026-06-18 13:00:00")
+    check(v, "this hour-1d", "2026-06-17 12:00:00")
+    check(v, "this hour+1d", "2026-06-19 12:00:00")
+    check(v, ["this day", "today"], "2026-06-18 00:00:00", "-%d")
+    check(v, ["this day-1d", *prev("day"), "yesterday"], "2026-06-17 00:00:00")
+    check(v, ["this day+1d", *foll("day"), "tomorrow"], "2026-06-19 00:00:00")
+    check(v, "this week", "2026-06-15 00:00:00", "-%w")
+    check(v, prev("week"), "2026-06-08 00:00:00")
+    check(v, foll("week"), "2026-06-22 00:00:00")
+    check(v, "this week-1d", "2026-06-14 00:00:00")
+    check(v, "this week+1d", "2026-06-16 00:00:00")
+    check(v, "this month", "2026-06-01 00:00:00", "-%m")
+    check(v, prev("month"), "2026-05-01 00:00:00")
+    check(v, foll("month"), "2026-07-01 00:00:00")
+    check(v, "this month-1d", "2026-05-31 00:00:00")
+    check(v, "this month+1d", "2026-06-02 00:00:00")
+    check(v, "this year", "2026-01-01 00:00:00", "-%y")
+    check(v, prev("year"), "2025-01-01 00:00:00")
+    check(v, foll("year"), "2027-01-01 00:00:00")
+    check(v, "this year-1d", "2025-12-31 00:00:00")
+    check(v, "this year+1d", "2026-01-02 00:00:00")
 
 
 def test_TimeRange_parse() -> None:
