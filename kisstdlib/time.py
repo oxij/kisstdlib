@@ -944,7 +944,7 @@ class TimeFun(list[TimeRounding | TimeDiff]):
 
 
 # Parsing regexes
-_timerange_delimiter_re = _re.compile("--?")
+_timerange_delimiter_re = _re.compile(r"\s*-+\s*")
 
 
 @_total_ordering
