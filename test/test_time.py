@@ -635,7 +635,7 @@ def test_TimeFun_parse_call_format_parse() -> None:
     check(v, "this year+1d", "2026-01-02 00:00:00")
 
 
-def test_TimeRange_parse() -> None:
+def test_TimeRange_parse_plain() -> None:
     def check(
         xs: str | list[str], value: TimeRange, leftovers: str = "", strict: bool = False
     ) -> None:
@@ -649,54 +649,107 @@ def test_TimeRange_parse() -> None:
                 assert res.end.gmtoff == value.end.gmtoff
 
     check("*", anytime)
-    check(
-        [
-            "@123--@125",
-            "<@123>--<@125>",
-        ],
-        TimeRange(TimeStamp(123), TimeStamp(125)),
-    )
-    check(
-        [
-            "2024-12-31",
-            "2024-12-31*",
-            "[2024-12-31]",
-        ],
-        TimeRange(timestamp("2024-12-31 00:00", 0), timestamp("2025-01-01 00:00", 0)),
-    )
-    check(
-        [
-            "2024-12-31 12",
-            "2024-12-31 12*",
-            "[2024-12-31 12]",
-            "[2024-12-31 12*]",
-        ],
-        TimeRange(timestamp("2024-12-31 12:00", 0), timestamp("2024-12-31 13:00", 0)),
-    )
-    check(
-        [
-            "2024-12-31 12:00",
-            "2024-12-31 12:00*",
-            "[2024-12-31 12:00]",
-            "[2024-12-31 12:00*]",
-        ],
-        TimeRange(timestamp("2024-12-31 12:00", 0), timestamp("2024-12-31 12:01", 0)),
-    )
-    check(
-        [
-            "2024-12-31 23:59",
-            "2024-12-31 23:59*",
-            "[2024-12-31 23:59]",
-            "[2024-12-31 23:59*]",
-        ],
-        TimeRange(timestamp("2024-12-31 23:59", 0), timestamp("2025-01-01 00:00", 0)),
-    )
-    check(
-        [
-            "[2024-12-31 23:59]--[2025-01-02]",
-        ],
-        TimeRange(timestamp("2024-12-31 23:59", 0), timestamp("2025-01-02 00:00", 0)),
-    )
+
+    r123t124 = TimeRange(TimeStamp(123), TimeStamp(124))
+    r123t125 = TimeRange(TimeStamp(123), TimeStamp(125))
+    r123t126 = TimeRange(TimeStamp(123), TimeStamp(126))
+    r1d010000 = TimeRange(timestamp("2024-12-31 00:00", 0), timestamp("2025-01-01 00:00", 0))
+    r1h311300 = TimeRange(timestamp("2024-12-31 12:00", 0), timestamp("2024-12-31 13:00", 0))
+    r1m311201 = TimeRange(timestamp("2024-12-31 12:00", 0), timestamp("2024-12-31 12:01", 0))
+    r1m010000 = TimeRange(timestamp("2024-12-31 23:59", 0), timestamp("2025-01-01 00:00", 0))
+    r3d030000 = TimeRange(timestamp("2024-12-31 23:59", 0), timestamp("2025-01-03 00:00", 0))
+    r2d020000 = TimeRange(timestamp("2024-12-31 23:59", 0), timestamp("2025-01-02 00:00", 0))
+    r2d021200 = TimeRange(timestamp("2024-12-31 23:59", 0), timestamp("2025-01-02 12:00", 0))
+    r2d021201 = TimeRange(timestamp("2024-12-31 23:59", 0), timestamp("2025-01-02 12:01", 0))
+
+    for l, r in (("", ""), ("<", ">"), ("[", "]")):
+        check(
+            [
+                f"{l}@123{r}",
+                f"{l}@123*{r}",
+            ],
+            r123t124,
+        )
+        check(
+            [
+                f"{l}2024-12-31{r}",
+                f"{l}2024-12-31*{r}",
+            ],
+            r1d010000,
+        )
+        check(
+            [
+                f"{l}2024-12-31 12{r}",
+                f"{l}2024-12-31 12*{r}",
+            ],
+            r1h311300,
+        )
+        check(
+            [
+                f"{l}2024-12-31 12:00{r}",
+                f"{l}2024-12-31 12:00*{r}",
+            ],
+            r1m311201,
+        )
+        check(
+            [
+                f"{l}2024-12-31 23:59{r}",
+                f"{l}2024-12-31 23:59*{r}",
+            ],
+            r1m010000,
+        )
+
+        for d in ("--", " --", "-- ", " -- ", "---"):
+            check(
+                [
+                    f"{l}@123{r}{d}{l}@125{r}",
+                    f"{l}@123.^{r}{d}{l}@125{r}",
+                    f"{l}@123*{r}{d}{l}@125{r}",
+                    f"{l}@123*.^{r}{d}{l}@125{r}",
+                ],
+                r123t125,
+            )
+            check(
+                [
+                    f"{l}@123{r}{d}{l}@125.${r}",
+                    f"{l}@123.^{r}{d}{l}@125*.${r}",
+                    f"{l}@123*{r}{d}{l}@125*.${r}",
+                    f"{l}@123*.^{r}{d}{l}@125*.${r}",
+                ],
+                r123t126,
+            )
+            check(
+                [
+                    f"{l}2024-12-31 23:59{r}{d}{l}2025-01-02{r}",
+                    f"{l}2024-12-31 23:59*{r}{d}{l}2025-01-02{r}",
+                ],
+                r2d020000,
+            )
+            check(
+                [
+                    f"{l}2024-12-31 23:59{r}{d}{l}2025-01-02.${r}",
+                    f"{l}2024-12-31 23:59.^{r}{d}{l}2025-01-02*.${r}",
+                    f"{l}2024-12-31 23:59*{r}{d}{l}2025-01-02*.${r}",
+                    f"{l}2024-12-31 23:59*.^{r}{d}{l}2025-01-02*.${r}",
+                ],
+                r3d030000,
+            )
+            check(
+                [
+                    f"{l}2024-12-31 23:59{r}{d}{l}2025-01-02 12:00{r}",
+                    f"{l}2024-12-31 23:59*{r}{d}{l}2025-01-02 12:00{r}",
+                ],
+                r2d021200,
+            )
+            check(
+                [
+                    f"{l}2024-12-31 23:59{r}{d}{l}2025-01-02 12:00.${r}",
+                    f"{l}2024-12-31 23:59.^{r}{d}{l}2025-01-02 12:00*.${r}",
+                    f"{l}2024-12-31 23:59*{r}{d}{l}2025-01-02 12:00*.${r}",
+                    f"{l}2024-12-31 23:59*.^{r}{d}{l}2025-01-02 12:00*.${r}",
+                ],
+                r2d021201,
+            )
 
     check(
         [
@@ -753,6 +806,11 @@ def test_TimeRange_format() -> None:
     assert x.format_delta()            == "36:00:00"
     if IS_ENG:
         assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 00:00]--[2026-01-02 Fri 12:00] => 36:00"
+
+    x = timerange("2026-01-01 00:00--2026-01-02 12:00.$", 0)
+    assert x.format_delta()            == "36:01:00"
+    if IS_ENG:
+        assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 00:00]--[2026-01-02 Fri 12:01] => 36:01"
 
     x = timerange("2025-01-02 12*", 3600)
     x.end.gmtoff = 0
