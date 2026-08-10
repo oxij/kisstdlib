@@ -760,6 +760,148 @@ def test_TimeRange_parse_plain() -> None:
     )
 
 
+def test_TimeRange_parse_Timefun() -> None:
+    def check(ts: TimeStamp, xs: str | list[str], value: TimeRange, leftovers: str = "") -> None:
+        if isinstance(xs, str):
+            xs = [xs]
+        for x in xs:
+            res, p = _p.run_parser(TimeRange.parse, False, x, 0, now=ts)
+            assert (res[0], p.leftovers()) == (value, leftovers)
+
+    v = timestamp("2025-01-01 00:00", 0)
+    check(v, "today", timerange("2025-01-01*", 0))
+    check(v, "yesterday", timerange("2024-12-31*", 0))
+    check(v, "tomorrow", timerange("2025-01-02*", 0))
+    check(v, "today-2d", timerange("2024-12-30*", 0))
+    check(v, "today+2d", timerange("2025-01-03*", 0))
+
+    check(
+        v,
+        [
+            "now--.^",
+            "now--.$",
+        ],
+        timerange("2025-01-01 00:00--2025-01-01 00:00", 0),
+    )
+    check(
+        v,
+        [
+            "now--tomorrow",
+            "now--.^-%d+1d",
+            "now--.$-%d+1d",
+        ],
+        timerange("2025-01-01 00:00--2025-01-02 00:00", 0),
+    )
+    check(
+        v,
+        [
+            "now--tomorrow.$",
+            "now--.^-%d+2d",
+            "now--.$-%d+2d",
+        ],
+        timerange("2025-01-01 00:00--2025-01-03 00:00", 0),
+    )
+    check(
+        v,
+        [
+            "yesterday--next month",
+            "yesterday--.^+1m1d",
+            "yesterday--.$+1m",
+        ],
+        timerange("2024-12-31 00:00--2025-02-01 00:00", 0),
+    )
+    check(
+        v,
+        [
+            "yesterday--next month.$",
+            "yesterday--.^+1m29d",
+            "yesterday--.$+2m",
+        ],
+        timerange("2024-12-31 00:00--2025-03-01 00:00", 0),
+    )
+    check(
+        v,
+        [
+            "last week--yesterday.$",
+            "last week--today",
+        ],
+        timerange("2024-12-23 00:00--2025-01-01 00:00", 0),
+    )
+    check(
+        v,
+        [
+            "last week--today.$",
+            "last week--tomorrow",
+        ],
+        timerange("2024-12-23 00:00--2025-01-02 00:00", 0),
+    )
+    check(
+        v,
+        [
+            "last week.$--today",
+            "this week--today",
+        ],
+        timerange("2024-12-30 00:00--2025-01-01 00:00", 0),
+    )
+    check(
+        v,
+        [
+            "last month--next year",
+            "last month--.^+1y1m",
+            "last month--.$+1y",
+        ],
+        timerange("2024-12-01 00:00--2026-01-01 00:00", 0),
+    )
+    check(
+        v,
+        [
+            "last month--next year.$",
+            "last month--.^+2y1m",
+            "last month--.$+2y",
+        ],
+        timerange("2024-12-01 00:00--2027-01-01 00:00", 0),
+    )
+    check(
+        v,
+        [
+            "last month.$+1m--next year",
+            "this month.$--this year.$",
+            "next month--this year+1y.^",
+            "next month--this year.^+1y",
+        ],
+        timerange("2025-02-01 00:00--2026-01-01 00:00", 0),
+    )
+
+    check(
+        v,
+        [
+            "2024-12-20.^+1d",
+            "2024-12-20*.^+1d",
+        ],
+        timerange("2024-12-21*.^", 0),
+    )
+    check(
+        v,
+        [
+            "2024-12-20.$+1d",
+            "2024-12-20*.$+1d",
+        ],
+        timerange("2024-12-22*.^", 0),
+    )
+    check(
+        v,
+        [
+            "2024-12-20.^+1d--.^+2d",
+            "2024-12-20.^+1d--.$+2d",
+            "2024-12-20.^+1d--2024-12-21+2d",
+            "2024-12-20.^+1d--2024-12-21*+2d",
+            "2024-12-20.^+1d--2024-12-21.^+2d",
+            "2024-12-20.^+1d--2024-12-21*.^+2d",
+        ],
+        timerange("2024-12-21--2024-12-23", 0),
+    )
+
+
 def test_TimeRange_format() -> None:
     # fmt: off
     x = anytime
