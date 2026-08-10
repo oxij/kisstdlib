@@ -36,7 +36,9 @@ from .base import (
     MINUTE as _MINUTE,
     HOUR as _HOUR,
     DAY as _DAY,
+    WEEK as _WEEK,
     MILLI as _MILLI,
+    MICRO as _MICRO,
     NANO as _NANO,
 )
 from . import failure as _f
@@ -453,6 +455,492 @@ class TimeStamp(_Decimal):
 def timestamp(value: str, gmtoff: int | None = None, parse_gmtoff: bool | None = None) -> TimeStamp:
     """A simple wrapper over `TimeStamp.parse2`."""
     return _p.run_parser(TimeStamp.parse2, True, value, gmtoff, parse_gmtoff)[0][0]
+
+
+# Parsing regexes
+_timefun_whitespace_re = _re.compile(r"[\s_]*")
+_timefun_head_re = _re.compile(
+    r"""
+(now)|
+(today)|
+(yesterday)|
+(tomorrow)|
+(this)|
+(last|prev(?:ious)?)|
+(next|following)
+""",
+    _re.VERBOSE | _re.IGNORECASE,
+)
+_timefun_sign_re = _re.compile(r"([+-])")
+_timefun_value_re = _re.compile(r"(\d+)(?:\.(\d+))?")
+_timefun_unit_re = _re.compile(
+    r"""
+# years
+(y(?:ears?)?)|
+# months
+(m(?![isu])(?:o(?:n(?:ths?)?)?)?)|
+# weeks
+(w(?:eeks?)?)|
+# days
+(d(?:ays?)?)|
+# hours
+(h(?:ours?)?)|
+# minutes
+(mi(?:n(?:utes?)?)?)|
+# seconds
+(s(?:ec(?:onds?)?)?)|
+# milliseconds
+(ms|millis(?:ec(?:onds?)?)?)|
+# microseconds
+(mus|micros(?:ec(?:onds?)?)?)|
+# nanoseconds
+(ns|nanos(?:ec(?:onds?)?)?)
+""",
+    _re.VERBOSE | _re.IGNORECASE,
+)
+
+type TimeUnitLiteral = _t.Literal["y", "m", "w", "d", "h", "min", "s", "ms", "mus", "ns"]
+
+
+class TimeUnit:
+    """A value representing a unit of time."""
+
+    unit: TimeUnitLiteral
+
+    def __init__(self, value: _t.Union["TimeUnit", TimeUnitLiteral]) -> None:
+        self.unit = value.unit if isinstance(value, TimeUnit) else value
+
+    def __eq__(self, value: _t.Any) -> bool:
+        return self.unit == value.unit if isinstance(value, TimeUnit) else self.unit == value
+
+    # Parsing
+
+    @staticmethod
+    def parse_literal(p: _p.Parser) -> TimeUnitLiteral:
+        is_y, is_m, is_w, is_d, is_h, is_min, is_s, is_ms, is_mus, is_ns = p.regex(_timefun_unit_re)  # fmt: skip
+        if is_y is not None:
+            return "y"
+        if is_m is not None:
+            return "m"
+        if is_w is not None:
+            return "w"
+        if is_d is not None:
+            return "d"
+        if is_h is not None:
+            return "h"
+        if is_min is not None:
+            return "min"
+        if is_s is not None:
+            return "s"
+        if is_ms is not None:
+            return "ms"
+        if is_mus is not None:
+            return "mus"
+        if is_ns is not None:
+            return "ns"
+        assert False
+
+    @staticmethod
+    def parse(p: _p.Parser) -> "TimeUnit":
+        return TimeUnit(TimeUnit.parse_literal(p))
+
+    # Printing
+
+    def format(self) -> str:
+        """Format `TimeUnit` into a human-readable string."""
+        return self.unit
+
+
+class TimeRounding(TimeUnit):
+    """A values representing time-rounding down to a year/month/week/day/etc."""
+
+    # Operations
+
+    def __call__(self, st: _time.struct_time, r: _Decimal) -> tuple[_time.struct_time, _Decimal]:
+        """Apply `self` to the given `_time.struct_time` and an additional sub-second remainder."""
+        unit = self.unit
+        if unit == "y":
+            return _time.struct_time((st[0], 1, 1, 0, 0, 0, -1, -1, -1, *st[9:])), _Decimal(0)
+        if unit == "m":
+            return _time.struct_time((*st[0:2], 1, 0, 0, 0, -1, -1, -1, *st[9:])), _Decimal(0)
+        if unit == "w":
+            return _time.struct_time((*st[0:3], 0, 0, 0, -1, -1, -1, *st[9:])), _Decimal(
+                -st.tm_wday * _DAY
+            )
+        if unit == "d":
+            return _time.struct_time((*st[0:3], 0, 0, 0, -1, -1, -1, *st[9:])), _Decimal(0)
+        if unit == "h":
+            return _time.struct_time((*st[0:4], 0, 0, -1, -1, -1, *st[9:])), _Decimal(0)
+        if unit == "min":
+            return _time.struct_time((*st[0:5], 0, -1, -1, -1, *st[9:])), _Decimal(0)
+        if unit == "s":
+            return st, _Decimal(0)
+        if unit == "ms":
+            return st, _MILLI * int(r / _MILLI)
+        if unit == "mus":
+            return st, _MICRO * int(r / _MICRO)
+        if unit == "ns":
+            return st, _NANO * int(r / _NANO)
+        assert False
+
+    # Parsing
+
+    @staticmethod
+    def parse(p: _p.Parser) -> "TimeRounding":
+        p.skip_optional_regex(_timefun_whitespace_re, True)
+        p.string("-%")
+        return TimeRounding(TimeUnit.parse_literal(p))
+
+    # Printing
+
+    def format(self) -> str:
+        """Format `TimeRounding` into a human-readable string."""
+        return f"-%{self.unit}"
+
+
+@_dc.dataclass
+class TimeDiff:
+    """A value representing a change in time: essentially, a tuple of `[int, Decimal]` designating a
+    difference in months and seconds, respectively.
+
+    It's represented this way because months have different lengths, so to move a `TimeStamp`, e.g.,
+    "one month two days forward", one needs to have both values. On the other hand, years can be
+    represented as multiples of months and weeks, days, hours, and minutes can be represented as
+    multiples of seconds.
+    """
+
+    months: int
+    seconds: _Decimal
+
+    def __init__(
+        self,
+        months: int = 0,
+        seconds: int | float | _Decimal | str = _Decimal(0),
+    ) -> None:
+        self.months = months
+        self.seconds = seconds if isinstance(seconds, _Decimal) else _Decimal(seconds)
+
+    # Additional constructors
+
+    @staticmethod
+    def from_scalar_units(s: int | _Decimal, v: TimeUnitLiteral | TimeUnit) -> "TimeDiff":
+        if v == "w":
+            return TimeDiff(0, s * _WEEK)
+        if v == "d":
+            return TimeDiff(0, s * _DAY)
+        if v == "h":
+            return TimeDiff(0, s * _HOUR)
+        if v == "min":
+            return TimeDiff(0, s * _MINUTE)
+        if v == "s":
+            return TimeDiff(0, s * 1)
+        if v == "ms":
+            return TimeDiff(0, s * _MILLI)
+        if v == "mus":
+            return TimeDiff(0, s * _MICRO)
+        if v == "ns":
+            return TimeDiff(0, s * _NANO)
+
+        if isinstance(s, _Decimal):
+            raise ValueError()
+
+        if v == "y":
+            return TimeDiff(s * 12, 0)
+        if v == "m":
+            return TimeDiff(s, 0)
+        assert False
+
+    # Operations
+
+    def __add__(self, value: "TimeDiff") -> "TimeDiff":
+        return TimeDiff(self.months + value.months, self.seconds + value.seconds)
+
+    def __sub__(self, value: "TimeDiff") -> "TimeDiff":
+        return TimeDiff(self.months - value.months, self.seconds - value.seconds)
+
+    def __call__(
+        self,
+        st: _time.struct_time,
+        r: _Decimal,
+    ) -> tuple[_time.struct_time, _Decimal]:
+        """Apply `self` to the given `_time.struct_time` and an additional sub-second remainder."""
+        smonths = self.months
+        if smonths != 0:
+            years = st[0]
+            months = st[1] + smonths
+            if months > 12:
+                nmonths = months - 1
+                years += nmonths // 12
+                months = nmonths % 12 + 1
+            elif months < 1:
+                nmonths = 12 - months
+                years -= nmonths // 12
+                months = 12 - (nmonths % 12)
+            st = _time.struct_time((years, months, *st[2:]))
+        return st, r + self.seconds
+
+    # Parsing
+
+    @staticmethod
+    def _parse_atom(p: _p.Parser, s: int, acc: "TimeDiff") -> None:
+        vs, rs = p.regex(_timefun_value_re)
+        unit = TimeUnit.parse_literal(p)
+
+        assert vs is not None
+        v: int | _Decimal = s * int(vs)
+        if rs is not None:
+            r = int(rs)
+            rp = len(rs)
+            v = _Decimal(v) + _Decimal(s * r) / (10**rp)
+
+        try:
+            update = TimeDiff.from_scalar_units(v, unit)
+        except ValueError:
+            p.fail("decimal values can't be used with years or months")
+
+        acc.months += update.months
+        acc.seconds += update.seconds
+
+    @staticmethod
+    def _parse_block(p: _p.Parser, acc: "TimeDiff") -> None:
+        p.skip_optional_regex(_timefun_whitespace_re, True)
+        (sign,) = p.regex(_timefun_sign_re)
+        s = 1 if sign == "+" else -1
+        for _ in p.repeat(TimeDiff._parse_atom, 1, None, s, acc):
+            pass
+
+    @staticmethod
+    def parse(p: _p.Parser) -> "TimeDiff":
+        """Parse a string containing zero or more blocks consisting of a sign followed by one or more time
+        length atoms into a corresponding `TimeDiff` value.
+
+        I.e., parse strings like "+1y2m3w5d6h7min8.912s" into a corresponding `TimeDiff`.
+
+        This function does some simple arithmetic on the values it parses, so multiple signed blocks
+        with arbitrarily ordered and/or repeated atoms are permitted, e.g.:
+        - "-2y+6m+1d12h" will be parsed to mean the same thing as "-1y6m+1d12h";
+        - "-1y1m+2m2y+0d2w1y" will be parsed as "+2y1m2w".
+        """
+        acc = TimeDiff()
+        for _ in p.repeat(TimeDiff._parse_block, 1, None, acc):
+            pass
+        return acc
+
+    # Printing
+
+    def format(
+        self,
+        precision: int | None = None,
+        *,
+        decimal_point: str = ".",
+    ) -> str:
+        """Format `TimeDiff` into a human-readable string by using given formatting options.
+
+        The result will use the same format as `TimeDiff.parse` does, but with normalization and
+        atom disambiguation applied.
+        """
+        res = []
+        sign = 0
+        months_ = self.months
+        seconds_ = self.seconds
+        years = months = 0
+
+        if months_ != 0:
+            sign = 1 if months_ >= 0 else -1
+            res.append("+" if sign > 0 else "-")
+
+            m = abs(months_)
+            years = m // 12
+            months = m % 12
+
+            if years != 0:
+                res.append(f"{years}y")
+            if months != 0:
+                res.append(f"{months}m")
+
+        if seconds_ != 0:
+            sign2 = 1 if seconds_ >= 0 else -1
+            if sign2 != sign:
+                res.append("+" if sign2 > 0 else "-")
+
+            t = abs(seconds_)
+            weeks = t // _WEEK
+            t = t % _WEEK
+            days = t // _DAY
+            t = t % _DAY
+            hours = t // _HOUR
+            t = t % _HOUR
+            minutes = t // _MINUTE
+            t = t % _MINUTE
+            seconds = int(t)
+            r = t - seconds
+
+            if precision is None:
+                rs = str(r)[1:]
+            elif precision > 0:
+                x = str(r)[2 : precision + 2]
+                rs = decimal_point + x + "0" * (precision - len(x))
+            else:
+                rs = ""
+
+            if weeks != 0:
+                res.append(f"{weeks}w")
+            if days != 0:
+                res.append(f"{days}d")
+            if hours != 0:
+                res.append(f"{hours}h")
+            if minutes != 0:
+                res.append(f"{minutes}min")
+            if seconds != 0 or rs:
+                res.append(f"{seconds}{rs}s")
+
+        return "".join(res)
+
+    def __str__(self) -> str:
+        return f"[{self.format()}]"
+
+    def __repr__(self) -> str:
+        return f"<TimeDiff {str(self)}>"
+
+
+class TimeFun(list[TimeRounding | TimeDiff]):
+    """A multi-step transformation over `TimeStamp`s: a sequence of `TimeRounding`s and/or `TimeDiff`s.
+
+    The values of this class represent common transformations between `TimeStamp`s, e.g.:
+    - "a `TimeStamp` rounded up/down to years/months/weeks/days/etc";
+    - "a `TimeStamp` plus/minus some number of years/months/weeks/days/etc";
+    - "the Friday following a `TimeStamp`"
+      (which is the `TimeStamp` rounded up to a week plus 5 days);
+    - "second Friday of the month before a `TimeStamp`"
+      (which is the `TimeStamp` rounded down to a month, minus 1 month, rounded up to a week, plus 5 days);
+    - etc.
+    """
+
+    # Operations
+
+    def __call__(
+        self,
+        value: TimeStamp,
+        gmtoff: int | None | _t.Literal["saved"] = "saved",
+    ) -> TimeStamp:
+        """Apply `self` to the given `TimeStamp` while performing all operations in time zone `gmtoff`.
+
+        If `gmtoff` is `"saved"`, the value of `gmtoff` will be taken from `value.gmtoff`.
+
+        Returns a newly constructed `TimeStamp`.
+        """
+        i = int(value)
+        r = _Decimal(value) - i
+        st = _ts_to_struct_time(i, value.gmtoff, gmtoff)
+        gmtoff = st.tm_gmtoff
+        i_dirty = False
+
+        for f in self:
+            if abs(r) > 1:
+                ri = int(r)
+                r -= ri
+                i = int(_calendar.timegm(st)) + ri
+                st = _time.gmtime(i)
+                i_dirty = False
+
+            st_ = st
+            st, r = f(st, r)
+            i_dirty = i_dirty or st is not st_
+
+        if i_dirty:
+            i = int(_calendar.timegm(st))
+
+        return TimeStamp(r + i - gmtoff, gmtoff)
+
+    def apply2(
+        self, value: TimeStamp, gmtoff: int | None | _t.Literal["saved"] = "saved"
+    ) -> tuple[TimeStamp, TimeStamp]:
+        start = end = self(value, gmtoff)
+
+        for e in reversed(self):
+            if isinstance(e, TimeRounding):
+                end = TimeFun([TimeDiff.from_scalar_units(1, e)])(start, gmtoff)
+                break
+
+        return start, end
+
+    # Parsing
+
+    @staticmethod
+    def _parse_rounding(p: _p.Parser, acc: "TimeFun") -> None:
+        acc.append(TimeRounding.parse(p))
+
+    @staticmethod
+    def _parse_diff(p: _p.Parser, acc: "TimeFun") -> None:
+        acc.append(TimeDiff.parse(p))
+
+    # NB: try `_parse_diff` first, since it's more common
+    _parse_either = _p.Parser.mk_choice(_parse_diff, _parse_rounding)
+
+    @staticmethod
+    def parse(p: _p.Parser) -> "TimeFun":
+        """Parse a sequence of one or more `TimeFun`-atoms into a `TimeFun`."""
+        acc = TimeFun()
+        for _ in p.repeat(TimeFun._parse_either, 1, None, acc):
+            pass
+        return acc
+
+    @staticmethod
+    def parse_human(p: _p.Parser) -> "TimeFun":
+        """Parse a human-readable time-string (like "now", "today", "last week", etc) followed by
+        `TimeFun`-atoms into a `TimeFun`.
+        """
+
+        p.skip_optional_regex(_timefun_whitespace_re, True)
+        is_now, is_today, is_yesterday, is_tomorrow, _is_this, is_prev, is_next = p.regex(_timefun_head_re)  # fmt: skip
+
+        acc = TimeFun()
+
+        if is_now is not None:
+            pass
+        elif is_today is not None:
+            acc.append(TimeRounding("d"))
+        elif is_yesterday is not None:
+            acc.append(TimeRounding("d"))
+            acc.append(TimeDiff(0, -_DAY))
+        elif is_tomorrow is not None:
+            acc.append(TimeRounding("d"))
+            acc.append(TimeDiff(0, _DAY))
+        else:
+            p.skip_optional_regex(_timefun_whitespace_re, True)
+            unit = TimeUnit.parse_literal(p)
+            acc.append(TimeRounding(unit))
+            if is_prev is not None:
+                acc.append(TimeDiff.from_scalar_units(-1, unit))
+            elif is_next is not None:
+                acc.append(TimeDiff.from_scalar_units(1, unit))
+
+        for _ in p.repeat(TimeFun._parse_either, 0, None, acc):
+            pass
+
+        return acc
+
+    # Printing
+
+    def format(self, precision: int | None = None, *, decimal_point: str = ".") -> str:
+        """Format `TimeFun` using given formatting options."""
+        res = []
+        for v in self:
+            if isinstance(v, TimeRounding):
+                res.append(v.format())
+            elif isinstance(v, TimeDiff):
+                res.append(v.format(precision, decimal_point=decimal_point))
+        return "".join(res)
+
+    def format_human(self, precision: int | None = None, *, decimal_point: str = ".") -> str:
+        """Format `TimeFun` into a human-readable string using given formatting options."""
+        return "now" + self.format(precision, decimal_point=decimal_point)
+
+    def __str__(self) -> str:
+        return f"[{self.format()}]"
+
+    def __repr__(self) -> str:
+        return f"<TimeFun {str(self)}>"
 
 
 # Parsing regexes
