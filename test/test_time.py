@@ -33,6 +33,20 @@ from kisstdlib.failure import *
 IS_ENG = locale.getlocale()[0] in ("C", "en_US")
 
 
+def test_TimeRange_middle_delta() -> None:
+    def check(x: TimeRange, middle: TimeStamp, delta: _b.Decimal | None = None) -> None:
+        assert x.middle == middle
+        assert x.delta == (_b.Decimal("inf") if delta is None else delta)
+
+    check(anytime, TimeStamp("inf"))
+    check(TimeRange(TimeStamp("-inf"), TimeStamp("-inf")), TimeStamp("-inf"))
+    check(TimeRange(TimeStamp("inf"), TimeStamp("inf")), TimeStamp("inf"))
+
+    for i in range(-10, 11):
+        check(TimeRange(TimeStamp("-inf"), TimeStamp(i)), TimeStamp("-inf"))
+        check(TimeRange(TimeStamp(i), TimeStamp("inf")), TimeStamp("inf"))
+
+
 def test_TimeStamp_parse() -> None:
     def check(
         xs: str | list[str], value: TimeStamp, leftovers: str = "", strict: bool = False
