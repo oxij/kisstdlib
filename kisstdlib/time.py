@@ -28,11 +28,11 @@ import re as _re
 import time as _time
 import typing as _t
 
+from decimal import Decimal as _Decimal, InvalidOperation as _InvalidOperation
 from functools import total_ordering as _total_ordering
 from string import Formatter as _Formatter
 
 from .base import (
-    Decimal as _Decimal,
     MINUTE as _MINUTE,
     HOUR as _HOUR,
     DAY as _DAY,
@@ -981,12 +981,22 @@ class TimeRange:
     @property
     def middle(self) -> TimeStamp:
         """The exact middle of the interval."""
-        return TimeStamp((self.start + self.end) / 2)
+        s = self.start
+        e = self.end
+        try:
+            return TimeStamp((s + e) / 2)
+        except _InvalidOperation:
+            if e.is_infinite():
+                return e
+            return s
 
     @property
     def delta(self) -> _Decimal:
         """The length of the interval."""
-        return _Decimal(self.end) - self.start
+        try:
+            return _Decimal(self.end) - self.start
+        except _InvalidOperation:
+            return _Decimal("inf")
 
     # Printing
 
