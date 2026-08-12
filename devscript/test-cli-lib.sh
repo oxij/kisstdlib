@@ -26,18 +26,51 @@ die() {
 }
 
 task_started=0
-start() {
-    echo -n "## $1"
-    task_started=$(date +%s)
-    task_errors=0
-}
 
 end() {
     local now=$(date +%s)
     echo ": $task_errors errors, $((now-task_started)) seconds"
+    task_started=0
+}
+
+begin() {
+    if (($task_started > 0)); then
+        end
+    fi
+
+    echo -n "## $*"
+    task_started=$(date +%s)
+    task_errors=0
+}
+
+TARGETS=()
+
+start() {
+    if (($task_started > 0)); then
+        end
+    fi
+
+    local ok=1
+    for t in "${TARGETS[@]}"; do
+        if grep -E "$t" <<< "$*" &>/dev/null ; then
+            ok=1
+            break
+        else
+            ok=
+        fi
+    done
+    if [[ -z "$ok" ]]; then
+        return 1
+    fi
+
+    begin "$@"
 }
 
 finish() {
+    if (($task_started > 0)); then
+        end
+    fi
+
     echo "total: $errors errors"
     if ((errors > 0)); then
         exit 1

@@ -39,7 +39,7 @@ check() {
     local file="$OPWD/example/$script"
     shift 2
 
-    start "$script"
+    begin "$script"
     ok_stdio2 "$out" py "$file" "$@"
     sed -i "s/0x[0-9a-f]\+/0xdeadbeef/g" "$out"
     sed -i 's/\(File "\)[^"]*\(", line \)[0-9]\+\(, in .module.\)/\1FILE\2NUM\3/g' "$out"
@@ -63,3 +63,5 @@ check "ansi.out" tty_io.py --no-interactive --ansi
 check "noansi.out" tty_io.py --no-interactive --no-ansi
 
 check "out" stop_gently.py --no-interactive
+
+finish
