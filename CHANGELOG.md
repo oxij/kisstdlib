@@ -6,6 +6,165 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 Also, at the bottom of this file there is a [TODO list](#todo) with planned future changes.
 
+## [v0.0.13] - 2026-09-14
+
+### Added/Changed/Removed/Fixed: Incompatible changes
+
+- `*`: Switched to `python-v3.13`, `black-v25.1.0`, `mypy-v1.20.1`, `pylint-v4.0.6`, edited all the code to pass all the checks.
+
+  `python-v3.13` or later is required now.
+
+- Renamed `kisstdlib/sorted.py` -\> `kisstdlib/collections_ext.py`.
+
+- `kisstdlib/base.py`:
+
+  - Introduced `SupportsCmp`, `SupportsCounting`, and `is_closer`, the latter of which replaced `nearer_to_than`.
+  - Dropped `Number` and `AndNumber`.
+  - Dropped all other placeholder `TypeVar`s and `ParamSpec`s, since they are no longer needed with the new `python-v3.13` features.
+  - Dropped `AVG_MONTH` and `AVG_YEAR`.
+
+- `kisstdlib/itertools_ext.py`:
+
+  - Reworked `count_from_to` -\> `range_`.
+  - Dropped `count_`, since normal `count` can do the same thing with the same types now.
+
+- `kisstdlib/collections_ext.py`:
+
+  - Re-worked all the `*SortedIndex` classes and their internals.
+    The new versions are more general and better-typed.
+  - Most notably, renamed `AbstractSortedIndex` -\> `ABCIndex`, `SortedIndex` -\> `SortedDictIndex`, their methods, and almost everything else related.
+  - Introduced `DictIndex`, which `SortedDictIndex` is now a sub-class of.
+
+- `kisstdlib/sqlite3_ext.py`:
+
+  - Simplified the type of `AppDB.upgrade`.
+  - Made the name of the settings table of `AppDB` configurable.
+
+- `kisstdlib/fs.py`:
+
+  - Renamed `DeferredSync` -\> `Deferred`.
+
+- `kisstdlib/parsing`:
+
+  - Dropped `unread`, thus making the `Parser`'s buffer immutable.
+  - Reworked `leftovers` from property -\> function.
+  - Added a bunch more useful functions.
+  - Added a bunch of wrappers and function decorators.
+  - Improve types and semantics of most existing functions.
+  - Renamed most of them.
+
+- `kisstdlib/time.py`:
+
+  - Renamed `TimeStamp` -\> `TimeStamp`, `TimeRange` -\> `TimeRange`.
+  - Dropped `TimeValue`.
+  - In `TimeStamp` and `TimeRange`, renamed `now` -\> `from_now`.
+
+- `kisstdlib/time.py`: `*.format*`:
+
+  - Introduced `TimeFormatter`, which is a `strftime`-like `string.Formatter`.
+  - Reworked everything else to use it, thus making arbitrary `precision`s to work properly in custom `fmt`s.
+  - Dropped the special `fmt = "@"` support, since it can be expressed normally now.
+  - Reworked `format_org_delta` -\> `format_delta`.
+  - Introduced `format3`.
+  - Re-implemented `format_org` using `format3`, making it use the time format identical to that of Emacs org-mode.
+  - When `format`ting, all these function use the inherent precision of the underlying `Decimal` by default now.
+  - Made `.format` print the time zone by default (see below).
+  - Introduced `inf_fmt` arguments to all these functions to allow control over how the infinite timestamps should be formatted.
+
+- `kisstdlib/time.py`: `*parse*`:
+
+  - Reworked all `parse_*` functions into static methods of their corresponding classes.
+  - Rework their code to use the new `parsing` machinery properly.
+  - When parsing, `TimeStamp`s can be bracketed too now.
+  - `TimeStamp.parse_iso_like` now admits more time formats, including the one produced by Emacs org-mode.
+  - `TimeStamp.parse_absolute` now admits negative values and infinities.
+  - From now on, result of `run_parser(TimeRange.parse, "<date1>--<date2>")` no longer includes all of `date2`.
+    The old semantics can be recovered by adding ".\$" at the end of that expression (see below).
+
+- `devscript/test-cli-lib.sh`:
+
+  - Renamed `start` -\> `begin`.
+  - Re-introduced `start` as a predicate.
+  - Make the usage of the `end` bits optional.
+
+### Added: Misc
+
+- `kisstdlib/base.py`:
+
+  - Added more useful constants.
+  - Introduced `noop` and `noop_`.
+
+- `kisstdlib/collections_ext.py`:
+
+  - Re-exported some stuff from Python's `collections`.
+  - Introduced `LRUCache`.
+
+- `kisstdlib/io/base.py`:
+
+  - Introduced `BytesIOReader` by importing it from `hoardy_web/tool/hoardy_web/source.py`.
+
+- `kisstdlib/{io/base.py, fs.py}`:
+
+  - Added `chunk_size` arguments to `fileobj_data_equals`, `same_file_data`, and `file_data_equals`.
+
+- `kisstdlib/sqlite3_ext.py`:
+
+  - Introduced `SortedSqliteIndex` as a sub-class of `ABCIndex`.
+
+- `kisstdlib/failure.py`:
+
+  - For `CatastrophicFailure` and its sub-classes, introduced `subsume` method and its `__init__` equivalent.
+
+- `kisstdlib/time.py`:
+
+  - `TimeRange` is a `total_ordering` now.
+
+  - Introduced `TimeStamp.gmtoff` and proper support for time zones:
+
+    - Reworked `TimeStamp` to be a `Decimal` with an additional `gmtoff` attribute.
+    - Edited all `TimeStamp` methods to propagate that value around properly.
+    - Made all `.parse*` and `.format*` take `gmtoff` as an argument:
+      - Made all `.parse*` use their `gmtoff` arguments if the input does not specify a time zone and make them set `gmtoff` from the input when it does.
+      - Made it possible for `.format` to override `self.gmtoff`, which it now does by default to force user's local time zone by default.
+    - Added support for sub-minute time zone formatting to `TimeFormatter`.
+    - Made it possible for all `.parse*` functions to be run with time zone parsing disabled.
+
+  - Introduced `TimeFun` and its dependencies.
+
+    `TimeFun` represents a declaratively defined function over `TimeStamp`s.
+
+    E.g., parsing "+1y2m3h" and then applying the result to a `TimeStamp` will move it one year, two months, and three hours forward.
+
+    The list of supported operations is pretty simple, but their compositions can be used to produce rather advanced results.
+
+    For the use cases where `TimeFun` gets applied to `TimeStamp.from_now()` or similar, there's also `TimeFun.parse_human` static method that admits human-readable strings and turns them into the appropriate `TimeFun`s, e.g.:
+
+    - "now" becomes an identity over `TimeStamps`;
+    - "today" becomes a rounding to the start of the day;
+    - "last week" becomes a rounding to the start of the week followed by "-7d";
+    - etc.
+
+  - Generalized `TimeRange.parse` to admit `TimeFun`s and mixes of `TimeStamp`s and `TimeFun`s, which is why now it also takes an additional argument of `now: TimeStamp`.
+
+    As a result, it can now parse and compute `TimeRange`s for expressions like "today", "today-1y--last_week+1d", etc.
+
+    Also, notably, this parser now also admits `.^` and `.$` operations, which shrink the previous time interval into a single point, corresponding to its start or end, respectively.
+
+    Thus, the old behaviour for, e.g., `2024--2025`, previously parsed as `2024-01-01--2026-01-01` and now parsed as `2024-01-01--2025-01-01` (see "Incompatible changes" above), can be recovered with `2024--2025.$`.
+
+  - `TimeRange.parse` now also admits more delimiters, not just "--" between its two parts, when both are specified.
+
+### Fixed: Misc
+
+- `kisstdlib/time.py`:
+
+  - Fixed `TimeRange.delta` to return an actual `Decimal` and not a sub-class.
+  - `TimeRange.middle` and `.delta` produce results for all possible ranges now, instead of failing with `decimal.InvalidOperation` for some of them.
+
+- `*`:
+
+  - Fixed some docstring of typos.
+
 ## [v0.0.12] - 2025-12-03
 
 ### Fixed
@@ -433,6 +592,7 @@ Also, at the bottom of this file there is a [TODO list](#todo) with planned futu
 
 - Initial release.
 
+[v0.0.13]: https://github.com/oxij/kisstdlib/compare/v0.0.12...v0.0.13
 [v0.0.12]: https://github.com/oxij/kisstdlib/compare/v0.0.11...v0.0.12
 [v0.0.11]: https://github.com/oxij/kisstdlib/compare/v0.0.10...v0.0.11
 [v0.0.10]: https://github.com/oxij/kisstdlib/compare/v0.0.9...v0.0.10
