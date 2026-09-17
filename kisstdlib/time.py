@@ -45,7 +45,16 @@ from . import failure as _f
 from . import parsing as _p
 
 
-def _gmtoff_to_timezone_str(gmtoff: int) -> str:
+def _epoch_to_struct_time(
+    i: int, ts_gmtoff: int, gmtoff: int | None | _t.Literal["saved"] = None
+) -> _time.struct_time:
+    gmtoff = ts_gmtoff if gmtoff == "saved" else gmtoff
+    if gmtoff is None:
+        return _time.localtime(i)
+    return _time.struct_time((*_time.gmtime(i + gmtoff)[:9], "", gmtoff))
+
+
+def _gmtoff_to_str(gmtoff: int) -> str:
     if gmtoff >= 0:
         s = "+"
     else:
@@ -56,10 +65,9 @@ def _gmtoff_to_timezone_str(gmtoff: int) -> str:
     minutes = gmtoff // _MINUTE
     gmtoff = gmtoff % _MINUTE
     seconds = int(gmtoff)
-    tz = f"{s}{hours:02}{minutes:02}"
     if seconds > 0:
-        tz += f"{seconds:02}"
-    return tz
+        return f"{s}{hours:02}{minutes:02}{seconds:02}"
+    return f"{s}{hours:02}{minutes:02}"
 
 
 class TimeFormatter(_Formatter):
@@ -105,7 +113,7 @@ class TimeFormatter(_Formatter):
             raise ValueError()
 
         if key == "z":
-            return _gmtoff_to_timezone_str(args.tm_gmtoff)
+            return _gmtoff_to_str(args.tm_gmtoff)
 
         try:
             return args[TimeFormatter._map[key]]
@@ -157,24 +165,6 @@ Z|
 )
 _timestamp_pre_re = _re.compile(r"[([{<]")
 _timestamp_post_re = _re.compile(r"[)\]}>]")
-
-
-def _ts_to_struct_time(
-    i: int, ts_gmtoff: int, gmtoff: int | None | _t.Literal["saved"] = None
-) -> _time.struct_time:
-    gmtoff = ts_gmtoff if gmtoff == "saved" else gmtoff
-    if gmtoff is None:
-        return _time.localtime(i)
-    return _time.struct_time((*_time.gmtime(i + gmtoff)[:9], "", gmtoff))
-
-
-def _timezone_to_gmtoff(tz: tuple[str | None, ...]) -> int:
-    tzsign, tzhour, tzminute, tzsecond = tz
-    return (1 if tzsign == "+" else -1) * (
-        (int(tzhour) if tzhour is not None else 0) * _HOUR
-        + (int(tzminute) * _MINUTE if tzminute is not None else 0)
-        + (int(tzsecond) if tzsecond is not None else 0)
-    )
 
 
 class TimeStamp(_Decimal):
@@ -292,7 +282,7 @@ class TimeStamp(_Decimal):
             return formatter.vformat(inf_fmt, st, kwargs)
 
         i = int(t)
-        st = _ts_to_struct_time(i, self.gmtoff, gmtoff)
+        st = _epoch_to_struct_time(i, self.gmtoff, gmtoff)
 
         kwargs["s"] = i
         kwargs["remainder"] = _Decimal(t) - i
@@ -312,13 +302,17 @@ class TimeStamp(_Decimal):
     def _parse_timezone(
         p: _p.Parser, gmtoff: int | None = None, parse_gmtoff: bool | None = None
     ) -> int | None:
-        tz = (
-            None
-            if parse_gmtoff is False
-            else (p.regex if parse_gmtoff is True else p.optional_regex)(_iso_like_timezone_re)
-        )
-        if tz is not None:
-            gmtoff = _timezone_to_gmtoff(tz)
+        if parse_gmtoff is not False:
+            tz_override = (p.regex if parse_gmtoff is True else p.optional_regex)(
+                _iso_like_timezone_re
+            )
+            if tz_override is not None:
+                tzsign, tzhour, tzminute, tzsecond = tz_override
+                gmtoff = (1 if tzsign == "+" else -1) * (
+                    (int(tzhour) if tzhour is not None else 0) * _HOUR
+                    + (int(tzminute) * _MINUTE if tzminute is not None else 0)
+                    + (int(tzsecond) if tzsecond is not None else 0)
+                )
         return gmtoff
 
     @staticmethod
@@ -363,34 +357,32 @@ class TimeStamp(_Decimal):
             1,
             -1,
         )
-
         sst = _time.struct_time(res)
-        est: _time.struct_time
         ending = True
 
         if month is None:
-            est = _time.struct_time((res[0] + 1, *res[1:]))
+            eres = (res[0] + 1, *res[1:])
+            est = _time.struct_time(eres)
             ending = False
         elif day is None:
             if res[1] < 12:
-                est = _time.struct_time((res[0], res[1] + 1, *res[2:]))
+                eres = (res[0], res[1] + 1, *res[2:])
             else:
-                est = _time.struct_time((res[0] + 1, 1, *res[2:]))
+                eres = (res[0] + 1, 1, *res[2:])
+            est = _time.struct_time(eres)
             ending = False
 
-        if gmtoff is not None:
+        if gmtoff is None:
+            st = et = int(_time.mktime(sst))
+            gmtoff = egmtoff = st - int(_calendar.timegm(sst))
+            if not ending:
+                et = int(_time.mktime(est))
+                egmtoff = et - int(_calendar.timegm(est))
+        else:
             st = et = int(_calendar.timegm(sst)) - gmtoff
             if not ending:
                 et = int(_calendar.timegm(est)) - gmtoff
             egmtoff = gmtoff
-        else:
-            stg = etg = int(_calendar.timegm(sst))
-            st = et = int(_time.mktime(sst))
-            gmtoff = egmtoff = st - stg
-            if not ending:
-                etg = int(_calendar.timegm(est))
-                et = int(_time.mktime(est))
-                egmtoff = et - etg
 
         if ending:
             if hour is None:
@@ -831,7 +823,7 @@ class TimeFun(list[TimeRounding | TimeDiff]):
         """
         i = int(value)
         r = _Decimal(value) - i
-        st = _ts_to_struct_time(i, value.gmtoff, gmtoff)
+        st = _epoch_to_struct_time(i, value.gmtoff, gmtoff)
         gmtoff = st.tm_gmtoff
         i_dirty = False
 
