@@ -961,6 +961,87 @@ def test_TimeRange_format() -> None:
     assert x.format(tz=3723) == "2025-01-02 12:02:03 +010203--2025-01-02 13:02:03 +010203"
 
 
+def test_TimeStamp_TimeRange_tz_str() -> None:
+    # TZ=America/Los_Angeles date --date @$1
+    # TZ=Europe/Warsaw date --date @$1
+
+    x = timerange("2020-03-08 01:02:03.456", "America/Los_Angeles")
+    assert x.start == _b.Decimal("1583658123.456")
+    assert x.end == _b.Decimal("1583658123.457")
+    assert x.format(tz="saved") == "2020-03-08 01:02:03.456 -0800--2020-03-08 01:02:03.457 -0800"
+
+    x = timerange("2020-03-08 01:02:03.456", "Europe/Warsaw")
+    assert x.start == _b.Decimal("1583625723.456")
+    assert x.end == _b.Decimal("1583625723.457")
+    assert x.format(tz="saved") == "2020-03-08 01:02:03.456 +0100--2020-03-08 01:02:03.457 +0100"
+
+    # American daylight saving transitions
+
+    x = timerange("2020-03-08 00", "America/Los_Angeles")
+    assert x.start == 1583654400
+    assert x.end == 1583658000
+    assert x.format(tz="saved") == "2020-03-08 00:00:00 -0800--2020-03-08 01:00:00 -0800"
+
+    x = timerange("2020-03-08 01", "America/Los_Angeles")
+    assert x.start == 1583658000
+    assert x.end == 1583661600
+    assert x.format(tz="saved") == "2020-03-08 01:00:00 -0800--2020-03-08 03:00:00 -0700"
+
+    x = timerange("2020-03-08 02", "America/Los_Angeles")
+    assert x.start == 1583661600
+    assert x.end == 1583665200
+    assert x.format(tz="saved") == "2020-03-08 03:00:00 -0700--2020-03-08 04:00:00 -0700"
+    # NB: not                   == "2020-03-08 02:00:00 -0800--2020-03-08 04:00:00 -0700"
+
+    x = timerange("2020-11-01 00", "America/Los_Angeles")
+    assert x.start == 1604214000
+    assert x.end == 1604217600
+    assert x.format(tz="saved") == "2020-11-01 00:00:00 -0700--2020-11-01 01:00:00 -0700"
+
+    x = timerange("2020-11-01 01", "America/Los_Angeles")
+    assert x.start == 1604217600
+    assert x.end == 1604221200
+    assert x.format(tz="saved") == "2020-11-01 01:00:00 -0700--2020-11-01 01:00:00 -0800"
+
+    x = timerange("2020-11-01 02", "America/Los_Angeles")
+    assert x.start == 1604224800
+    assert x.end == 1604228400
+    assert x.format(tz="saved") == "2020-11-01 02:00:00 -0800--2020-11-01 03:00:00 -0800"
+
+    # European daylight saving transitions
+
+    x = timerange("2020-03-29 00", "Europe/Warsaw")
+    assert x.start == 1585436400
+    assert x.end == 1585440000
+    assert x.format(tz="saved") == "2020-03-29 00:00:00 +0100--2020-03-29 01:00:00 +0100"
+
+    x = timerange("2020-03-29 01", "Europe/Warsaw")
+    assert x.start == 1585440000
+    assert x.end == 1585443600
+    assert x.format(tz="saved") == "2020-03-29 01:00:00 +0100--2020-03-29 03:00:00 +0200"
+
+    x = timerange("2020-03-29 02", "Europe/Warsaw")
+    assert x.start == 1585443600
+    assert x.end == 1585447200
+    assert x.format(tz="saved") == "2020-03-29 03:00:00 +0200--2020-03-29 04:00:00 +0200"
+    # NB: not                   == "2020-03-29 02:00:00 +0100--2020-03-29 04:00:00 +0200"
+
+    x = timerange("2020-10-25 01", "Europe/Warsaw")
+    assert x.start == 1603580400
+    assert x.end == 1603584000
+    assert x.format(tz="saved") == "2020-10-25 01:00:00 +0200--2020-10-25 02:00:00 +0200"
+
+    x = timerange("2020-10-25 02", "Europe/Warsaw")
+    assert x.start == 1603584000
+    assert x.end == 1603587600
+    assert x.format(tz="saved") == "2020-10-25 02:00:00 +0200--2020-10-25 02:00:00 +0100"
+
+    x = timerange("2020-10-25 03", "Europe/Warsaw")
+    assert x.start == 1603591200
+    assert x.end == 1603594800
+    assert x.format(tz="saved") == "2020-10-25 03:00:00 +0100--2020-10-25 04:00:00 +0100"
+
+
 def test_TimeRange_order() -> None:
     assert timerange("2025*", 0) == timerange("2025*", 0)
 
