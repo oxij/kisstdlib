@@ -28,9 +28,11 @@ import re as _re
 import time as _time
 import typing as _t
 
+from datetime import datetime as _datetime
 from decimal import Decimal as _Decimal, InvalidOperation as _InvalidOperation
 from functools import total_ordering as _total_ordering
 from string import Formatter as _Formatter
+from zoneinfo import ZoneInfo as _ZoneInfo
 
 from .base import (
     MINUTE as _MINUTE,
@@ -45,12 +47,20 @@ from . import failure as _f
 from . import parsing as _p
 
 
+def _ts_to_tz(i: int, tzinfo: _ZoneInfo) -> int:
+    u = _datetime.fromtimestamp(i, tzinfo).utcoffset()
+    assert u is not None
+    return int(u.total_seconds())
+
+
 def _epoch_to_struct_time(
-    i: int, saved_tz: int, tz: int | None | _t.Literal["saved"] = None
+    i: int, saved_tz: int, tz: int | str | None | _t.Literal["saved"] = None
 ) -> _time.struct_time:
     tz = saved_tz if tz == "saved" else tz
     if tz is None:
         return _time.localtime(i)
+    if isinstance(tz, str):
+        tz = _ts_to_tz(i, _ZoneInfo(tz))
     return _time.struct_time((*_time.gmtime(i + tz)[:9], "", tz))
 
 
@@ -187,27 +197,31 @@ class TimeStamp(_Decimal):
 
     tz: int
 
-    def __new__(cls, value: int | float | _Decimal | str, tz: int | None = None) -> "TimeStamp":
+    def __new__(
+        cls, value: int | float | _Decimal | str, tz: int | str | None = None
+    ) -> "TimeStamp":
         self = super().__new__(cls, value)
         if tz is None:
             tz = 0 if self.is_infinite() else _time.localtime(int(self)).tm_gmtoff
+        elif isinstance(tz, str):
+            tz = _ts_to_tz(int(self), _ZoneInfo(tz))
         self.tz = tz
         return self
 
     # Additional constructors
 
     @staticmethod
-    def from_ms(value: int, tz: int | None = None) -> "TimeStamp":
+    def from_ms(value: int, tz: int | str | None = None) -> "TimeStamp":
         """Convert milliseconds from UNIX Epoch to a `TimeStamp`."""
         return TimeStamp(_Decimal(value) * _MILLI, tz)
 
     @staticmethod
-    def from_ns(value: int, tz: int | None = None) -> "TimeStamp":
+    def from_ns(value: int, tz: int | str | None = None) -> "TimeStamp":
         """Convert nanoseconds from UNIX Epoch to a `TimeStamp`."""
         return TimeStamp(_Decimal(value) * _NANO, tz)
 
     @staticmethod
-    def from_now(tz: int | None = None) -> "TimeStamp":
+    def from_now(tz: int | str | None = None) -> "TimeStamp":
         """Capture current time as a `TimeStamp`."""
         return TimeStamp.from_ns(_time.time_ns(), tz)
 
@@ -230,7 +244,7 @@ class TimeStamp(_Decimal):
         fmt: str = TimeFormatter.default_time_fmt,
         inf_fmt: str = TimeFormatter.default_inf_fmt,
         precision: int | None = None,
-        tz: int | None | _t.Literal["saved"] = None,
+        tz: int | str | None | _t.Literal["saved"] = None,
         *,
         formatter: _Formatter = _TimeFormatter,
         **kwargs: _t.Any,
@@ -300,8 +314,8 @@ class TimeStamp(_Decimal):
 
     @staticmethod
     def _parse_timezone(
-        p: _p.Parser, tz: int | None = None, parse_tz: bool | None = None
-    ) -> int | None:
+        p: _p.Parser, tz: int | str | None = None, parse_tz: bool | None = None
+    ) -> int | str | None:
         if parse_tz is not False:
             tz_override = (p.regex if parse_tz is True else p.optional_regex)(_iso_like_timezone_re)
             if tz_override is not None:
@@ -315,7 +329,7 @@ class TimeStamp(_Decimal):
 
     @staticmethod
     def parse_absolute(
-        p: _p.Parser, tz: int | None = None, parse_tz: bool | None = None
+        p: _p.Parser, tz: int | str | None = None, parse_tz: bool | None = None
     ) -> tuple["TimeStamp", "TimeStamp"]:
         """Parse an input in `@%s` format into a pair of `TimeStamp`s representing an interval determined by
         the number of digits after the decimal point, if any. See `TimeStamp.format` and `TimeStamp.parse2`
@@ -333,7 +347,7 @@ class TimeStamp(_Decimal):
 
     @staticmethod
     def parse_iso_like(
-        p: _p.Parser, tz: int | None = None, parse_tz: bool | None = None
+        p: _p.Parser, tz: int | str | None = None, parse_tz: bool | None = None
     ) -> tuple["TimeStamp", "TimeStamp"]:
         """Parse inputs in ISO 8601 and a number of similar formats into a pair of `TimeStamp`s representing
         the interval determined by how much of the date is specified by the input string. See
@@ -370,12 +384,22 @@ class TimeStamp(_Decimal):
             est = _time.struct_time(eres)
             ending = False
 
+        tzinfo: _ZoneInfo | None = None
         if tz is None:
             st = et = int(_time.mktime(sst))
             tz = etz = st - int(_calendar.timegm(sst))
             if not ending:
                 et = int(_time.mktime(est))
                 etz = et - int(_calendar.timegm(est))
+        elif isinstance(tz, str):
+            tzinfo = _ZoneInfo(tz)
+            dt = _datetime(*res[0:6], tzinfo=tzinfo)
+            st = et = int(dt.timestamp())
+            tz = etz = _ts_to_tz(st, tzinfo)
+            if not ending:
+                dt = _datetime(*eres[0:6], tzinfo=tzinfo)
+                et = int(dt.timestamp())
+                etz = _ts_to_tz(et, tzinfo)
         else:
             st = et = int(_calendar.timegm(sst)) - tz
             if not ending:
@@ -392,6 +416,8 @@ class TimeStamp(_Decimal):
             elif second is None:
                 et += _MINUTE
                 ending = False
+            if tzinfo is not None:
+                etz = _ts_to_tz(et, tzinfo)
 
         if rs is not None:
             r = int(rs)
@@ -409,7 +435,7 @@ class TimeStamp(_Decimal):
 
     @staticmethod
     def parse2(
-        p: _p.Parser, tz: int | None = None, parse_tz: bool | None = None
+        p: _p.Parser, tz: int | str | None = None, parse_tz: bool | None = None
     ) -> tuple["TimeStamp", "TimeStamp"]:
         """Parse a string into a pair of `TimeStamp` values which represent the inclusive start and the
         non-inclusive end of the continuous time interval for which all timestamps contained in it
@@ -442,7 +468,7 @@ class TimeStamp(_Decimal):
         return res
 
 
-def timestamp(value: str, tz: int | None = None, parse_tz: bool | None = None) -> TimeStamp:
+def timestamp(value: str, tz: int | str | None = None, parse_tz: bool | None = None) -> TimeStamp:
     """A simple wrapper over `TimeStamp.parse2`."""
     return _p.run_parser(TimeStamp.parse2, True, value, tz, parse_tz)[0][0]
 
@@ -811,7 +837,7 @@ class TimeFun(list[TimeRounding | TimeDiff]):
     def __call__(
         self,
         value: TimeStamp,
-        tz: int | None | _t.Literal["saved"] = "saved",
+        tz: int | str | None | _t.Literal["saved"] = "saved",
     ) -> TimeStamp:
         """Apply `self` to the given `TimeStamp` while performing all operations in time zone `tz`.
 
@@ -843,7 +869,7 @@ class TimeFun(list[TimeRounding | TimeDiff]):
         return TimeStamp(r + i - tz, tz)
 
     def apply2(
-        self, value: TimeStamp, tz: int | None | _t.Literal["saved"] = "saved"
+        self, value: TimeStamp, tz: int | str | None | _t.Literal["saved"] = "saved"
     ) -> tuple[TimeStamp, TimeStamp]:
         start = end = self(value, tz)
 
@@ -996,7 +1022,7 @@ class TimeRange:
         inf_fmt: str = TimeFormatter.default_inf_fmt,
         range_fmt: str = "{0}--{1}",
         precision: int | None = None,
-        tz: int | None | _t.Literal["saved", "saved_start", "saved_end"] = None,
+        tz: int | str | None | _t.Literal["saved", "saved_start", "saved_end"] = None,
         **kwargs: _t.Any,
     ) -> str:
         """Format `TimeRange` into a human-readable string by using given formatting options.
@@ -1062,7 +1088,7 @@ class TimeRange:
         delta_fmt: str = TimeFormatter.default_delta_fmt,
         range_fmt: str = "{0} -- {1} => {2}",
         precision: int | None = None,
-        tz: int | None | _t.Literal["saved", "saved_start", "saved_end"] = None,
+        tz: int | str | None | _t.Literal["saved", "saved_start", "saved_end"] = None,
         **kwargs: _t.Any,
     ) -> str:
         """Format `TimeRange` and its length into a human-readable string by using given formatting options.
@@ -1081,7 +1107,7 @@ class TimeRange:
 
     def format_org(
         self,
-        tz: int | None | _t.Literal["saved", "saved_start", "saved_end"] = None,
+        tz: int | str | None | _t.Literal["saved", "saved_start", "saved_end"] = None,
         **kwargs: _t.Any,
     ) -> str:
         """Format `TimeRange` by using the format used by Emacs org-mode."""
@@ -1108,7 +1134,7 @@ class TimeRange:
         p: _p.Parser,
         now: TimeStamp | None,
         prev: tuple[TimeStamp, TimeStamp] | None,
-        tz: int | None = None,
+        tz: int | str | None = None,
         parse_tz: bool | None = None,
     ) -> tuple[TimeStamp | None, TimeStamp, TimeStamp, bool]:
         p.skip_optional_regex(_timestamp_pre_re)
@@ -1155,7 +1181,7 @@ class TimeRange:
     @staticmethod
     def parse(
         p: _p.Parser,
-        tz: int | None = None,
+        tz: int | str | None = None,
         parse_tz: bool | None = None,
         *,
         includes_start: bool = True,
@@ -1224,7 +1250,7 @@ anytime = TimeRange(TimeStamp("-inf"), TimeStamp("+inf"), True, True)
 
 def timerange(
     value: str,
-    tz: int | None = None,
+    tz: int | str | None = None,
     parse_tz: bool | None = None,
     *,
     includes_start: bool = True,
