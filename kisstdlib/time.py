@@ -513,6 +513,12 @@ class TimeUnit:
     def __eq__(self, value: _t.Any) -> bool:
         return self.unit == value.unit if isinstance(value, TimeUnit) else self.unit == value
 
+    # Printing
+
+    def format(self) -> str:
+        """Format `TimeUnit` into a human-readable string."""
+        return self.unit
+
     # Parsing
 
     @staticmethod
@@ -543,12 +549,6 @@ class TimeUnit:
     @staticmethod
     def parse(p: _p.Parser) -> "TimeUnit":
         return TimeUnit(TimeUnit.parse_literal(p))
-
-    # Printing
-
-    def format(self) -> str:
-        """Format `TimeUnit` into a human-readable string."""
-        return self.unit
 
 
 class TimeRounding(TimeUnit):
@@ -583,6 +583,12 @@ class TimeRounding(TimeUnit):
             return st, _NANO * int(r / _NANO)
         assert False
 
+    # Printing
+
+    def format(self) -> str:
+        """Format `TimeRounding` into a human-readable string."""
+        return f"-%{self.unit}"
+
     # Parsing
 
     @staticmethod
@@ -590,12 +596,6 @@ class TimeRounding(TimeUnit):
         p.skip_optional_regex(_timefun_whitespace_re, True)
         p.string("-%")
         return TimeRounding(TimeUnit.parse_literal(p))
-
-    # Printing
-
-    def format(self) -> str:
-        """Format `TimeRounding` into a human-readable string."""
-        return f"-%{self.unit}"
 
 
 @_dc.dataclass
@@ -679,53 +679,6 @@ class TimeDiff:
             st = _time.struct_time((years, months, *st[2:]))
         return st, r + self.seconds
 
-    # Parsing
-
-    @staticmethod
-    def _parse_atom(p: _p.Parser, s: int, acc: "TimeDiff") -> None:
-        vs, rs = p.regex(_timefun_value_re)
-        unit = TimeUnit.parse_literal(p)
-
-        assert vs is not None
-        v: int | _Decimal = s * int(vs)
-        if rs is not None:
-            r = int(rs)
-            rp = len(rs)
-            v = _Decimal(v) + _Decimal(s * r) / (10**rp)
-
-        try:
-            update = TimeDiff.from_scalar_units(v, unit)
-        except ValueError:
-            p.fail("decimal values can't be used with years or months")
-
-        acc.months += update.months
-        acc.seconds += update.seconds
-
-    @staticmethod
-    def _parse_block(p: _p.Parser, acc: "TimeDiff") -> None:
-        p.skip_optional_regex(_timefun_whitespace_re, True)
-        (sign,) = p.regex(_timefun_sign_re)
-        s = 1 if sign == "+" else -1
-        for _ in p.repeat(TimeDiff._parse_atom, 1, None, s, acc):
-            pass
-
-    @staticmethod
-    def parse(p: _p.Parser) -> "TimeDiff":
-        """Parse a string containing zero or more blocks consisting of a sign followed by one or more time
-        length atoms into a corresponding `TimeDiff` value.
-
-        I.e., parse strings like "+1y2m3w5d6h7min8.912s" into a corresponding `TimeDiff`.
-
-        This function does some simple arithmetic on the values it parses, so multiple signed blocks
-        with arbitrarily ordered and/or repeated atoms are permitted, e.g.:
-        - "-2y+6m+1d12h" will be parsed to mean the same thing as "-1y6m+1d12h";
-        - "-1y1m+2m2y+0d2w1y" will be parsed as "+2y1m2w".
-        """
-        acc = TimeDiff()
-        for _ in p.repeat(TimeDiff._parse_block, 1, None, acc):
-            pass
-        return acc
-
     # Printing
 
     def format(
@@ -802,6 +755,53 @@ class TimeDiff:
     def __repr__(self) -> str:
         return f"<TimeDiff {str(self)}>"
 
+    # Parsing
+
+    @staticmethod
+    def _parse_atom(p: _p.Parser, s: int, acc: "TimeDiff") -> None:
+        vs, rs = p.regex(_timefun_value_re)
+        unit = TimeUnit.parse_literal(p)
+
+        assert vs is not None
+        v: int | _Decimal = s * int(vs)
+        if rs is not None:
+            r = int(rs)
+            rp = len(rs)
+            v = _Decimal(v) + _Decimal(s * r) / (10**rp)
+
+        try:
+            update = TimeDiff.from_scalar_units(v, unit)
+        except ValueError:
+            p.fail("decimal values can't be used with years or months")
+
+        acc.months += update.months
+        acc.seconds += update.seconds
+
+    @staticmethod
+    def _parse_block(p: _p.Parser, acc: "TimeDiff") -> None:
+        p.skip_optional_regex(_timefun_whitespace_re, True)
+        (sign,) = p.regex(_timefun_sign_re)
+        s = 1 if sign == "+" else -1
+        for _ in p.repeat(TimeDiff._parse_atom, 1, None, s, acc):
+            pass
+
+    @staticmethod
+    def parse(p: _p.Parser) -> "TimeDiff":
+        """Parse a string containing zero or more blocks consisting of a sign followed by one or more time
+        length atoms into a corresponding `TimeDiff` value.
+
+        I.e., parse strings like "+1y2m3w5d6h7min8.912s" into a corresponding `TimeDiff`.
+
+        This function does some simple arithmetic on the values it parses, so multiple signed blocks
+        with arbitrarily ordered and/or repeated atoms are permitted, e.g.:
+        - "-2y+6m+1d12h" will be parsed to mean the same thing as "-1y6m+1d12h";
+        - "-1y1m+2m2y+0d2w1y" will be parsed as "+2y1m2w".
+        """
+        acc = TimeDiff()
+        for _ in p.repeat(TimeDiff._parse_block, 1, None, acc):
+            pass
+        return acc
+
 
 class TimeFun(list[TimeRounding | TimeDiff]):
     """A multi-step transformation over `TimeStamp`s: a sequence of `TimeRounding`s and/or `TimeDiff`s.
@@ -864,6 +864,28 @@ class TimeFun(list[TimeRounding | TimeDiff]):
 
         return start, end
 
+    # Printing
+
+    def format(self, precision: int | None = None, *, decimal_point: str = ".") -> str:
+        """Format `TimeFun` using given formatting options."""
+        res = []
+        for v in self:
+            if isinstance(v, TimeRounding):
+                res.append(v.format())
+            elif isinstance(v, TimeDiff):
+                res.append(v.format(precision, decimal_point=decimal_point))
+        return "".join(res)
+
+    def format_human(self, precision: int | None = None, *, decimal_point: str = ".") -> str:
+        """Format `TimeFun` into a human-readable string using given formatting options."""
+        return "now" + self.format(precision, decimal_point=decimal_point)
+
+    def __str__(self) -> str:
+        return f"[{self.format()}]"
+
+    def __repr__(self) -> str:
+        return f"<TimeFun {str(self)}>"
+
     # Parsing
 
     @staticmethod
@@ -919,28 +941,6 @@ class TimeFun(list[TimeRounding | TimeDiff]):
             pass
 
         return acc
-
-    # Printing
-
-    def format(self, precision: int | None = None, *, decimal_point: str = ".") -> str:
-        """Format `TimeFun` using given formatting options."""
-        res = []
-        for v in self:
-            if isinstance(v, TimeRounding):
-                res.append(v.format())
-            elif isinstance(v, TimeDiff):
-                res.append(v.format(precision, decimal_point=decimal_point))
-        return "".join(res)
-
-    def format_human(self, precision: int | None = None, *, decimal_point: str = ".") -> str:
-        """Format `TimeFun` into a human-readable string using given formatting options."""
-        return "now" + self.format(precision, decimal_point=decimal_point)
-
-    def __str__(self) -> str:
-        return f"[{self.format()}]"
-
-    def __repr__(self) -> str:
-        return f"<TimeFun {str(self)}>"
 
 
 # Parsing regexes

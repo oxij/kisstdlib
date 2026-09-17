@@ -33,20 +33,6 @@ from kisstdlib.failure import *
 IS_ENG = locale.getlocale()[0] in ("C", "en_US")
 
 
-def test_TimeRange_middle_delta() -> None:
-    def check(x: TimeRange, middle: TimeStamp, delta: _b.Decimal | None = None) -> None:
-        assert x.middle == middle
-        assert x.delta == (_b.Decimal("inf") if delta is None else delta)
-
-    check(anytime, TimeStamp("inf"))
-    check(TimeRange(TimeStamp("-inf"), TimeStamp("-inf")), TimeStamp("-inf"))
-    check(TimeRange(TimeStamp("inf"), TimeStamp("inf")), TimeStamp("inf"))
-
-    for i in range(-10, 11):
-        check(TimeRange(TimeStamp("-inf"), TimeStamp(i)), TimeStamp("-inf"))
-        check(TimeRange(TimeStamp(i), TimeStamp("inf")), TimeStamp("inf"))
-
-
 def test_TimeStamp_parse() -> None:
     def check(
         xs: str | list[str], value: TimeStamp, leftovers: str = "", strict: bool = False
@@ -917,56 +903,70 @@ def test_TimeRange_parse_Timefun() -> None:
 
 
 def test_TimeRange_format() -> None:
-    # fmt: off
     x = anytime
-    assert x.format_delta()            == "+inf"
-    assert x.format3()                 == "@-inf +0000 -- @+inf +0000 => +inf"
-    assert x.format_org()              == "[@-inf]--[@+inf] =>  +inf"
+    assert x.format_delta() == "+inf"
+    assert x.format3() == "@-inf +0000 -- @+inf +0000 => +inf"
+    assert x.format_org() == "[@-inf]--[@+inf] =>  +inf"
 
     x = TimeRange(anytime.end, anytime.start)
-    assert x.format_delta()            == "-inf"
-    assert x.format3()                 == "@+inf +0000 -- @-inf +0000 => -inf"
-    assert x.format_org()              == "[@+inf]--[@-inf] =>  -inf"
+    assert x.format_delta() == "-inf"
+    assert x.format3() == "@+inf +0000 -- @-inf +0000 => -inf"
+    assert x.format_org() == "[@+inf]--[@-inf] =>  -inf"
 
     x = timerange("2026-01-01 12:00:00.1*", 0)
-    assert x.format_delta()            == "0:00:00.1"
+    assert x.format_delta() == "0:00:00.1"
     assert x.format_delta(precision=0) == "0:00:00"
     assert x.format_delta(precision=1) == "0:00:00.1"
     assert x.format_delta(precision=2) == "0:00:00.10"
-    assert x.format3(gmtoff=0)         == "2026-01-01 12:00:00.1 +0000 -- 2026-01-01 12:00:00.2 +0000 => 0:00:00.1"
+    assert (
+        x.format3(gmtoff=0)
+        == "2026-01-01 12:00:00.1 +0000 -- 2026-01-01 12:00:00.2 +0000 => 0:00:00.1"
+    )
     if IS_ENG:
-        assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 12:00] =>  0:00"
+        assert x.format_org(gmtoff=0) == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 12:00] =>  0:00"
 
     x = timerange("2026-01-01 12:00*", 0)
-    assert x.format_delta()            == "0:01:00"
+    assert x.format_delta() == "0:01:00"
     assert x.format_delta(precision=0) == "0:01:00"
     assert x.format_delta(precision=1) == "0:01:00.0"
     assert x.format_delta(precision=2) == "0:01:00.00"
-    assert x.format3(gmtoff=0)         == "2026-01-01 12:00:00 +0000 -- 2026-01-01 12:01:00 +0000 => 0:01:00"
-    assert x.format3(precision=0, gmtoff=0) == "2026-01-01 12:00:00 +0000 -- 2026-01-01 12:01:00 +0000 => 0:01:00"
-    assert x.format3(precision=1, gmtoff=0) == "2026-01-01 12:00:00.0 +0000 -- 2026-01-01 12:01:00.0 +0000 => 0:01:00.0"
+    assert (
+        x.format3(gmtoff=0) == "2026-01-01 12:00:00 +0000 -- 2026-01-01 12:01:00 +0000 => 0:01:00"
+    )
+    assert (
+        x.format3(precision=0, gmtoff=0)
+        == "2026-01-01 12:00:00 +0000 -- 2026-01-01 12:01:00 +0000 => 0:01:00"
+    )
+    assert (
+        x.format3(precision=1, gmtoff=0)
+        == "2026-01-01 12:00:00.0 +0000 -- 2026-01-01 12:01:00.0 +0000 => 0:01:00.0"
+    )
     if IS_ENG:
-        assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 12:01] =>  0:01"
+        assert x.format_org(gmtoff=0) == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 12:01] =>  0:01"
 
     x = TimeRange(x.end, x.start)
-    assert x.format_delta()            == "-0:01:00"
-    assert x.format3(gmtoff=0)         == "2026-01-01 12:01:00 +0000 -- 2026-01-01 12:00:00 +0000 => -0:01:00"
+    assert x.format_delta() == "-0:01:00"
+    assert (
+        x.format3(gmtoff=0) == "2026-01-01 12:01:00 +0000 -- 2026-01-01 12:00:00 +0000 => -0:01:00"
+    )
 
     x = timerange("2026-01-01 12*", 0)
-    assert x.format_delta()            == "1:00:00"
-    assert x.format3(gmtoff=0)         == "2026-01-01 12:00:00 +0000 -- 2026-01-01 13:00:00 +0000 => 1:00:00"
+    assert x.format_delta() == "1:00:00"
+    assert (
+        x.format3(gmtoff=0) == "2026-01-01 12:00:00 +0000 -- 2026-01-01 13:00:00 +0000 => 1:00:00"
+    )
     if IS_ENG:
-        assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 13:00] =>  1:00"
+        assert x.format_org(gmtoff=0) == "[2026-01-01 Thu 12:00]--[2026-01-01 Thu 13:00] =>  1:00"
 
     x = timerange("2026-01-01 00:00--2026-01-02 12:00", 0)
-    assert x.format_delta()            == "36:00:00"
+    assert x.format_delta() == "36:00:00"
     if IS_ENG:
-        assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 00:00]--[2026-01-02 Fri 12:00] => 36:00"
+        assert x.format_org(gmtoff=0) == "[2026-01-01 Thu 00:00]--[2026-01-02 Fri 12:00] => 36:00"
 
     x = timerange("2026-01-01 00:00--2026-01-02 12:00.$", 0)
-    assert x.format_delta()            == "36:01:00"
+    assert x.format_delta() == "36:01:00"
     if IS_ENG:
-        assert x.format_org(gmtoff=0)  == "[2026-01-01 Thu 00:00]--[2026-01-02 Fri 12:01] => 36:01"
+        assert x.format_org(gmtoff=0) == "[2026-01-01 Thu 00:00]--[2026-01-02 Fri 12:01] => 36:01"
 
     x = timerange("2025-01-02 12*", 3600)
     x.end.gmtoff = 0
@@ -974,7 +974,6 @@ def test_TimeRange_format() -> None:
     assert x.format(gmtoff="saved_start") == "2025-01-02 12:00:00 +0100--2025-01-02 13:00:00 +0100"
     assert x.format(gmtoff="saved_end") == "2025-01-02 11:00:00 +0000--2025-01-02 12:00:00 +0000"
     assert x.format(gmtoff=3723) == "2025-01-02 12:02:03 +010203--2025-01-02 13:02:03 +010203"
-    # fmt: on
 
 
 def test_TimeRange_order() -> None:
@@ -998,3 +997,17 @@ def test_TimeRange_order() -> None:
     check(timerange("2024*", 0), timerange("2025*", 0))
     check(timerange("2025*", 0), no_start(timerange("2025*", 0)))
     check(timerange("2025*", 0), yes_end(timerange("2025*", 0)))
+
+
+def test_TimeRange_middle_delta() -> None:
+    def check(x: TimeRange, middle: TimeStamp, delta: _b.Decimal | None = None) -> None:
+        assert x.middle == middle
+        assert x.delta == (_b.Decimal("inf") if delta is None else delta)
+
+    check(anytime, TimeStamp("inf"))
+    check(TimeRange(TimeStamp("-inf"), TimeStamp("-inf")), TimeStamp("-inf"))
+    check(TimeRange(TimeStamp("inf"), TimeStamp("inf")), TimeStamp("inf"))
+
+    for i in range(-10, 11):
+        check(TimeRange(TimeStamp("-inf"), TimeStamp(i)), TimeStamp("-inf"))
+        check(TimeRange(TimeStamp(i), TimeStamp("inf")), TimeStamp("inf"))
