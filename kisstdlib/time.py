@@ -46,25 +46,25 @@ from . import parsing as _p
 
 
 def _epoch_to_struct_time(
-    i: int, ts_gmtoff: int, gmtoff: int | None | _t.Literal["saved"] = None
+    i: int, saved_tz: int, tz: int | None | _t.Literal["saved"] = None
 ) -> _time.struct_time:
-    gmtoff = ts_gmtoff if gmtoff == "saved" else gmtoff
-    if gmtoff is None:
+    tz = saved_tz if tz == "saved" else tz
+    if tz is None:
         return _time.localtime(i)
-    return _time.struct_time((*_time.gmtime(i + gmtoff)[:9], "", gmtoff))
+    return _time.struct_time((*_time.gmtime(i + tz)[:9], "", tz))
 
 
-def _gmtoff_to_str(gmtoff: int) -> str:
-    if gmtoff >= 0:
+def _tz_to_str(tz: int) -> str:
+    if tz >= 0:
         s = "+"
     else:
-        gmtoff = -gmtoff
         s = "-"
-    hours = gmtoff // _HOUR
-    gmtoff = gmtoff % _HOUR
-    minutes = gmtoff // _MINUTE
-    gmtoff = gmtoff % _MINUTE
-    seconds = int(gmtoff)
+        tz = -tz
+    hours = tz // _HOUR
+    tz = tz % _HOUR
+    minutes = tz // _MINUTE
+    tz = tz % _MINUTE
+    seconds = int(tz)
     if seconds > 0:
         return f"{s}{hours:02}{minutes:02}{seconds:02}"
     return f"{s}{hours:02}{minutes:02}"
@@ -113,7 +113,7 @@ class TimeFormatter(_Formatter):
             raise ValueError()
 
         if key == "z":
-            return _gmtoff_to_str(args.tm_gmtoff)
+            return _tz_to_str(args.tm_gmtoff)
 
         try:
             return args[TimeFormatter._map[key]]
@@ -171,57 +171,57 @@ class TimeStamp(_Decimal):
     """UNIX Epoch (a number of seconds since seconds since 1970-01-01 00:00:00 UTC) up to arbitrary
     precision.
 
-    In its `gmtoff` attribute this class preserves the original time zone offset, if any, the
-    instance value originates from. `gmtoff` can be set manually, taken from `time.localtime`, or
+    In its `tz` attribute this class preserves the original time zone offset, if any, the
+    instance value originates from. `tz` can be set manually, taken from `time.localtime`, or
     taken from a parsed string, when its format specifies its time zone offset.
 
-    Note, however, that `gmtoff` it is only ever really used in formatting. `TimeStamp`s are in UTC,
-    so all comparisons between `TimeStamp`s and computations on them completely ignore `gmtoff`s,
+    Note, however, that `tz` it is only ever really used in formatting. `TimeStamp`s are in UTC,
+    so all comparisons between `TimeStamp`s and computations on them completely ignore `tz`s,
     just copying those values around as needed to preserve them, until those values need to be
     printed.
 
-    And even then, `TimeStamp.format` function allows a different `gmtoff` to be used when
+    And even then, `TimeStamp.format` function allows a different `tz` to be used when
     formatting, which is actually how it works by default, using local time zone offset by default
     instead.
     """
 
-    gmtoff: int
+    tz: int
 
-    def __new__(cls, value: int | float | _Decimal | str, gmtoff: int | None = None) -> "TimeStamp":
+    def __new__(cls, value: int | float | _Decimal | str, tz: int | None = None) -> "TimeStamp":
         self = super().__new__(cls, value)
-        if gmtoff is None:
-            gmtoff = 0 if self.is_infinite() else _time.localtime(int(self)).tm_gmtoff
-        self.gmtoff = gmtoff
+        if tz is None:
+            tz = 0 if self.is_infinite() else _time.localtime(int(self)).tm_gmtoff
+        self.tz = tz
         return self
 
     # Additional constructors
 
     @staticmethod
-    def from_ms(value: int, gmtoff: int | None = None) -> "TimeStamp":
+    def from_ms(value: int, tz: int | None = None) -> "TimeStamp":
         """Convert milliseconds from UNIX Epoch to a `TimeStamp`."""
-        return TimeStamp(_Decimal(value) * _MILLI, gmtoff)
+        return TimeStamp(_Decimal(value) * _MILLI, tz)
 
     @staticmethod
-    def from_ns(value: int, gmtoff: int | None = None) -> "TimeStamp":
+    def from_ns(value: int, tz: int | None = None) -> "TimeStamp":
         """Convert nanoseconds from UNIX Epoch to a `TimeStamp`."""
-        return TimeStamp(_Decimal(value) * _NANO, gmtoff)
+        return TimeStamp(_Decimal(value) * _NANO, tz)
 
     @staticmethod
-    def from_now(gmtoff: int | None = None) -> "TimeStamp":
+    def from_now(tz: int | None = None) -> "TimeStamp":
         """Capture current time as a `TimeStamp`."""
-        return TimeStamp.from_ns(_time.time_ns(), gmtoff)
+        return TimeStamp.from_ns(_time.time_ns(), tz)
 
     # Operations
 
     def __add__(self, value: int | float | _Decimal) -> "TimeStamp":
         if isinstance(value, float):
             value = _Decimal(value)
-        return TimeStamp(_Decimal.__add__(self, value), self.gmtoff)
+        return TimeStamp(_Decimal.__add__(self, value), self.tz)
 
     def __sub__(self, value: int | float | _Decimal) -> "TimeStamp":
         if isinstance(value, float):
             value = _Decimal(value)
-        return TimeStamp(_Decimal.__sub__(self, value), self.gmtoff)
+        return TimeStamp(_Decimal.__sub__(self, value), self.tz)
 
     # Printing
 
@@ -230,7 +230,7 @@ class TimeStamp(_Decimal):
         fmt: str = TimeFormatter.default_time_fmt,
         inf_fmt: str = TimeFormatter.default_inf_fmt,
         precision: int | None = None,
-        gmtoff: int | None | _t.Literal["saved"] = None,
+        tz: int | None | _t.Literal["saved"] = None,
         *,
         formatter: _Formatter = _TimeFormatter,
         **kwargs: _t.Any,
@@ -257,15 +257,15 @@ class TimeStamp(_Decimal):
         - The "%z" directive (`str`) is formatted as "[+-]HHMMSS" when sub-minute precision is needed.
           When it's not, the normal "[+-]HHMM" format is used.
 
-        The `gmtoff` argument controls the time zone of the output:
+        The `tz` argument controls the time zone of the output:
 
-        - If `gmtoff` is an `int`, its value will be used as the time zone offset, ignoring the
-          saved value of `self.gmtoff` completely.
+        - If `tz` is an `int`, its value will be used as the time zone offset, ignoring the
+          saved value of `self.tz` completely.
 
-        - If `gmtoff` is `"saved"` or if `gmtoff` is `None` and `self` is infinite, the saved value
-          of `self.gmtoff` will be used as `gmtoff`.
+        - If `tz` is `"saved"` or if `tz` is `None` and `self` is infinite, the saved value
+          of `self.tz` will be used as `tz`.
 
-        - If `gmtoff` is `None` and `self` is finite, the output will be formatted in local time.
+        - If `tz` is `None` and `self` is finite, the output will be formatted in local time.
 
         For finite timestamps, the latter option is the default. For infinite timestamp, the middle
         option is the default.
@@ -273,8 +273,8 @@ class TimeStamp(_Decimal):
         """
         t = self
         if t.is_infinite():
-            gmtoff = self.gmtoff if gmtoff is None or gmtoff == "saved" else gmtoff
-            st = _time.struct_time((1, 1, 1, 0, 0, 0, 0, 1, 0, "", gmtoff))
+            tz = self.tz if tz is None or tz == "saved" else tz
+            st = _time.struct_time((1, 1, 1, 0, 0, 0, 0, 1, 0, "", tz))
 
             kwargs["s"] = "-inf" if t < 0 else "+inf"
             kwargs["f"] = ""
@@ -282,7 +282,7 @@ class TimeStamp(_Decimal):
             return formatter.vformat(inf_fmt, st, kwargs)
 
         i = int(t)
-        st = _epoch_to_struct_time(i, self.gmtoff, gmtoff)
+        st = _epoch_to_struct_time(i, self.tz, tz)
 
         kwargs["s"] = i
         kwargs["remainder"] = _Decimal(t) - i
@@ -291,7 +291,7 @@ class TimeStamp(_Decimal):
         return formatter.vformat(fmt, st, kwargs)
 
     def __str__(self) -> str:
-        return f"[{self.format(gmtoff=0)}]"
+        return f"[{self.format(tz=0)}]"
 
     def __repr__(self) -> str:
         return f"<TimeStamp {str(self)}>"
@@ -300,24 +300,22 @@ class TimeStamp(_Decimal):
 
     @staticmethod
     def _parse_timezone(
-        p: _p.Parser, gmtoff: int | None = None, parse_gmtoff: bool | None = None
+        p: _p.Parser, tz: int | None = None, parse_tz: bool | None = None
     ) -> int | None:
-        if parse_gmtoff is not False:
-            tz_override = (p.regex if parse_gmtoff is True else p.optional_regex)(
-                _iso_like_timezone_re
-            )
+        if parse_tz is not False:
+            tz_override = (p.regex if parse_tz is True else p.optional_regex)(_iso_like_timezone_re)
             if tz_override is not None:
                 tzsign, tzhour, tzminute, tzsecond = tz_override
-                gmtoff = (1 if tzsign == "+" else -1) * (
+                tz = (1 if tzsign == "+" else -1) * (
                     (int(tzhour) if tzhour is not None else 0) * _HOUR
                     + (int(tzminute) * _MINUTE if tzminute is not None else 0)
                     + (int(tzsecond) if tzsecond is not None else 0)
                 )
-        return gmtoff
+        return tz
 
     @staticmethod
     def parse_absolute(
-        p: _p.Parser, gmtoff: int | None = None, parse_gmtoff: bool | None = None
+        p: _p.Parser, tz: int | None = None, parse_tz: bool | None = None
     ) -> tuple["TimeStamp", "TimeStamp"]:
         """Parse an input in `@%s` format into a pair of `TimeStamp`s representing an interval determined by
         the number of digits after the decimal point, if any. See `TimeStamp.format` and `TimeStamp.parse2`
@@ -326,16 +324,16 @@ class TimeStamp(_Decimal):
         whole, rs = p.regex(_at_timestamp_re)
         assert whole is not None
 
-        gmtoff = TimeStamp._parse_timezone(p, gmtoff, parse_gmtoff)
+        tz = TimeStamp._parse_timezone(p, tz, parse_tz)
 
         d = _Decimal(whole)
         e = _Decimal(1) / (10 ** (len(rs))) if rs is not None else 1
 
-        return TimeStamp(d, gmtoff), TimeStamp(d + e, gmtoff)
+        return TimeStamp(d, tz), TimeStamp(d + e, tz)
 
     @staticmethod
     def parse_iso_like(
-        p: _p.Parser, gmtoff: int | None = None, parse_gmtoff: bool | None = None
+        p: _p.Parser, tz: int | None = None, parse_tz: bool | None = None
     ) -> tuple["TimeStamp", "TimeStamp"]:
         """Parse inputs in ISO 8601 and a number of similar formats into a pair of `TimeStamp`s representing
         the interval determined by how much of the date is specified by the input string. See
@@ -344,7 +342,7 @@ class TimeStamp(_Decimal):
         year, month, day, hour, minute, second, rs = p.regex(_iso_like_datetime_re)
         assert year is not None
 
-        gmtoff = TimeStamp._parse_timezone(p, gmtoff, parse_gmtoff)
+        tz = TimeStamp._parse_timezone(p, tz, parse_tz)
 
         res = (
             int(year),
@@ -372,17 +370,17 @@ class TimeStamp(_Decimal):
             est = _time.struct_time(eres)
             ending = False
 
-        if gmtoff is None:
+        if tz is None:
             st = et = int(_time.mktime(sst))
-            gmtoff = egmtoff = st - int(_calendar.timegm(sst))
+            tz = etz = st - int(_calendar.timegm(sst))
             if not ending:
                 et = int(_time.mktime(est))
-                egmtoff = et - int(_calendar.timegm(est))
+                etz = et - int(_calendar.timegm(est))
         else:
-            st = et = int(_calendar.timegm(sst)) - gmtoff
+            st = et = int(_calendar.timegm(sst)) - tz
             if not ending:
-                et = int(_calendar.timegm(est)) - gmtoff
-            egmtoff = gmtoff
+                et = int(_calendar.timegm(est)) - tz
+            etz = tz
 
         if ending:
             if hour is None:
@@ -404,14 +402,14 @@ class TimeStamp(_Decimal):
         sr = _Decimal(r) / (10**rp)
         er = _Decimal(r + 1) / (10**rp) if ending else _Decimal(0)
 
-        return TimeStamp(_Decimal(st) + sr, gmtoff), TimeStamp(_Decimal(et) + er, egmtoff)
+        return TimeStamp(_Decimal(st) + sr, tz), TimeStamp(_Decimal(et) + er, etz)
 
     parse_bare2 = _p.Parser.mk_choice(parse_absolute, parse_iso_like)
     parse_bare2.__doc__ = """`TimeStamp.parse2` that only accepts bare values, without them being wrapped in braces."""
 
     @staticmethod
     def parse2(
-        p: _p.Parser, gmtoff: int | None = None, parse_gmtoff: bool | None = None
+        p: _p.Parser, tz: int | None = None, parse_tz: bool | None = None
     ) -> tuple["TimeStamp", "TimeStamp"]:
         """Parse a string into a pair of `TimeStamp` values which represent the inclusive start and the
         non-inclusive end of the continuous time interval for which all timestamps contained in it
@@ -426,27 +424,27 @@ class TimeStamp(_Decimal):
 
         Moreover:
 
-        - If `parse_gmtoff` is `True`, the input will be required to specify its time zone offset.
+        - If `parse_tz` is `True`, the input will be required to specify its time zone offset.
 
-        - If `parse_gmtoff` is `None`, which is the default, the input can optionally specify its
+        - If `parse_tz` is `None`, which is the default, the input can optionally specify its
           time zone offset.
 
-        - If `parse_gmtoff` is `False`, time zone offset won't be parsed at all (thus, if the input
+        - If `parse_tz` is `False`, time zone offset won't be parsed at all (thus, if the input
           does specify it, that part of the input will be left unparsed).
 
         If the input specifies its time zone offset, the resulting `TimeStamp`s will use that.
-        Otherwise, the value of `gmtoff` argument will be used. Thus, input's time zone offset, if
+        Otherwise, the value of `tz` argument will be used. Thus, input's time zone offset, if
         any, has higher priority.
         """
         p.skip_optional_regex(_timestamp_pre_re)
-        res = TimeStamp.parse_bare2(p, gmtoff, parse_gmtoff)
+        res = TimeStamp.parse_bare2(p, tz, parse_tz)
         p.skip_optional_regex(_timestamp_post_re)
         return res
 
 
-def timestamp(value: str, gmtoff: int | None = None, parse_gmtoff: bool | None = None) -> TimeStamp:
+def timestamp(value: str, tz: int | None = None, parse_tz: bool | None = None) -> TimeStamp:
     """A simple wrapper over `TimeStamp.parse2`."""
-    return _p.run_parser(TimeStamp.parse2, True, value, gmtoff, parse_gmtoff)[0][0]
+    return _p.run_parser(TimeStamp.parse2, True, value, tz, parse_tz)[0][0]
 
 
 # Parsing regexes
@@ -813,18 +811,18 @@ class TimeFun(list[TimeRounding | TimeDiff]):
     def __call__(
         self,
         value: TimeStamp,
-        gmtoff: int | None | _t.Literal["saved"] = "saved",
+        tz: int | None | _t.Literal["saved"] = "saved",
     ) -> TimeStamp:
-        """Apply `self` to the given `TimeStamp` while performing all operations in time zone `gmtoff`.
+        """Apply `self` to the given `TimeStamp` while performing all operations in time zone `tz`.
 
-        If `gmtoff` is `"saved"`, the value of `gmtoff` will be taken from `value.gmtoff`.
+        If `tz` is `"saved"`, the value of `tz` will be taken from `value.tz`.
 
         Returns a newly constructed `TimeStamp`.
         """
         i = int(value)
         r = _Decimal(value) - i
-        st = _epoch_to_struct_time(i, value.gmtoff, gmtoff)
-        gmtoff = st.tm_gmtoff
+        st = _epoch_to_struct_time(i, value.tz, tz)
+        tz = st.tm_gmtoff
         i_dirty = False
 
         for f in self:
@@ -842,16 +840,16 @@ class TimeFun(list[TimeRounding | TimeDiff]):
         if i_dirty:
             i = int(_calendar.timegm(st))
 
-        return TimeStamp(r + i - gmtoff, gmtoff)
+        return TimeStamp(r + i - tz, tz)
 
     def apply2(
-        self, value: TimeStamp, gmtoff: int | None | _t.Literal["saved"] = "saved"
+        self, value: TimeStamp, tz: int | None | _t.Literal["saved"] = "saved"
     ) -> tuple[TimeStamp, TimeStamp]:
-        start = end = self(value, gmtoff)
+        start = end = self(value, tz)
 
         for e in reversed(self):
             if isinstance(e, TimeRounding):
-                end = TimeFun([TimeDiff.from_scalar_units(1, e)])(start, gmtoff)
+                end = TimeFun([TimeDiff.from_scalar_units(1, e)])(start, tz)
                 break
 
         return start, end
@@ -998,23 +996,23 @@ class TimeRange:
         inf_fmt: str = TimeFormatter.default_inf_fmt,
         range_fmt: str = "{0}--{1}",
         precision: int | None = None,
-        gmtoff: int | None | _t.Literal["saved", "saved_start", "saved_end"] = None,
+        tz: int | None | _t.Literal["saved", "saved_start", "saved_end"] = None,
         **kwargs: _t.Any,
     ) -> str:
         """Format `TimeRange` into a human-readable string by using given formatting options.
 
-        See `TimeStamp.format` for `gmtoff` interpretation. Then, note that this function also
-        accepts `"saved_start"` and `"saved_end"` as values to `gmtoff`, both of which work
-        similarly to `"saved"`, but force formatted timestamps to use the same `gmtoff`, preferring
+        See `TimeStamp.format` for `tz` interpretation. Then, note that this function also
+        accepts `"saved_start"` and `"saved_end"` as values to `tz`, both of which work
+        similarly to `"saved"`, but force formatted timestamps to use the same `tz`, preferring
         the value used by the `.start` or the `.end`, respectively.
         """
-        if gmtoff == "saved_start":
-            gmtoff = self.end.gmtoff if self.start.is_infinite() else self.start.gmtoff
-        elif gmtoff == "saved_end":
-            gmtoff = self.start.gmtoff if self.end.is_infinite() else self.end.gmtoff
+        if tz == "saved_start":
+            tz = self.end.tz if self.start.is_infinite() else self.start.tz
+        elif tz == "saved_end":
+            tz = self.start.tz if self.end.is_infinite() else self.end.tz
         return range_fmt.format(
-            self.start.format(fmt, inf_fmt, precision, gmtoff, **kwargs),
-            self.end.format(fmt, inf_fmt, precision, gmtoff, **kwargs),
+            self.start.format(fmt, inf_fmt, precision, tz, **kwargs),
+            self.end.format(fmt, inf_fmt, precision, tz, **kwargs),
         )
 
     def format_delta(
@@ -1064,26 +1062,26 @@ class TimeRange:
         delta_fmt: str = TimeFormatter.default_delta_fmt,
         range_fmt: str = "{0} -- {1} => {2}",
         precision: int | None = None,
-        gmtoff: int | None | _t.Literal["saved", "saved_start", "saved_end"] = None,
+        tz: int | None | _t.Literal["saved", "saved_start", "saved_end"] = None,
         **kwargs: _t.Any,
     ) -> str:
         """Format `TimeRange` and its length into a human-readable string by using given formatting options.
 
         See `TimeRange.format` and `TimeRange.format_delta` for more info.
         """
-        if gmtoff == "saved_start":
-            gmtoff = self.end.gmtoff if self.start.is_infinite() else self.start.gmtoff
-        elif gmtoff == "saved_end":
-            gmtoff = self.start.gmtoff if self.end.is_infinite() else self.end.gmtoff
+        if tz == "saved_start":
+            tz = self.end.tz if self.start.is_infinite() else self.start.tz
+        elif tz == "saved_end":
+            tz = self.start.tz if self.end.is_infinite() else self.end.tz
         return range_fmt.format(
-            self.start.format(fmt, inf_fmt, precision, gmtoff, **kwargs),
-            self.end.format(fmt, inf_fmt, precision, gmtoff, **kwargs),
+            self.start.format(fmt, inf_fmt, precision, tz, **kwargs),
+            self.end.format(fmt, inf_fmt, precision, tz, **kwargs),
             self.format_delta(delta_fmt, precision, **kwargs),
         )
 
     def format_org(
         self,
-        gmtoff: int | None | _t.Literal["saved", "saved_start", "saved_end"] = None,
+        tz: int | None | _t.Literal["saved", "saved_start", "saved_end"] = None,
         **kwargs: _t.Any,
     ) -> str:
         """Format `TimeRange` by using the format used by Emacs org-mode."""
@@ -1093,12 +1091,12 @@ class TimeRange:
             "{H}:{M:02}",
             "[{0}]--[{1}] => {2:>5}",
             0,
-            gmtoff,
+            tz,
             **kwargs,
         )
 
     def __str__(self) -> str:
-        return f"{'[' if self.includes_start else '('}{self.format(gmtoff=0)}{']' if self.includes_end else ')'}"
+        return f"{'[' if self.includes_start else '('}{self.format(tz=0)}{']' if self.includes_end else ')'}"
 
     def __repr__(self) -> str:
         return f"<TimeRange {str(self)}>"
@@ -1110,15 +1108,15 @@ class TimeRange:
         p: _p.Parser,
         now: TimeStamp | None,
         prev: tuple[TimeStamp, TimeStamp] | None,
-        gmtoff: int | None = None,
-        parse_gmtoff: bool | None = None,
+        tz: int | None = None,
+        parse_tz: bool | None = None,
     ) -> tuple[TimeStamp | None, TimeStamp, TimeStamp, bool]:
         p.skip_optional_regex(_timestamp_pre_re)
 
         tf = p.optional(TimeFun.parse_human)
         if tf is not None:
             if now is None:
-                now = TimeStamp.from_now(gmtoff)
+                now = TimeStamp.from_now(tz)
             start, end = tf.apply2(now)
             wide = start is not end
         else:
@@ -1136,7 +1134,7 @@ class TimeRange:
                     start, end = tf.apply2(start)
                     wide = start is not end
             else:
-                start, end = TimeStamp.parse_bare2(p, gmtoff, parse_gmtoff)
+                start, end = TimeStamp.parse_bare2(p, tz, parse_tz)
                 wide = p.optional_string("*") is not None
 
         reduce_to = p.optional_string_in([".^", ".$"])
@@ -1157,8 +1155,8 @@ class TimeRange:
     @staticmethod
     def parse(
         p: _p.Parser,
-        gmtoff: int | None = None,
-        parse_gmtoff: bool | None = None,
+        tz: int | None = None,
+        parse_tz: bool | None = None,
         *,
         includes_start: bool = True,
         includes_end: bool = False,
@@ -1213,9 +1211,9 @@ class TimeRange:
         if p.optional_string("*"):
             return anytime, True
 
-        now, start, end, is_interval = TimeRange._parse1(p, now, None, gmtoff, parse_gmtoff)
+        now, start, end, is_interval = TimeRange._parse1(p, now, None, tz, parse_tz)
         if p.skip_optional_regex(_timerange_delimiter_re):
-            _, end, _, _ = TimeRange._parse1(p, now, (start, end), gmtoff, parse_gmtoff)
+            _, end, _, _ = TimeRange._parse1(p, now, (start, end), tz, parse_tz)
             is_interval = True
 
         return TimeRange(start, end, includes_start, includes_end), is_interval
@@ -1226,8 +1224,8 @@ anytime = TimeRange(TimeStamp("-inf"), TimeStamp("+inf"), True, True)
 
 def timerange(
     value: str,
-    gmtoff: int | None = None,
-    parse_gmtoff: bool | None = None,
+    tz: int | None = None,
+    parse_tz: bool | None = None,
     *,
     includes_start: bool = True,
     includes_end: bool = False,
@@ -1237,8 +1235,8 @@ def timerange(
         TimeRange.parse,
         True,
         value,
-        gmtoff,
-        parse_gmtoff,
+        tz,
+        parse_tz,
         includes_start=includes_start,
         includes_end=includes_end,
     )[0][0]

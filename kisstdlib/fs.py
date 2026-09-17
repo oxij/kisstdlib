@@ -471,9 +471,7 @@ def describe_forest[AnyStr: (
                 [
                     "mtime",
                     "["
-                    + _TimeStamp.from_ns(stat.st_mtime_ns).format(
-                        precision=time_precision, gmtoff=0
-                    )
+                    + _TimeStamp.from_ns(stat.st_mtime_ns).format(precision=time_precision, tz=0)
                     + "]",
                 ]
                 if mtimes
