@@ -57,15 +57,17 @@ diff_files() {
 }
 
 end() {
+    if ((TASK_STARTED == 0)); then
+        return
+    fi
+
     local now=$(date +%s)
     echo ": $ERRORS_TASK errors, $((now-TASK_STARTED)) seconds"
     TASK_STARTED=0
 }
 
 begin() {
-    if (($TASK_STARTED > 0)); then
-        end
-    fi
+    end
 
     echo -n "## $*"
     TASK_STARTED=$(date +%s)
@@ -75,9 +77,7 @@ begin() {
 TARGETS=()
 
 start() {
-    if (($TASK_STARTED > 0)); then
-        end
-    fi
+    end
 
     local ok=1
     for t in "${TARGETS[@]}"; do
@@ -96,12 +96,11 @@ start() {
 }
 
 finish() {
-    if (($TASK_STARTED > 0)); then
-        end
-    fi
+    end
 
     echo "total: $ERRORS_TOTAL errors"
     if ((ERRORS_TOTAL > 0)); then
+        ERRORS_TOTAL=0
         exit 1
     fi
 }
