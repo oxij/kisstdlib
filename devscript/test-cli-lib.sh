@@ -16,15 +16,16 @@ INPUT=default
 TESTS_DIR=
 tmppid=
 
-errors=0
-task_errors=0
+ERRORS_TOTAL=0
+ERRORS_TASK=0
+TASK_STARTED=0
 
 error() {
     echo -en "\e[1;31merror: " >&2
     echo -n "$*" >&2
     echo -e "\e[0m" >&2
-    ((errors+=1))
-    ((task_errors+=1))
+    ((ERRORS_TOTAL+=1))
+    ((ERRORS_TASK+=1))
     return 1
 }
 
@@ -55,28 +56,26 @@ diff_files() {
     return $code
 }
 
-task_started=0
-
 end() {
     local now=$(date +%s)
-    echo ": $task_errors errors, $((now-task_started)) seconds"
-    task_started=0
+    echo ": $ERRORS_TASK errors, $((now-TASK_STARTED)) seconds"
+    TASK_STARTED=0
 }
 
 begin() {
-    if (($task_started > 0)); then
+    if (($TASK_STARTED > 0)); then
         end
     fi
 
     echo -n "## $*"
-    task_started=$(date +%s)
-    task_errors=0
+    TASK_STARTED=$(date +%s)
+    ERRORS_TASK=0
 }
 
 TARGETS=()
 
 start() {
-    if (($task_started > 0)); then
+    if (($TASK_STARTED > 0)); then
         end
     fi
 
@@ -97,12 +96,12 @@ start() {
 }
 
 finish() {
-    if (($task_started > 0)); then
+    if (($TASK_STARTED > 0)); then
         end
     fi
 
-    echo "total: $errors errors"
-    if ((errors > 0)); then
+    echo "total: $ERRORS_TOTAL errors"
+    if ((ERRORS_TOTAL > 0)); then
         exit 1
     fi
 }
