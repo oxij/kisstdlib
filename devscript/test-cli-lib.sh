@@ -9,6 +9,10 @@
 # I.e., this is like integration tests, but for making sure the program plays
 # well with itself across versions.
 
+PACKAGE=cli
+TAG=new
+INPUT=default
+
 errors=0
 task_errors=0
 
@@ -128,14 +132,16 @@ fixed_file() {
     local bn="$(basename "$got")"
     local expected="$src.$bn"
 
-    if ! [[ -e "$expected" ]]; then
-        cp "$got" "$expected"
-        echo " created \`$bn\` at \`$expected\`"
-    elif ! diff -U 0 "$expected" "$got" ; then
-        cp "$got" "$expected.new"
+    if ! [[ -e "$expected.$TAG" ]]; then
+        cp -a "$got" "$expected.$TAG"
+    elif ! diff "$expected.$TAG" "$got" &>/dev/null ; then
+        mv --backup=numbered "$expected.$TAG" "$expected.$TAG.old"
+        cp -a "$got" "$expected.$TAG"
+    fi
+    if ! [[ -e "$expected" ]] ; then
+        ln "$expected.$TAG" "$expected"
+    elif ! diff -U 0 "$expected" "$expected.$TAG" ; then
         error "fixed_file \`$bn\` failed"
-    else
-        rm -f "$expected.new"
     fi
 }
 
@@ -196,7 +202,7 @@ tmpdir=
 tmppid=
 
 set_tmpdir() {
-    tmpdir=$(mktemp --tmpdir -d test-cli-lib-dir-XXXXXXXX)
+    tmpdir=$(mktemp --tmpdir -d "test-dir-$PACKAGE-$TAG-$INPUT-XXXXXXXX")
     tmpdir=$(readlink -f "$tmpdir")
 }
 
