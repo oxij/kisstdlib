@@ -28,10 +28,10 @@ py() {
     fi
 }
 
-set_tmpdir
+setup_tests
 
 OPWD="$PWD"
-cd "$tmpdir"
+cd "$TESTS_DIR"
 
 check() {
     local out=$1

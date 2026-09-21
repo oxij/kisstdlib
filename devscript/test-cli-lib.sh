@@ -13,6 +13,9 @@ PACKAGE=cli
 TAG=new
 INPUT=default
 
+TESTS_DIR=
+tmppid=
+
 errors=0
 task_errors=0
 
@@ -235,7 +238,7 @@ retcode_fixed_stdio() {
     if [[ $? != 0 ]]; then
         error "retcode_fixed_stdio $ret $src $dst $*: retcode_stdio: expected return code 0, got $code"
     fi
-    sed -i "s%$tmpdir/%./%g" "$dst.stdio"
+    sed -i "s%$TESTS_DIR/%./%g" "$dst.stdio"
     if ! fixed_file_quiet "$src" "$dst.stdio"; then
         error "retcode_fixed_stdio $ret $src $dst $*: wrong stdio content"
     fi
@@ -289,18 +292,13 @@ any_result() {
     return $code
 }
 
-# temp dir
-tmpdir=
-# temp pid
-tmppid=
-
-set_tmpdir() {
-    tmpdir=$(mktemp --tmpdir -d "test-dir-$PACKAGE-$TAG-$INPUT-XXXXXXXX")
-    tmpdir=$(readlink -f "$tmpdir")
+setup_tests() {
+    TESTS_DIR=$(mktemp --tmpdir -d "test-dir-$PACKAGE-$TAG-$INPUT-XXXXXXXX")
+    TESTS_DIR=$(readlink -f "$TESTS_DIR")
 }
 
 atexit_cleanup() {
-    [[ -n "$tmpdir" ]] && rm -rf "$tmpdir"
+    [[ -n "$TESTS_DIR" ]] && rm -rf "$TESTS_DIR"
     [[ -n "$tmppid" ]] && kill -9 "$tmppid"
 }
 
