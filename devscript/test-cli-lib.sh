@@ -142,6 +142,12 @@ equal_file() {
     fi
 }
 
+equal_forest_dir() {
+    if ! diff_files "$1" <(describe-forest "$2"); then
+        error "equal_forest_dir $*: wrong directory content"
+    fi
+}
+
 equal_dir() {
     if ! diff_files <(describe-forest "$1") <(describe-forest "$2"); then
         error "equal_dir $*: wrong directory content"
