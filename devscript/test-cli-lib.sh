@@ -327,3 +327,4 @@ atexit_cleanup() {
 
 umask 077
 trap atexit_cleanup 0
+trap 'exit 1' INT TERM
