@@ -13,6 +13,9 @@ PACKAGE=cli
 TAG=new
 INPUT=default
 
+INCLUDE=()
+EXCLUDE=()
+
 TESTS_DIR=
 TO_KILL=()
 
@@ -74,13 +77,9 @@ begin() {
     ERRORS_TASK=0
 }
 
-TARGETS=()
-
-start() {
-    end
-
+should_start() {
     local ok=1
-    for t in "${TARGETS[@]}"; do
+    for t in "${INCLUDE[@]}"; do
         if grep -E "$t" <<< "$*" &>/dev/null ; then
             ok=1
             break
@@ -88,7 +87,22 @@ start() {
             ok=
         fi
     done
+    for t in "${EXCLUDE[@]}"; do
+        if grep -E "$t" <<< "$*" &>/dev/null ; then
+            ok=
+            break
+        fi
+    done
     if [[ -z "$ok" ]]; then
+        return 1
+    fi
+    return 0
+}
+
+start() {
+    end
+
+    if ! should_start "$@"; then
         return 1
     fi
 
