@@ -14,7 +14,7 @@ TAG=new
 INPUT=default
 
 TESTS_DIR=
-tmppid=
+TO_KILL=()
 
 ERRORS_TOTAL=0
 ERRORS_TASK=0
@@ -295,9 +295,20 @@ setup_tests() {
     TESTS_DIR=$(readlink -f "$TESTS_DIR")
 }
 
+to_kill() {
+    TO_KILL+=("$@")
+}
+
+kill_all_to_kill() {
+    for pid in "${TO_KILL[@]}"; do
+        kill -9 "$pid"
+    done
+    TO_KILL=()
+}
+
 atexit_cleanup() {
     [[ -n "$TESTS_DIR" ]] && rm -rf "$TESTS_DIR"
-    [[ -n "$tmppid" ]] && kill -9 "$tmppid"
+    kill_all_to_kill
 }
 
 umask 077
