@@ -148,7 +148,7 @@ def iter_subtree[AnyStr: (
     *,
     include_files: bool | IncludeFilesFunc[AnyStr] = True,
     include_directories: bool | IncludeDirectoriesFunc[AnyStr] = True,
-    follow_symlinks: bool = True,
+    follow_symlinks: bool = False,
     order: WalkOrder = WalkOrder.SORT,
     handle_error: _t.Callable[..., None] | None = None,
     path_sep: AnyStr | None = None,
@@ -1030,7 +1030,7 @@ def atomic_copy2[AnyStr: (
     dst_path: AnyStr,
     allow_overwrites: bool = False,
     *,
-    follow_symlinks: bool = True,
+    follow_symlinks: bool = False,
     makedirs: bool = True,
     sync: Deferred[AnyStr] | bool = True,
 ) -> None:
@@ -1066,7 +1066,7 @@ def atomic_link[AnyStr: (
     dst_path: AnyStr,
     allow_overwrites: bool = False,
     *,
-    follow_symlinks: bool = True,
+    follow_symlinks: bool = False,
     makedirs: bool = True,
     sync: Deferred[AnyStr] | bool = True,
 ) -> None:
@@ -1093,7 +1093,7 @@ def atomic_symlink[AnyStr: (
     dst_path: AnyStr,
     allow_overwrites: bool = False,
     *,
-    follow_symlinks: bool = True,
+    follow_symlinks: bool = False,
     makedirs: bool = True,
     sync: Deferred[AnyStr] | bool = True,
 ) -> None:
@@ -1120,7 +1120,7 @@ def atomic_link_or_copy2[AnyStr: (
     dst_path: AnyStr,
     allow_overwrites: bool = False,
     *,
-    follow_symlinks: bool = True,
+    follow_symlinks: bool = False,
     makedirs: bool = True,
     sync: Deferred[AnyStr] | bool = True,
 ) -> None:
@@ -1146,11 +1146,7 @@ def atomic_move[AnyStr: (
     makedirs: bool = True,
     sync: Deferred[AnyStr] | bool = True,
 ) -> None:
-    """Atomically move `src_path` to `dst_path`.
-
-    Note that `follow_symlinks` is set to `False` by default for this function
-    so that the result would be similar to that of `mv(1)` util.
-    """
+    """Atomically move `src_path` to `dst_path`."""
 
     src_dir, _ = dirname_dot(src_path)
 

@@ -245,8 +245,8 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
 
     atomic_copy2("test.a", "x/test.a", True, sync=sync)
     atomic_copy2("test.c", "x/test.c", True, sync=sync)
-    atomic_link("test.c", "x/test.c.lnk", True, follow_symlinks=False, sync=sync)
-    atomic_copy2("test.c", "x/test.c.sym", True, follow_symlinks=False, sync=sync)
+    atomic_link("test.c", "x/test.c.lnk", True, sync=sync)
+    atomic_copy2("test.c", "x/test.c.sym", True, sync=sync)
     check_flush(
         [
             ("fsync", "x/test.a.part"),
@@ -280,7 +280,7 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
             ["test.c", "sym", "->", "b/test.c"],
             ["x/", "dir"],
             ["x/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
-            ["x/test.c", "reg", "size", "6", "sha256", "806b51ad"],
+            ["x/test.c", "sym", "->", "b/test.c"],
             ["x/test.c.lnk", "ref", "==>", "test.c"],
             ["x/test.c.sym", "sym", "->", "b/test.c"],
         ]
@@ -288,8 +288,8 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
 
     atomic_copy2("test.a", "y/test.a", True, sync=sync)
     atomic_copy2("test.c", "y/test.c", True, sync=sync)
-    atomic_link("test.c", "y/test.c.lnk", True, follow_symlinks=False, sync=sync)
-    atomic_copy2("test.c", "y/test.c.sym", True, follow_symlinks=False, sync=sync)
+    atomic_link("test.c", "y/test.c.lnk", True, sync=sync)
+    atomic_copy2("test.c", "y/test.c.sym", True, sync=sync)
     atomic_move("test.c", "z/test.c", True, sync=sync)
     check_flush(
         [
@@ -332,12 +332,12 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
             ["test.b", "reg", "size", "6", "sha256", "6346935e"],
             ["x/", "dir"],
             ["x/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
-            ["x/test.c", "reg", "size", "6", "sha256", "806b51ad"],
+            ["x/test.c", "sym", "->", "b/test.c"],
             ["x/test.c.lnk", "sym", "->", "b/test.c"],
             ["x/test.c.sym", "sym", "->", "b/test.c"],
             ["y/", "dir"],
             ["y/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
-            ["y/test.c", "reg", "size", "6", "sha256", "806b51ad"],
+            ["y/test.c", "sym", "->", "b/test.c"],
             ["y/test.c.lnk", "ref", "==>", "x/test.c.lnk"],
             ["y/test.c.sym", "sym", "->", "b/test.c"],
             ["z/", "dir"],
@@ -353,13 +353,13 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
     assert w == [
         ["0/", "dir"],
         ["0/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
-        ["0/test.c", "reg", "size", "6", "sha256", "806b51ad"],
+        ["0/test.c", "sym", "->", "b/test.c"],
         ["0/test.c.lnk", "sym", "->", "b/test.c"],
         ["0/test.c.sym", "sym", "->", "b/test.c"],
         ["1/", "dir"],
         ["1/home", "sym", "->", "/home"],
         ["1/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
-        ["1/test.c", "reg", "size", "6", "sha256", "806b51ad"],
+        ["1/test.c", "sym", "->", "b/test.c"],
         ["1/test.c.lnk", "ref", "==>", "0/test.c.lnk"],
         ["1/test.c.sym", "sym", "->", "b/test.c"],
     ]
