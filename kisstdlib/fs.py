@@ -51,7 +51,7 @@ def dirname_dot[AnyStr: (str, bytes)](path: AnyStr) -> tuple[AnyStr, bool]:
     """Apply `os.path.dirname` to the given argument, but if it's empty, return "." instead.
     The second element of the tuple is `False` if the above replacement was performed, `True` otherwise.
     """
-    path = _os.path.dirname(path)
+    path = _op.dirname(path)
     if isinstance(path, bytes):
         if path == b"":
             return b".", False
@@ -286,10 +286,7 @@ def iter_subtree[AnyStr: (
 
                 epath_sep: AnyStr = entry.path
                 if entry_is_dir:
-                    if isinstance(epath_sep, str):
-                        epath_sep += sep
-                    else:
-                        epath_sep += sepb
+                    epath_sep += sep if isinstance(epath_sep, str) else sepb
                 elements.append((entry.path, epath_sep, entry_is_dir))
 
     if order != WalkOrder.NONE:
@@ -485,7 +482,7 @@ def describe_forest[AnyStr: (
                 sha256 = sha256_file(abs_path).hex()
                 if hash_length is not None:
                     sha256 = sha256[:hash_length]
-                yield [epath, "reg"] + emode + emtime + esize + ["sha256", sha256]  # fmt: skip
+                yield [epath, "reg"] + emode + emtime + esize + ["sha256", sha256]
             elif _stat.S_ISLNK(stat.st_mode):
                 esymlink = escape(fsdecode(_os.readlink(abs_path)))
                 yield [epath, "sym"] + emode + emtime + ["->", esymlink]
