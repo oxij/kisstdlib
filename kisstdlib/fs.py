@@ -571,7 +571,11 @@ after="""
             unlink_many(self.tmp_file)
         self.reset()
 
-    def sync(self, strict: bool = True, simulate: list[list[str]] | None = None) -> list[Exception]:
+    def sync(
+        self,
+        strict: bool = True,
+        simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
+    ) -> list[Exception]:
         """Perform all deferred operations and return a list of raised exceptions.
 
         Operations that fail will be left sitting in the corresponding fields.
@@ -582,7 +586,8 @@ after="""
         exceptions: list[Exception] = []
 
         if simulate is not None:
-            simulate += [["unlink", fsdecode(f)] for f in sorted(self.unlink_file)]
+            for f in sorted(self.unlink_file):
+                simulate("unlink", f)
             self.unlink_file = set()
         elif self.unlink_file:
             self.unlink_file = set(unlink_many(sorted(self.unlink_file), exceptions))
@@ -604,7 +609,8 @@ after="""
 
         while self.fsync_file or self.fsync_dir or self.fsync_dir2 or self.rename_file:
             if simulate is not None:
-                simulate += [["fsync", fsdecode(f)] for f in sorted(self.fsync_file)]
+                for f in sorted(self.fsync_file):
+                    simulate("fsync", f)
                 self.fsync_file = set()
             elif self.fsync_file:
                 fsync_file_left.update(fsync_many_files(sorted(self.fsync_file), 0, exceptions))
@@ -633,12 +639,12 @@ after="""
                         # -> fsync(src_dir) -> (OS crashes) -> fsync(dst_dir)
                         self.rename_file.appendleft(el)
                         if simulate is not None:
-                            simulate.append(["barrier"])
+                            simulate("barrier")
                         break
 
                     try:
                         if simulate is not None:
-                            simulate.append(["replace" if allow_overwrites else "rename", fsdecode(src_path), fsdecode(dst_path)])  # fmt: skip
+                            simulate("replace" if allow_overwrites else "rename", src_path, dst_path)  # fmt: skip
                         else:
                             rename(src_path, dst_path, allow_overwrites, makedirs=False, dst_dir=dst_dir)  # fmt: skip
                     except Exception as exc:
@@ -666,14 +672,16 @@ after="""
                         return exceptions
 
             if simulate is not None:
-                simulate += [["fsync_win", fsdecode(f)] for f in sorted(self.fsync_file)]
+                for f in sorted(self.fsync_file):
+                    simulate("fsync_win", f)
                 self.fsync_file = set()
             elif self.fsync_file:
                 fsync_file_left.update(fsync_many_files(sorted(self.fsync_file), 0, exceptions))
                 self.fsync_file = set()
 
             if simulate is not None:
-                simulate += [["fsync_dir", fsdecode(f)] for f in sorted(self.fsync_dir)]
+                for f in sorted(self.fsync_dir):
+                    simulate("fsync_dir", f)
                 self.fsync_dir = set()
             elif self.fsync_dir:
                 if _POSIX:
@@ -681,7 +689,8 @@ after="""
                 self.fsync_dir = set()
 
             if simulate is not None:
-                simulate += [["fsync_dir", fsdecode(f)] for f in sorted(self.fsync_dir2)]
+                for f in sorted(self.fsync_dir2):
+                    simulate("fsync_dir", f)
                 self.fsync_dir2 = set()
             elif self.fsync_dir2:
                 if _POSIX:

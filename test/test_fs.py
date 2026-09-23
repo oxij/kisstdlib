@@ -60,13 +60,19 @@ def test_iter_subtree(tmp_path: str) -> None:
 def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
     os.chdir(tmp_path)
 
-    def check(es: list[list[str]] = [], eu: list[list[str]] = []) -> None:
+    def check(
+        es: list[tuple[_t.Any, ...]] = [],
+        eu: list[tuple[_t.Any, ...]] = [],
+    ) -> None:
         if not isinstance(sync, Deferred):
             return
 
-        log2: list[list[str]] = []
+        log2: list[tuple[_t.Any, ...]] = []
 
-        sync.copy().sync(True, log2)
+        def simulate(*args: str) -> None:
+            log2.append(args)
+
+        sync.copy().sync(True, simulate)
 
         if sync.defer:
             assert log2 == es
@@ -87,112 +93,112 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
     atomic_write(b"test c", "test.c", sync=sync)
     check(
         [
-            ["fsync", "test.a.part"],
-            ["fsync", "test.b.part"],
-            ["fsync", "test.c.part"],
-            ["rename", "test.a.part", "test.a"],
-            ["rename", "test.b.part", "test.b"],
-            ["rename", "test.c.part", "test.c"],
-            ["fsync_win", "test.a"],
-            ["fsync_win", "test.b"],
-            ["fsync_win", "test.c"],
-            ["fsync_dir", "."],
+            ("fsync", "test.a.part"),
+            ("fsync", "test.b.part"),
+            ("fsync", "test.c.part"),
+            ("rename", "test.a.part", "test.a"),
+            ("rename", "test.b.part", "test.b"),
+            ("rename", "test.c.part", "test.c"),
+            ("fsync_win", "test.a"),
+            ("fsync_win", "test.b"),
+            ("fsync_win", "test.c"),
+            ("fsync_dir", "."),
         ],
         [
-            ["fsync_dir", "."],
+            ("fsync_dir", "."),
         ],
     )
     atomic_rename("test.a", "a/test.a", False, sync=sync)
     check(
         [
-            ["fsync", "test.a.part"],
-            ["fsync", "test.b.part"],
-            ["fsync", "test.c.part"],
-            ["rename", "test.a.part", "test.a"],
-            ["rename", "test.b.part", "test.b"],
-            ["rename", "test.c.part", "test.c"],
-            ["barrier"],
-            ["fsync_win", "test.a"],
-            ["fsync_win", "test.b"],
-            ["fsync_win", "test.c"],
-            ["fsync_dir", "."],
-            ["rename", "test.a", "a/test.a"],
-            ["fsync_win", "a/test.a"],
-            ["fsync_dir", "a"],
-            ["fsync_dir", "."],
+            ("fsync", "test.a.part"),
+            ("fsync", "test.b.part"),
+            ("fsync", "test.c.part"),
+            ("rename", "test.a.part", "test.a"),
+            ("rename", "test.b.part", "test.b"),
+            ("rename", "test.c.part", "test.c"),
+            ("barrier",),
+            ("fsync_win", "test.a"),
+            ("fsync_win", "test.b"),
+            ("fsync_win", "test.c"),
+            ("fsync_dir", "."),
+            ("rename", "test.a", "a/test.a"),
+            ("fsync_win", "a/test.a"),
+            ("fsync_dir", "a"),
+            ("fsync_dir", "."),
         ],
         [
-            ["fsync_dir", "."],
-            ["fsync_dir", "a"],
+            ("fsync_dir", "."),
+            ("fsync_dir", "a"),
         ],
     )
     atomic_rename("test.b", "a/test.b", False, sync=sync)
     check(
         [
-            ["fsync", "test.a.part"],
-            ["fsync", "test.b.part"],
-            ["fsync", "test.c.part"],
-            ["rename", "test.a.part", "test.a"],
-            ["rename", "test.b.part", "test.b"],
-            ["rename", "test.c.part", "test.c"],
-            ["barrier"],
-            ["fsync_win", "test.a"],
-            ["fsync_win", "test.b"],
-            ["fsync_win", "test.c"],
-            ["fsync_dir", "."],
-            ["rename", "test.a", "a/test.a"],
-            ["rename", "test.b", "a/test.b"],
-            ["fsync_win", "a/test.a"],
-            ["fsync_win", "a/test.b"],
-            ["fsync_dir", "a"],
-            ["fsync_dir", "."],
+            ("fsync", "test.a.part"),
+            ("fsync", "test.b.part"),
+            ("fsync", "test.c.part"),
+            ("rename", "test.a.part", "test.a"),
+            ("rename", "test.b.part", "test.b"),
+            ("rename", "test.c.part", "test.c"),
+            ("barrier",),
+            ("fsync_win", "test.a"),
+            ("fsync_win", "test.b"),
+            ("fsync_win", "test.c"),
+            ("fsync_dir", "."),
+            ("rename", "test.a", "a/test.a"),
+            ("rename", "test.b", "a/test.b"),
+            ("fsync_win", "a/test.a"),
+            ("fsync_win", "a/test.b"),
+            ("fsync_dir", "a"),
+            ("fsync_dir", "."),
         ],
         [
-            ["fsync_dir", "."],
-            ["fsync_dir", "a"],
+            ("fsync_dir", "."),
+            ("fsync_dir", "a"),
         ],
     )
     atomic_rename("test.c", "b/test.c", False, sync=sync)
     check_flush(
         [
-            ["fsync", "test.a.part"],
-            ["fsync", "test.b.part"],
-            ["fsync", "test.c.part"],
-            ["rename", "test.a.part", "test.a"],
-            ["rename", "test.b.part", "test.b"],
-            ["rename", "test.c.part", "test.c"],
-            ["barrier"],
-            ["fsync_win", "test.a"],
-            ["fsync_win", "test.b"],
-            ["fsync_win", "test.c"],
-            ["fsync_dir", "."],
-            ["rename", "test.a", "a/test.a"],
-            ["rename", "test.b", "a/test.b"],
-            ["rename", "test.c", "b/test.c"],
-            ["fsync_win", "a/test.a"],
-            ["fsync_win", "a/test.b"],
-            ["fsync_win", "b/test.c"],
-            ["fsync_dir", "a"],
-            ["fsync_dir", "b"],
-            ["fsync_dir", "."],
+            ("fsync", "test.a.part"),
+            ("fsync", "test.b.part"),
+            ("fsync", "test.c.part"),
+            ("rename", "test.a.part", "test.a"),
+            ("rename", "test.b.part", "test.b"),
+            ("rename", "test.c.part", "test.c"),
+            ("barrier",),
+            ("fsync_win", "test.a"),
+            ("fsync_win", "test.b"),
+            ("fsync_win", "test.c"),
+            ("fsync_dir", "."),
+            ("rename", "test.a", "a/test.a"),
+            ("rename", "test.b", "a/test.b"),
+            ("rename", "test.c", "b/test.c"),
+            ("fsync_win", "a/test.a"),
+            ("fsync_win", "a/test.b"),
+            ("fsync_win", "b/test.c"),
+            ("fsync_dir", "a"),
+            ("fsync_dir", "b"),
+            ("fsync_dir", "."),
         ],
         [
-            ["fsync_dir", "."],
-            ["fsync_dir", "a"],
-            ["fsync_dir", "b"],
+            ("fsync_dir", "."),
+            ("fsync_dir", "a"),
+            ("fsync_dir", "b"),
         ],
     )
 
     atomic_rename("a/test.b", "test.b", False, sync=sync)
     check_flush(
         [
-            ["rename", "a/test.b", "test.b"],
-            ["fsync_win", "test.b"],
-            ["fsync_dir", "."],
-            ["fsync_dir", "a"],
+            ("rename", "a/test.b", "test.b"),
+            ("fsync_win", "test.b"),
+            ("fsync_dir", "."),
+            ("fsync_dir", "a"),
         ],
         [
-            ["fsync_dir", "."],
+            ("fsync_dir", "."),
         ],
     )
 
@@ -211,16 +217,16 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
     atomic_symlink("b/test.c", "test.c", True, sync=sync)
     check_flush(
         [
-            ["fsync", "test.a.part"],
-            ["fsync", "test.c.part"],
-            ["replace", "test.a.part", "test.a"],
-            ["replace", "test.c.part", "test.c"],
-            ["fsync_win", "test.a"],
-            ["fsync_win", "test.c"],
-            ["fsync_dir", "."],
+            ("fsync", "test.a.part"),
+            ("fsync", "test.c.part"),
+            ("replace", "test.a.part", "test.a"),
+            ("replace", "test.c.part", "test.c"),
+            ("fsync_win", "test.a"),
+            ("fsync_win", "test.c"),
+            ("fsync_dir", "."),
         ],
         [
-            ["fsync_dir", "."],
+            ("fsync_dir", "."),
         ],
     )
 
@@ -243,22 +249,22 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
     atomic_copy2("test.c", "x/test.c.sym", True, follow_symlinks=False, sync=sync)
     check_flush(
         [
-            ["fsync", "x/test.a.part"],
-            ["fsync", "x/test.c.lnk.part"],
-            ["fsync", "x/test.c.part"],
-            ["fsync", "x/test.c.sym.part"],
-            ["replace", "x/test.a.part", "x/test.a"],
-            ["replace", "x/test.c.part", "x/test.c"],
-            ["replace", "x/test.c.lnk.part", "x/test.c.lnk"],
-            ["replace", "x/test.c.sym.part", "x/test.c.sym"],
-            ["fsync_win", "x/test.a"],
-            ["fsync_win", "x/test.c"],
-            ["fsync_win", "x/test.c.lnk"],
-            ["fsync_win", "x/test.c.sym"],
-            ["fsync_dir", "x"],
+            ("fsync", "x/test.a.part"),
+            ("fsync", "x/test.c.lnk.part"),
+            ("fsync", "x/test.c.part"),
+            ("fsync", "x/test.c.sym.part"),
+            ("replace", "x/test.a.part", "x/test.a"),
+            ("replace", "x/test.c.part", "x/test.c"),
+            ("replace", "x/test.c.lnk.part", "x/test.c.lnk"),
+            ("replace", "x/test.c.sym.part", "x/test.c.sym"),
+            ("fsync_win", "x/test.a"),
+            ("fsync_win", "x/test.c"),
+            ("fsync_win", "x/test.c.lnk"),
+            ("fsync_win", "x/test.c.sym"),
+            ("fsync_dir", "x"),
         ],
         [
-            ["fsync_dir", "x"],
+            ("fsync_dir", "x"),
         ],
     )
 
@@ -287,31 +293,31 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
     atomic_move("test.c", "z/test.c", True, sync=sync)
     check_flush(
         [
-            ["fsync", "y/test.a.part"],
-            ["fsync", "y/test.c.lnk.part"],
-            ["fsync", "y/test.c.part"],
-            ["fsync", "y/test.c.sym.part"],
-            ["fsync", "z/test.c.part"],
-            ["replace", "y/test.a.part", "y/test.a"],
-            ["replace", "y/test.c.part", "y/test.c"],
-            ["replace", "y/test.c.lnk.part", "y/test.c.lnk"],
-            ["replace", "y/test.c.sym.part", "y/test.c.sym"],
-            ["replace", "z/test.c.part", "z/test.c"],
-            ["fsync_win", "y/test.a"],
-            ["fsync_win", "y/test.c"],
-            ["fsync_win", "y/test.c.lnk"],
-            ["fsync_win", "y/test.c.sym"],
-            ["fsync_win", "z/test.c"],
-            ["fsync_dir", "y"],
-            ["fsync_dir", "z"],
-            ["unlink", "test.c"],
-            ["fsync_dir", "."],
+            ("fsync", "y/test.a.part"),
+            ("fsync", "y/test.c.lnk.part"),
+            ("fsync", "y/test.c.part"),
+            ("fsync", "y/test.c.sym.part"),
+            ("fsync", "z/test.c.part"),
+            ("replace", "y/test.a.part", "y/test.a"),
+            ("replace", "y/test.c.part", "y/test.c"),
+            ("replace", "y/test.c.lnk.part", "y/test.c.lnk"),
+            ("replace", "y/test.c.sym.part", "y/test.c.sym"),
+            ("replace", "z/test.c.part", "z/test.c"),
+            ("fsync_win", "y/test.a"),
+            ("fsync_win", "y/test.c"),
+            ("fsync_win", "y/test.c.lnk"),
+            ("fsync_win", "y/test.c.sym"),
+            ("fsync_win", "z/test.c"),
+            ("fsync_dir", "y"),
+            ("fsync_dir", "z"),
+            ("unlink", "test.c"),
+            ("fsync_dir", "."),
         ],
         [
-            ["fsync_dir", "y"],
-            ["fsync_dir", "z"],
-            ["unlink", "test.c"],
-            ["fsync_dir", "."],
+            ("fsync_dir", "y"),
+            ("fsync_dir", "z"),
+            ("unlink", "test.c"),
+            ("fsync_dir", "."),
         ],
     )
 
