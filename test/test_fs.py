@@ -23,6 +23,7 @@
 """Testing `kisstdlib.fs` module."""
 
 import os
+import typing as _t
 
 from kisstdlib.failure import *
 from kisstdlib.fs import *
@@ -56,22 +57,30 @@ def test_iter_subtree(tmp_path: str) -> None:
     ]
 
 
-def atomic1(defer: bool, tmp_path: str) -> None:
+def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
     os.chdir(tmp_path)
 
-    sync: Deferred[str] | bool = True
-    if defer:
-        sync = Deferred(True)
+    def check(es: list[list[str]] = [], eu: list[list[str]] = []) -> None:
+        if not isinstance(sync, Deferred):
+            return
 
-    def check(es: list[list[str]], ed: list[list[str]] | None = None) -> None:
+        log2: list[list[str]] = []
+
+        sync.copy().sync(True, log2)
+
+        if sync.defer:
+            assert log2 == es
+        else:
+            assert log2 == eu
+
+    def check_flush(*args: _t.Any) -> None:
+        check(*args)
         if isinstance(sync, Deferred):
-            gs: list[list[str]] = []
-            sync.copy().sync(True, gs)
-            assert es == gs
+            sync.sync()
 
-        if ed is not None:
-            gd = list(describe_forest(["."], hash_length=8))
-            assert ed == gd
+    def check_forest(ed: list[list[str]]) -> None:
+        gd = list(describe_forest(["."], hash_length=8))
+        assert gd == ed
 
     atomic_write(b"test a", "test.a", sync=sync)
     atomic_write(b"test b", "test.b", sync=sync)
@@ -88,7 +97,10 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["fsync_win", "test.b"],
             ["fsync_win", "test.c"],
             ["fsync_dir", "."],
-        ]
+        ],
+        [
+            ["fsync_dir", "."],
+        ],
     )
     atomic_rename("test.a", "a/test.a", False, sync=sync)
     check(
@@ -108,7 +120,11 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["fsync_win", "a/test.a"],
             ["fsync_dir", "a"],
             ["fsync_dir", "."],
-        ]
+        ],
+        [
+            ["fsync_dir", "."],
+            ["fsync_dir", "a"],
+        ],
     )
     atomic_rename("test.b", "a/test.b", False, sync=sync)
     check(
@@ -130,10 +146,14 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["fsync_win", "a/test.b"],
             ["fsync_dir", "a"],
             ["fsync_dir", "."],
-        ]
+        ],
+        [
+            ["fsync_dir", "."],
+            ["fsync_dir", "a"],
+        ],
     )
     atomic_rename("test.c", "b/test.c", False, sync=sync)
-    check(
+    check_flush(
         [
             ["fsync", "test.a.part"],
             ["fsync", "test.b.part"],
@@ -155,42 +175,28 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["fsync_dir", "a"],
             ["fsync_dir", "b"],
             ["fsync_dir", "."],
-        ]
+        ],
+        [
+            ["fsync_dir", "."],
+            ["fsync_dir", "a"],
+            ["fsync_dir", "b"],
+        ],
     )
+
     atomic_rename("a/test.b", "test.b", False, sync=sync)
-    check(
+    check_flush(
         [
-            ["fsync", "test.a.part"],
-            ["fsync", "test.b.part"],
-            ["fsync", "test.c.part"],
-            ["rename", "test.a.part", "test.a"],
-            ["rename", "test.b.part", "test.b"],
-            ["rename", "test.c.part", "test.c"],
-            ["barrier"],
-            ["fsync_win", "test.a"],
-            ["fsync_win", "test.b"],
-            ["fsync_win", "test.c"],
-            ["fsync_dir", "."],
-            ["rename", "test.a", "a/test.a"],
-            ["rename", "test.b", "a/test.b"],
-            ["rename", "test.c", "b/test.c"],
-            ["barrier"],
-            ["fsync_win", "a/test.a"],
-            ["fsync_win", "a/test.b"],
-            ["fsync_win", "b/test.c"],
-            ["fsync_dir", "a"],
-            ["fsync_dir", "b"],
-            ["fsync_dir", "."],
             ["rename", "a/test.b", "test.b"],
             ["fsync_win", "test.b"],
             ["fsync_dir", "."],
             ["fsync_dir", "a"],
-        ]
+        ],
+        [
+            ["fsync_dir", "."],
+        ],
     )
-    if isinstance(sync, Deferred):
-        sync.flush()
-    check(
-        [],
+
+    check_forest(
         [
             ["./", "dir"],
             ["a/", "dir"],
@@ -198,12 +204,12 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["b/", "dir"],
             ["b/test.c", "reg", "size", "6", "sha256", "806b51ad"],
             ["test.b", "reg", "size", "6", "sha256", "6346935e"],
-        ],
+        ]
     )
 
     atomic_link("a/test.a", "test.a", True, sync=sync)
     atomic_symlink("b/test.c", "test.c", True, sync=sync)
-    check(
+    check_flush(
         [
             ["fsync", "test.a.part"],
             ["fsync", "test.c.part"],
@@ -212,17 +218,30 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["fsync_win", "test.a"],
             ["fsync_win", "test.c"],
             ["fsync_dir", "."],
+        ],
+        [
+            ["fsync_dir", "."],
+        ],
+    )
+
+    check_forest(
+        [
+            ["./", "dir"],
+            ["a/", "dir"],
+            ["a/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
+            ["b/", "dir"],
+            ["b/test.c", "reg", "size", "6", "sha256", "806b51ad"],
+            ["test.a", "ref", "==>", "a/test.a"],
+            ["test.b", "reg", "size", "6", "sha256", "6346935e"],
+            ["test.c", "sym", "->", "b/test.c"],
         ]
     )
-    if isinstance(sync, Deferred):
-        sync.flush()
-    check([])
 
     atomic_copy2("test.a", "x/test.a", True, sync=sync)
     atomic_copy2("test.c", "x/test.c", True, sync=sync)
     atomic_link("test.c", "x/test.c.lnk", True, follow_symlinks=False, sync=sync)
     atomic_copy2("test.c", "x/test.c.sym", True, follow_symlinks=False, sync=sync)
-    check(
+    check_flush(
         [
             ["fsync", "x/test.a.part"],
             ["fsync", "x/test.c.lnk.part"],
@@ -237,12 +256,13 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["fsync_win", "x/test.c.lnk"],
             ["fsync_win", "x/test.c.sym"],
             ["fsync_dir", "x"],
-        ]
+        ],
+        [
+            ["fsync_dir", "x"],
+        ],
     )
-    if isinstance(sync, Deferred):
-        sync.flush()
-    check(
-        [],
+
+    check_forest(
         [
             ["./", "dir"],
             ["a/", "dir"],
@@ -257,7 +277,7 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["x/test.c", "reg", "size", "6", "sha256", "806b51ad"],
             ["x/test.c.lnk", "ref", "==>", "test.c"],
             ["x/test.c.sym", "sym", "->", "b/test.c"],
-        ],
+        ]
     )
 
     atomic_copy2("test.a", "y/test.a", True, sync=sync)
@@ -265,7 +285,7 @@ def atomic1(defer: bool, tmp_path: str) -> None:
     atomic_link("test.c", "y/test.c.lnk", True, follow_symlinks=False, sync=sync)
     atomic_copy2("test.c", "y/test.c.sym", True, follow_symlinks=False, sync=sync)
     atomic_move("test.c", "z/test.c", True, sync=sync)
-    check(
+    check_flush(
         [
             ["fsync", "y/test.a.part"],
             ["fsync", "y/test.c.lnk.part"],
@@ -286,12 +306,16 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["fsync_dir", "z"],
             ["unlink", "test.c"],
             ["fsync_dir", "."],
-        ]
+        ],
+        [
+            ["fsync_dir", "y"],
+            ["fsync_dir", "z"],
+            ["unlink", "test.c"],
+            ["fsync_dir", "."],
+        ],
     )
-    if isinstance(sync, Deferred):
-        sync.flush()
-    check(
-        [],
+
+    check_forest(
         [
             ["./", "dir"],
             ["a/", "dir"],
@@ -312,7 +336,7 @@ def atomic1(defer: bool, tmp_path: str) -> None:
             ["y/test.c.sym", "sym", "->", "b/test.c"],
             ["z/", "dir"],
             ["z/test.c", "ref", "==>", "y/test.c.lnk"],
-        ],
+        ]
     )
 
     atomic_symlink("/home", "y/home")
@@ -335,9 +359,17 @@ def atomic1(defer: bool, tmp_path: str) -> None:
     ]
 
 
-def test_without_Deferred(tmp_path: str) -> None:
-    return atomic1(False, tmp_path)
+def test_fs_without_Deferred_no_fsync(tmp_path: str) -> None:
+    fs1(tmp_path, False)
 
 
-def test_with_Deferred(tmp_path: str) -> None:
-    return atomic1(True, tmp_path)
+def test_fs_without_Deferred(tmp_path: str) -> None:
+    fs1(tmp_path, True)
+
+
+def test_fs_with_Deferred_no_defer(tmp_path: str) -> None:
+    fs1(tmp_path, Deferred(False))
+
+
+def test_fs_with_Deferred_defer(tmp_path: str) -> None:
+    fs1(tmp_path, Deferred(True))
