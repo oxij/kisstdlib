@@ -298,18 +298,38 @@ def map_right[A, B, C](f: _t.Callable[[B], C], x: Either[A, B]) -> Either[A, C]:
 ### Function composition
 
 
-def compose[A, B, C](f: _t.Callable[[B], C], g: _t.Callable[[A], B]) -> _t.Callable[[A], C]:
-    return lambda x: f(g(x))
+def compose[A, B, C, **PS](
+    f: _t.Callable[[B], C], g: _t.Callable[_t.Concatenate[A, PS], B]
+) -> _t.Callable[_t.Concatenate[A, PS], C]:
+    """Compose two functions `f` and `g` while passing all the additional `PS` arguments to `g`."""
+
+    def sub(x: A, /, *args: PS.args, **kwargs: PS.kwargs) -> C:
+        return f(g(x, *args, **kwargs))
+
+    return sub
+
+
+def compose_wide[A, B, C, **PS](
+    f: _t.Callable[_t.Concatenate[B, PS], C], g: _t.Callable[_t.Concatenate[A, PS], B]
+) -> _t.Callable[_t.Concatenate[A, PS], C]:
+    """Compose two functions `f` and `g` while passing all the additional `PS` arguments to both `f`
+    and `g`.
+    """
+
+    def sub(x: A, /, *args: PS.args, **kwargs: PS.kwargs) -> C:
+        return f(g(x, *args, **kwargs), *args, **kwargs)
+
+    return sub
 
 
 def compose_pipe[A, **PS](
     pipe: list[_t.Callable[_t.Concatenate[A, PS], A]], /
 ) -> _t.Callable[_t.Concatenate[A, PS], A]:
-    """Compose a list of functions, similarly to how a shell pipe ("|")
-    exression does it. I.e. compose them in reverse order.
+    """Compose a list of functions, similarly to how a shell pipe ("|") exression does it. I.e.
+    compose them in reverse order.
 
-    The mutating value gets passed as the first argument, all other
-    arguments get passed unchanged.
+    The mutating value gets passed as the first argument, all other arguments get passed unchanged
+    like with `compose_wide`.
 
     `compose_pipe([])` is `identity`.
     `compose_pipe([x])` is `x`.
