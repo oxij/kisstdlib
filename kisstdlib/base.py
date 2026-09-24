@@ -173,6 +173,19 @@ def is_closer[A: SupportsCounting](ideal: A, a: A, b: A) -> bool:
     return abs(ideal - a) < abs(ideal - b)
 
 
+### Exception handling hooks
+
+
+def raise_one(exc: Exception, /, *_args: _t.Any, **_kwargs: _t.Any) -> _t.NoReturn:
+    """Raise the given `Exception`."""
+    raise exc
+
+
+def raise_all(excs: list[Exception], /, *_args: _t.Any, **_kwargs: _t.Any) -> _t.NoReturn:
+    """Raise give exceptions as a trivial `ExceptionGroup`."""
+    raise ExceptionGroup("multiple failures", excs)
+
+
 ### Simple functions
 
 
