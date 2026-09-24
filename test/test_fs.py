@@ -57,34 +57,84 @@ def test_iter_subtree(tmp_path: str) -> None:
     ]
 
 
-def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
+def fs1(
+    tmp_path: str,
+    sync: Deferred[str] | bool,
+    simulate_whole: bool = False,
+) -> None:
     os.chdir(tmp_path)
 
-    def check(
-        es: list[tuple[_t.Any, ...]] = [],
-        eu: list[tuple[_t.Any, ...]] = [],
-    ) -> None:
-        if not isinstance(sync, Deferred):
-            return
+    log: list[tuple[_t.Any, ...]] = []
+    sync_acc: list[tuple[_t.Any, ...]] = []
+    nosync_acc: list[tuple[_t.Any, ...]] = []
 
-        log2: list[tuple[_t.Any, ...]] = []
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None
+    if simulate_whole:
 
         def simulate(*args: str) -> None:
-            log2.append(args)
+            log.append(args)
 
-        sync.copy().sync(True, simulate)
+    def check_ex(
+        flush: bool,
+        main: list[tuple[_t.Any, ...]],
+        syncs: list[tuple[_t.Any, ...]],
+        defer_main: list[tuple[_t.Any, ...]] | None = None,
+        defer_syncs: list[tuple[_t.Any, ...]] | None = None,
+    ) -> None:
+        for e in (main, syncs):
+            sync_acc.extend(e)
+            nosync_acc.extend(filter(lambda x: not x[0].startswith("fsync"), e))
 
-        if sync.defer:
-            assert log2 == es
-        else:
-            assert log2 == eu
+        if defer_main is None:
+            defer_main = main
+        if defer_syncs is None:
+            defer_syncs = syncs
+        defer_log = defer_main + defer_syncs
+
+        if isinstance(sync, Deferred):
+            log2: list[tuple[_t.Any, ...]] = []
+
+            def simulate2(*args: str) -> None:
+                log2.append(args)
+
+            sync.copy().sync(simulate=simulate2)
+
+            if sync.defer:
+                assert log2 in (defer_log, main + syncs)
+            else:
+                assert log2 in (defer_syncs, syncs)
+
+            if flush:
+                sync.sync(simulate=simulate)
+
+        if simulate is not None:
+            if isinstance(sync, Deferred):
+                if not flush:
+                    pass
+                elif sync.defer:
+                    assert log == defer_log
+                else:
+                    pass
+            elif sync:
+                assert log == sync_acc
+            else:
+                assert log == nosync_acc
+
+        if flush:
+            log.clear()
+            nosync_acc.clear()
+            sync_acc.clear()
+
+    def check(*args: _t.Any) -> None:
+        check_ex(False, *args)
 
     def check_flush(*args: _t.Any) -> None:
-        check(*args)
-        if isinstance(sync, Deferred):
-            sync.sync()
+        check_ex(True, *args)
 
     def check_forest(ed: list[list[str]]) -> None:
+        if simulate is not None:
+            return
+
         gd = list(describe_forest(["."], hash_length=8))
         assert gd == ed
 
@@ -92,6 +142,20 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
     atomic_write(b"test b", "test.b", sync=sync)
     atomic_write(b"test c", "test.c", sync=sync)
     check(
+        [
+            ("fsync", "test.a.part"),
+            ("rename", "test.a.part", "test.a"),
+            ("fsync_win", "test.a"),
+            ("fsync", "test.b.part"),
+            ("rename", "test.b.part", "test.b"),
+            ("fsync_win", "test.b"),
+            ("fsync", "test.c.part"),
+            ("rename", "test.c.part", "test.c"),
+            ("fsync_win", "test.c"),
+        ],
+        [
+            ("fsync_dir", "."),
+        ],
         [
             ("fsync", "test.a.part"),
             ("fsync", "test.b.part"),
@@ -102,14 +166,18 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
             ("fsync_win", "test.a"),
             ("fsync_win", "test.b"),
             ("fsync_win", "test.c"),
-            ("fsync_dir", "."),
-        ],
-        [
-            ("fsync_dir", "."),
         ],
     )
     atomic_rename("test.a", "a/test.a", False, sync=sync)
     check(
+        [
+            ("rename", "test.a", "a/test.a"),
+            ("fsync_win", "a/test.a"),
+        ],
+        [
+            ("fsync_dir", "."),
+            ("fsync_dir", "a"),
+        ],
         [
             ("fsync", "test.a.part"),
             ("fsync", "test.b.part"),
@@ -124,16 +192,21 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
             ("fsync_dir", "."),
             ("rename", "test.a", "a/test.a"),
             ("fsync_win", "a/test.a"),
+        ],
+        [
             ("fsync_dir", "a"),
             ("fsync_dir", "."),
+        ],
+    )
+    atomic_rename("test.b", "a/test.b", False, sync=sync)
+    check(
+        [
+            ("rename", "test.b", "a/test.b"),
         ],
         [
             ("fsync_dir", "."),
             ("fsync_dir", "a"),
         ],
-    )
-    atomic_rename("test.b", "a/test.b", False, sync=sync)
-    check(
         [
             ("fsync", "test.a.part"),
             ("fsync", "test.b.part"),
@@ -150,16 +223,22 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
             ("rename", "test.b", "a/test.b"),
             ("fsync_win", "a/test.a"),
             ("fsync_win", "a/test.b"),
-            ("fsync_dir", "a"),
-            ("fsync_dir", "."),
         ],
         [
-            ("fsync_dir", "."),
             ("fsync_dir", "a"),
+            ("fsync_dir", "."),
         ],
     )
     atomic_rename("test.c", "b/test.c", False, sync=sync)
     check_flush(
+        [
+            ("rename", "test.c", "b/test.c"),
+        ],
+        [
+            ("fsync_dir", "."),
+            ("fsync_dir", "a"),
+            ("fsync_dir", "b"),
+        ],
         [
             ("fsync", "test.a.part"),
             ("fsync", "test.b.part"),
@@ -178,15 +257,23 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
             ("fsync_win", "a/test.a"),
             ("fsync_win", "a/test.b"),
             ("fsync_win", "b/test.c"),
-            ("fsync_dir", "a"),
-            ("fsync_dir", "b"),
-            ("fsync_dir", "."),
         ],
         [
-            ("fsync_dir", "."),
             ("fsync_dir", "a"),
             ("fsync_dir", "b"),
+            ("fsync_dir", "."),
         ],
+    )
+
+    check_forest(
+        [
+            ["./", "dir"],
+            ["a/", "dir"],
+            ["a/test.a", "reg", "size", "6", "sha256", "1136b2eb"],
+            ["a/test.b", "reg", "size", "6", "sha256", "6346935e"],
+            ["b/", "dir"],
+            ["b/test.c", "reg", "size", "6", "sha256", "806b51ad"],
+        ]
     )
 
     atomic_rename("a/test.b", "test.b", False, sync=sync)
@@ -194,11 +281,17 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
         [
             ("rename", "a/test.b", "test.b"),
             ("fsync_win", "test.b"),
-            ("fsync_dir", "."),
-            ("fsync_dir", "a"),
         ],
         [
             ("fsync_dir", "."),
+        ],
+        [
+            ("rename", "a/test.b", "test.b"),
+            ("fsync_win", "test.b"),
+        ],
+        [
+            ("fsync_dir", "."),
+            ("fsync_dir", "a"),
         ],
     )
 
@@ -213,9 +306,18 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
         ]
     )
 
+    if simulate is not None:
+        return
+
     atomic_link("a/test.a", "test.a", True, sync=sync)
     atomic_symlink("b/test.c", "test.c", True, sync=sync)
     check_flush(
+        [
+            # TODO
+        ],
+        [
+            ("fsync_dir", "."),
+        ],
         [
             ("fsync", "test.a.part"),
             ("fsync", "test.c.part"),
@@ -223,10 +325,6 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
             ("replace", "test.c.part", "test.c"),
             ("fsync_win", "test.a"),
             ("fsync_win", "test.c"),
-            ("fsync_dir", "."),
-        ],
-        [
-            ("fsync_dir", "."),
         ],
     )
 
@@ -249,6 +347,12 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
     atomic_copy2("test.c", "x/test.c.sym", True, sync=sync)
     check_flush(
         [
+            # TODO
+        ],
+        [
+            ("fsync_dir", "x"),
+        ],
+        [
             ("fsync", "x/test.a.part"),
             ("fsync", "x/test.c.lnk.part"),
             ("fsync", "x/test.c.part"),
@@ -261,10 +365,6 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
             ("fsync_win", "x/test.c"),
             ("fsync_win", "x/test.c.lnk"),
             ("fsync_win", "x/test.c.sym"),
-            ("fsync_dir", "x"),
-        ],
-        [
-            ("fsync_dir", "x"),
         ],
     )
 
@@ -293,6 +393,12 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
     atomic_move("test.c", "z/test.c", True, sync=sync)
     check_flush(
         [
+            # TODO
+        ],
+        [
+            ("fsync_dir", "."),
+        ],
+        [
             ("fsync", "y/test.a.part"),
             ("fsync", "y/test.c.lnk.part"),
             ("fsync", "y/test.c.part"),
@@ -308,10 +414,6 @@ def fs1(tmp_path: str, sync: Deferred[str] | bool) -> None:
             ("fsync_win", "y/test.c.lnk"),
             ("fsync_win", "y/test.c.sym"),
             ("fsync_win", "z/test.c"),
-            ("fsync_dir", "y"),
-            ("fsync_dir", "z"),
-            ("unlink", "test.c"),
-            ("fsync_dir", "."),
         ],
         [
             ("fsync_dir", "y"),
@@ -379,3 +481,7 @@ def test_fs_with_Deferred_no_defer(tmp_path: str) -> None:
 
 def test_fs_with_Deferred_defer(tmp_path: str) -> None:
     fs1(tmp_path, Deferred(True))
+
+
+def test_fs_with_Deferred_defer_simulate(tmp_path: str) -> None:
+    fs1(tmp_path, Deferred(True), True)
