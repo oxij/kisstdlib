@@ -176,31 +176,17 @@ def is_closer[A: SupportsCounting](ideal: A, a: A, b: A) -> bool:
 ### Simple functions
 
 
-def noop() -> None:
-    """A noop."""
-
-
-def noop_(*_args: _t.Any, **_kwargs: _t.Any) -> None:
+def noop(*_args: _t.Any, **_kwargs: _t.Any) -> None:
     """A noop, with a bunch of ignored arguments."""
 
 
-def identity[T](x: T, /) -> T:
-    """Identity function."""
-    return x
-
-
-def identity_[T](x: T, /, *_args: _t.Any, **_kwargs: _t.Any) -> T:
+def identity[T](x: T, /, *_args: _t.Any, **_kwargs: _t.Any) -> T:
     """Identity function, with a bunch of ignored arguments."""
     return x
 
 
-def const[A, B](x: A, /) -> _t.Callable[[B], A]:
-    """Return a function that always returns `a`."""
-    return lambda y: x
-
-
-def const_[A, B, **PS](x: A, /) -> _t.Callable[_t.Concatenate[B, PS], A]:
-    """Return a function that always returns `a`, and has a bunch of ignored arguments."""
+def const[A, B, **PS](x: A, /) -> _t.Callable[_t.Concatenate[B, PS], A]:
+    """Return a function that always returns `a`, with a bunch of ignored arguments."""
 
     def sub(_y: B, /, *_args: PS.args, **_kwargs: PS.kwargs) -> A:
         return x
@@ -325,11 +311,11 @@ def compose_pipe[A, **PS](
     The mutating value gets passed as the first argument, all other
     arguments get passed unchanged.
 
-    `compose_pipe([])` is `identity_`.
+    `compose_pipe([])` is `identity`.
     `compose_pipe([x])` is `x`.
     """
     if len(pipe) == 0:
-        return identity_
+        return identity
     if len(pipe) == 1:
         return pipe[0]
 

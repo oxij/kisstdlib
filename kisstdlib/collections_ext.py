@@ -43,7 +43,7 @@ from .base import (
     SupportsCounting as _SupportsCounting,
     is_infinite as _is_infinite,
     is_closer as _is_closer,
-    noop_ as _noop_,
+    noop as _noop,
 )
 from .itertools_ext import (
     chain as _chain,
@@ -66,7 +66,7 @@ class LRUCache[Key, Value](OrderedDict[Key, Value]):
     """
 
     def __init__(
-        self, maxsize: int | None = None, onevict: _t.Callable[[Key, Value], None] = _noop_
+        self, maxsize: int | None = None, onevict: _t.Callable[[Key, Value], None] = _noop
     ) -> None:
         self.maxsize = maxsize
         self.onevict = onevict
