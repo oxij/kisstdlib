@@ -29,6 +29,13 @@ from kisstdlib.failure import *
 from kisstdlib.fs import *
 
 
+def test_fs_basics() -> None:
+    assert fsreencode("abc", "") == "abc"
+    assert fsreencode(b"abc", "") == "abc"
+    assert fsreencode("abc", b"") == b"abc"
+    assert fsreencode(b"abc", b"") == b"abc"
+
+
 def test_iter_subtree(tmp_path: str) -> None:
     os.chdir(tmp_path)
 
