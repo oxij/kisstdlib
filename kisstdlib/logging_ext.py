@@ -28,7 +28,7 @@ import sys as _sys
 import time as _time
 import typing as _t
 
-from gettext import ngettext as _ngettext
+from gettext import gettext as _gettext, ngettext as _ngettext
 
 from logging import (  # pylint: disable=unused-import
     debug,
@@ -45,6 +45,7 @@ from logging import (  # pylint: disable=unused-import
 )
 
 from .base import Decimal as _Decimal
+from .failure import CatastrophicFailure as _CatastrophicFailure
 from .io.stdio import (
     TIOWrappedWriter as _TIOWrappedWriter,
     ANSIColor as _ANSIColor,
@@ -311,6 +312,22 @@ def die(pattern: str, /, *args: _t.Any, code: int = 1, **kwargs: _t.Any) -> _t.N
     """Log a critical error and `sys.exit` with given `code`."""
     critical(pattern, *args, **kwargs)
     _sys.exit(code)
+
+
+def log_exception(level: int, exc: Exception, *_args: _t.Any, **_kwargs: _t.Any) -> None:
+    _logging.log(
+        level,
+        "%s",
+        exc.get_message(_gettext) if isinstance(exc, _CatastrophicFailure) else str(exc),
+    )
+
+
+def log_exception_error(exc: Exception, *_args: _t.Any, **_kwargs: _t.Any) -> None:
+    log_exception(ERROR, exc)
+
+
+def log_exception_warning(exc: Exception, *_args: _t.Any, **_kwargs: _t.Any) -> None:
+    log_exception(WARNING, exc)
 
 
 def setup_logging(
