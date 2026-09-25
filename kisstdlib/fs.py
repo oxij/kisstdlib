@@ -43,6 +43,17 @@ from .io.base import *
 from .string_ext import escape_path as _escape_path
 from .time import TimeStamp as _TimeStamp
 
+
+def fsreencode[AnyStr: (str, bytes)](src_path: str | bytes, dst_path: AnyStr) -> AnyStr:
+    """Apply `fsencode` or `fsdecode` to `src_path` so that the type would match that of `dst_path`."""
+    if isinstance(src_path, str):
+        if isinstance(dst_path, bytes):
+            return fsencode(src_path)
+    elif isinstance(dst_path, str):
+        return fsdecode(src_path)
+    return src_path
+
+
 sep = _op.sep
 sepb = _os.fsencode(_op.sep)
 
