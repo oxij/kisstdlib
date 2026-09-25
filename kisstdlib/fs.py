@@ -66,6 +66,17 @@ def equal_path(path1: str | bytes, path2: str | bytes) -> bool:
     return path1 == fsencode(path2)
 
 
+def unchanged_stat(stat1: _os.stat_result, stat2: _os.stat_result) -> bool:
+    """Like `os.path.samestat`, but also checks that `stat_result`s have the same `size` and `mtime`."""
+    if (
+        _op.samestat(stat1, stat2)
+        and stat1.st_size == stat2.st_size
+        and stat1.st_mtime_ns == stat2.st_mtime_ns
+    ):
+        return True
+    return False
+
+
 sep = _op.sep
 sepb = _os.fsencode(_op.sep)
 
