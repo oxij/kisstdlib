@@ -449,6 +449,24 @@ def nonempty_leaf_directories[AnyStr: (
     return False
 
 
+def describe_file_type(stat: int, long: bool = True) -> str:
+    if _stat.S_ISREG(stat):
+        return "reg" if long else "r"
+    if _stat.S_ISLNK(stat):
+        return "sym" if long else "l"
+    if _stat.S_ISDIR(stat):
+        return "dir" if long else "d"
+    if _stat.S_ISCHR(stat):
+        return "chr" if long else "c"
+    if _stat.S_ISBLK(stat):
+        return "blk" if long else "b"
+    if _stat.S_ISFIFO(stat):
+        return "fifo" if long else "f"
+    if _stat.S_ISSOCK(stat):
+        return "sock" if long else "s"
+    return "???" if long else "?"
+
+
 def describe_forest[AnyStr: (
     str,
     bytes,
@@ -511,19 +529,20 @@ def describe_forest[AnyStr: (
                 else []
             )
             esize = ["size", str(stat.st_size)] if sizes else []
-            emode = ["mode", oct(_stat.S_IMODE(stat.st_mode))[2:]] if modes else []
-            if _stat.S_ISDIR(stat.st_mode):
+            st_mode = stat.st_mode
+            emode = ["mode", oct(_stat.S_IMODE(st_mode))[2:]] if modes else []
+            if _stat.S_ISDIR(st_mode):
                 yield [epath + sep, "dir"] + emode + emtime
-            elif _stat.S_ISREG(stat.st_mode):
+            elif _stat.S_ISREG(st_mode):
                 sha256 = sha256_file(abs_path).hex()
                 if hash_length is not None:
                     sha256 = sha256[:hash_length]
                 yield [epath, "reg"] + emode + emtime + esize + ["sha256", sha256]
-            elif _stat.S_ISLNK(stat.st_mode):
+            elif _stat.S_ISLNK(st_mode):
                 esymlink = escape(fsdecode(_os.readlink(abs_path)))
                 yield [epath, "sym"] + emode + emtime + ["->", esymlink]
             else:
-                yield [epath, "???"] + emode + emtime + esize
+                yield [epath, describe_file_type(st_mode)] + emode + emtime + esize
 
 
 type DeferredRename[T] = tuple[T, T, bool, T, T]
