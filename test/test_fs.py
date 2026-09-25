@@ -35,6 +35,16 @@ def test_fs_basics() -> None:
     assert fsreencode("abc", b"") == b"abc"
     assert fsreencode(b"abc", b"") == b"abc"
 
+    assert equal_path("abc", "abc")
+    assert equal_path(b"abc", b"abc")
+    assert equal_path("abc", b"abc")
+    assert equal_path(b"abc", "abc")
+
+    assert not equal_path("abc", "abcd")
+    assert not equal_path(b"abc", b"abcd")
+    assert not equal_path("abc", b"abcd")
+    assert not equal_path(b"abc", "abcd")
+
 
 def test_iter_subtree(tmp_path: str) -> None:
     os.chdir(tmp_path)
