@@ -130,8 +130,10 @@ def sha256_file(path: str | bytes, buffer_size: int = HASH_BUFFER_SIZE) -> bytes
     return hash_file(_hashlib.sha256, path, buffer_size)
 
 
-type IncludeFilesFunc[T] = _t.Callable[[T], bool]
-type IncludeDirectoriesFunc[T] = _t.Callable[[T, T, bool, list[tuple[T, T, bool]]], bool | None]
+type IncludeFilesFunc[_AnyStr] = _t.Callable[[_AnyStr], bool]
+type IncludeDirectoriesFunc[_AnyStr] = _t.Callable[
+    [_AnyStr, _AnyStr, bool, list[tuple[_AnyStr, _AnyStr, bool]]], bool | None
+]
 
 
 class WalkOrder(_enum.Enum):
