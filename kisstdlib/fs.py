@@ -54,6 +54,18 @@ def fsreencode[AnyStr: (str, bytes)](src_path: str | bytes, dst_path: AnyStr) ->
     return src_path
 
 
+def equal_path(path1: str | bytes, path2: str | bytes) -> bool:
+    if path1 == path2:
+        return True
+    is_str1 = isinstance(path1, str)
+    is_str2 = isinstance(path2, str)
+    if is_str1 == is_str2:
+        return False
+    if is_str1:
+        return fsencode(path1) == path2
+    return path1 == fsencode(path2)
+
+
 sep = _op.sep
 sepb = _os.fsencode(_op.sep)
 
