@@ -38,7 +38,15 @@ import typing as _t
 
 from os import fsencode, fsdecode
 
-from .base import POSIX as _POSIX, identity as _identity
+from .base import (
+    POSIX as _POSIX,
+    WINDOWS as _WINDOWS,
+    raise_one as _raise_one,
+    identity as _identity,
+    partial as _partial,
+)
+from .failure import AssertionFailure as _AssertionFailure
+from .logging_ext import log_exception_warning as _log_exception_warning
 from .io.base import *
 from .string_ext import escape_path as _escape_path
 from .time import TimeStamp as _TimeStamp
@@ -545,62 +553,61 @@ def describe_forest[AnyStr: (
                 yield [epath, describe_file_type(st_mode)] + emode + emtime + esize
 
 
-type DeferredRename[T] = tuple[T, T, bool, T, T]
+type DeferredMake[_AnyStr] = tuple[_t.Callable[[_t.Any, _AnyStr, bool], None], _t.Any, bool]
+type DeferredRename[_AnyStr] = tuple[_AnyStr, bool | _os.stat_result, bool]
 
 
 class Deferred[AnyStr: (str, bytes)]:
-    """Deferred file system `replace`s, `rename`s, `unlink`s, and `fsync`s.
+    """Deferred file system `write`s, `replace`s, `rename`s, `unlink`s, and `fsync`s.
 
-    Basically, this exists to defer `os.replace`, `os.rename`, `os.unlink`, and
-    `os.fsync` calls into the future, thus allowing the OS sync file data at its
-    own pace in the meantime and batching directory updates together.
+    Basically, this exists to defer file writes, `os.replace`, `os.rename`, `os.unlink`, and
+    `os.fsync` calls into the future, thus allowing the OS sync file data at its own pace in the
+    meantime and batching directory updates together.
 
     Doing this can improve disk performance considerably.
     """
 
     defer: bool
-    tmp_file: set[AnyStr]
-    unlink_file: set[AnyStr]
-    fsync_file: set[AnyStr]
-    fsync_dir: set[AnyStr]
-    fsync_dir2: set[AnyStr]
-    rename_file: _c.deque[DeferredRename[AnyStr]]
+
+    unsafe_make_file: dict[AnyStr, DeferredMake[AnyStr]]
+    fsync_file: dict[AnyStr, int]
+    rename_file: dict[AnyStr, DeferredRename[AnyStr]]
+    unlink_file: dict[AnyStr, bool | _os.stat_result]
+    fsync_dir: dict[AnyStr, int]
+    fsync_dir2: dict[AnyStr, int]
 
     # if all of the above succeed, also do these
     _after: _t.Optional["Deferred[AnyStr]"]
 
     def __init__(self, defer: bool) -> None:
         self.defer = defer
-        self.reset()
-
-    def reset(self) -> None:
-        """Forget everything."""
-        self.tmp_file = set()
-        self.unlink_file = set()
-        self.fsync_file = set()
-        self.fsync_dir = set()
-        self.fsync_dir2 = set()
-        self.rename_file = _c.deque()
+        self.unsafe_make_file = {}
+        self.fsync_file = {}
+        self.rename_file = {}
+        self.unlink_file = {}
+        self.fsync_dir = {}
+        self.fsync_dir2 = {}
         self._after = None
 
-    @property
-    def after(self) -> "Deferred[AnyStr]":
-        if self._after is None:
-            self._after = Deferred(self.defer)
-        return self._after
+    def clear(self) -> None:
+        """Forget everything."""
+        self.unsafe_make_file.clear()
+        self.fsync_file.clear()
+        self.rename_file.clear()
+        self.unlink_file.clear()
+        self.fsync_dir.clear()
+        self.fsync_dir2.clear()
+        self._after = None
 
-    def __repr__(self) -> str:
+    def __len__(self) -> int:
         return (
-            f"""<{self.__class__.__name__}
-tmp={self.tmp_file!r}
-unlink={self.unlink_file!r}
-fsync_file={self.fsync_file!r}
-fsync_dir={self.fsync_dir!r}
-fsync_dir2={self.fsync_dir2!r}
-rename_file={self.rename_file!r}
-after="""
-            + repr(self._after)
-            + ">"
+            len(self.unsafe_make_file)
+            + len(self.fsync_file)
+            + len(self.rename_file)
+            + len(self.unlink_file)
+            + len(self.fsync_dir)
+            + len(self.fsync_dir2)
+            + (len(self._after) if self._after is not None else 0)
         )
 
     def copy(self) -> "Deferred[AnyStr]":
@@ -608,180 +615,138 @@ after="""
         copied, only the structure is).
         """
         res: Deferred[AnyStr] = Deferred(self.defer)
-        res.tmp_file = set(self.tmp_file)
-        res.unlink_file = set(self.unlink_file)
-        res.fsync_file = set(self.fsync_file)
-        res.fsync_dir = set(self.fsync_dir)
-        res.fsync_dir2 = set(self.fsync_dir2)
-        res.rename_file = _c.deque(self.rename_file)
+        res.unsafe_make_file = dict(self.unsafe_make_file)
+        res.fsync_file = dict(self.fsync_file)
+        res.rename_file = dict(self.rename_file)
+        res.unlink_file = dict(self.unlink_file)
+        res.fsync_dir = dict(self.fsync_dir)
+        res.fsync_dir2 = dict(self.fsync_dir2)
         if self._after is not None:
             res._after = self._after.copy()  # pylint: disable=protected-access
         return res
 
-    def clear(self) -> None:
-        """Forget all currently deferred operations and unlink all temporary files."""
-        if self._after is not None:
-            self._after.clear()
-        if self.tmp_file:
-            unlink_many(self.tmp_file)
-        self.reset()
+    def __repr__(self) -> str:
+        return f"""<{self.__class__.__name__}
+unsafe_make_file={self.unsafe_make_file!r}
+fsync_file={self.fsync_file!r}
+rename_file={self.rename_file!r}
+unlink_file={self.unlink_file!r}
+fsync_dir={self.fsync_dir!r}
+fsync_dir2={self.fsync_dir2!r}
+after={self._after!r}>"""
 
-    def sync(
+    @property
+    def after(self) -> "Deferred[AnyStr]":
+        if self._after is None:
+            self._after = Deferred(self.defer)
+        return self._after
+
+    def flush(
         self,
-        strict: bool = True,
+        on_warning: _t.Callable[
+            _t.Concatenate[Exception, AnyStr, str, ...], None
+        ] = _log_exception_warning,
+        on_error: _t.Callable[_t.Concatenate[Exception, AnyStr, str, ...], None] = _raise_one,
         simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
-    ) -> list[Exception]:
-        """Perform all deferred operations and return a list of raised exceptions.
+    ) -> None:
+        """Perform all deferred operations.
 
         Operations that fail will be left sitting in the corresponding fields.
 
         With `simulate` argument set, this function instead simulates the
         `sync` and writes the log of things it would do into that argument.
         """
-        exceptions: list[Exception] = []
 
-        if simulate is not None:
-            for f in sorted(self.unlink_file):
-                simulate("unlink", f)
-            self.unlink_file = set()
-        elif self.unlink_file:
-            self.unlink_file = set(unlink_many(sorted(self.unlink_file), exceptions))
+        made_dirs: set[AnyStr] = set()
 
-        if strict and exceptions:
-            return exceptions
+        while (
+            self.unsafe_make_file
+            or self.fsync_file
+            or self.rename_file
+            or self.unlink_file
+            or self.fsync_dir
+            or self.fsync_dir2
+        ):
+            if self.unsafe_make_file:
+                for dst_path in list(self.unsafe_make_file.keys()):
+                    func, data, makedirs = self.unsafe_make_file[dst_path]
+                    try:
+                        unsafe_make_file(
+                            func,
+                            data,
+                            dst_path,
+                            makedirs=made_dirs if makedirs else False,
+                            sync=self,
+                            defer_defer=False,
+                            simulate=simulate,
+                        )
+                    except Exception as exc:
+                        on_error(exc, dst_path, "unsafe_make_file", func, data, makedirs)
+                    del self.unsafe_make_file[dst_path]
 
-        fsync_file_left: set[AnyStr] = set()
-        fsync_dir_left: set[AnyStr] = set()
-        fsync_dir2_left: set[AnyStr] = set()
-        rename_file_left: _c.deque[DeferredRename[AnyStr]] = _c.deque()
-
-        def done() -> None:
-            self.fsync_file.update(fsync_file_left)
-            self.fsync_dir.update(fsync_dir_left)
-            self.fsync_dir2.update(fsync_dir2_left)
-            rename_file_left.extend(self.rename_file)
-            self.rename_file = rename_file_left
-
-        while self.fsync_file or self.fsync_dir or self.fsync_dir2 or self.rename_file:
-            if simulate is not None:
-                for f in sorted(self.fsync_file):
-                    simulate("fsync", f)
-                self.fsync_file = set()
-            elif self.fsync_file:
-                fsync_file_left.update(fsync_many_files(sorted(self.fsync_file), 0, exceptions))
-                self.fsync_file = set()
-
-            if strict and exceptions:
-                done()
-                return exceptions
+            if self.fsync_file:
+                for path, flags in sorted(self.fsync_file.items()):
+                    try:
+                        fsync_file(path, flags, simulate=simulate)
+                    except Exception as exc:
+                        on_warning(exc, path, "fsync_file", flags)
+                    del self.fsync_file[path]
 
             if self.rename_file:
-                while self.rename_file:
-                    el = self.rename_file.popleft()
-                    src_path, dst_path, allow_overwrites, src_dir, dst_dir = el
-                    cross = src_dir != dst_dir
-                    if dst_dir in self.fsync_dir2 or cross and src_dir in self.fsync_dir:
-                        # One of the previous renames moved files from our
-                        # dst_dir or had our src_dir as destination. Delay this
-                        # rename until previous operations sync.
-                        #
-                        # I.e., essentially, we force ordered FS mode, because,
-                        # technically, rename(2) is allowed to loose the file
-                        # when moving between different directories and fsyncing
-                        # out of order. Consider this:
-                        #
-                        # rename(src, dst) (== overwrite_link(src, dst) -> unlink(src))
-                        # -> fsync(src_dir) -> (OS crashes) -> fsync(dst_dir)
-                        self.rename_file.appendleft(el)
-                        if simulate is not None:
-                            simulate("barrier")
-                        break
-
+                for dst_path in list(self.rename_file.keys()):
+                    src_path, allow_overwrites, makedirs = self.rename_file[dst_path]
                     try:
-                        if simulate is not None:
-                            simulate("replace" if allow_overwrites else "rename", src_path, dst_path)  # fmt: skip
-                        else:
-                            rename(src_path, dst_path, allow_overwrites, makedirs=False, dst_dir=dst_dir)  # fmt: skip
+                        rename_file(
+                            src_path,
+                            dst_path,
+                            allow_overwrites,
+                            makedirs=made_dirs if makedirs else False,
+                            sync=self,
+                            defer_defer=False,
+                            simulate=simulate,
+                        )
                     except Exception as exc:
-                        exceptions.append(exc)
-                        rename_file_left.append(el)
-                    else:
-                        self.tmp_file.discard(src_path)
-                        for s in (self.fsync_file, fsync_file_left):
-                            # if queued for fsyncing there, rename
-                            try:
-                                s.remove(src_path)
-                            except KeyError:
-                                pass
-                            else:
-                                s.add(dst_path)
-                        self.fsync_dir.add(dst_dir)
-                        if cross:
-                            self.fsync_dir2.add(src_dir)
-                        if not _POSIX or simulate is not None:
-                            # on Windows, some docs claim, this helps
-                            self.fsync_file.add(dst_path)
+                        on_error(exc, dst_path, "rename_file", src_path, allow_overwrites, makedirs)
+                    del self.rename_file[dst_path]
+                    try:
+                        del self.unlink_file[src_path]
+                    except KeyError:
+                        pass
 
-                    if strict and exceptions:
-                        done()
-                        return exceptions
+            if self.unlink_file:
+                for dst_path, exists in sorted(self.unlink_file.items()):
+                    try:
+                        unlink_file(
+                            dst_path,
+                            exists,
+                            sync=self,
+                            defer_defer=False,
+                            simulate=simulate,
+                        )
+                    except Exception as exc:
+                        on_error(exc, dst_path, "unlink_file", exists)
+                    del self.unlink_file[dst_path]
 
-            if simulate is not None:
-                for f in sorted(self.fsync_file):
-                    simulate("fsync_win", f)
-                self.fsync_file = set()
-            elif self.fsync_file:
-                fsync_file_left.update(fsync_many_files(sorted(self.fsync_file), 0, exceptions))
-                self.fsync_file = set()
+            if self.fsync_dir:
+                for path, flags in sorted(self.fsync_dir.items()):
+                    try:
+                        fsync_file(path, flags, simulate=simulate)
+                    except Exception as exc:
+                        on_warning(exc, path, "fsync_dir", flags)
+                    del self.fsync_dir[path]
 
-            if simulate is not None:
-                for f in sorted(self.fsync_dir):
-                    simulate("fsync_dir", f)
-                self.fsync_dir = set()
-            elif self.fsync_dir:
-                if _POSIX:
-                    fsync_dir_left.update(fsync_many_files(sorted(self.fsync_dir), _os.O_DIRECTORY, exceptions))  # fmt: skip
-                self.fsync_dir = set()
-
-            if simulate is not None:
-                for f in sorted(self.fsync_dir2):
-                    simulate("fsync_dir", f)
-                self.fsync_dir2 = set()
-            elif self.fsync_dir2:
-                if _POSIX:
-                    fsync_dir2_left.update(fsync_many_files(sorted(self.fsync_dir2), _os.O_DIRECTORY, exceptions))  # fmt: skip
-                self.fsync_dir2 = set()
-
-            if strict and exceptions:
-                done()
-                return exceptions
-
-        if strict and self.tmp_file:
-            exceptions.append(AssertionError("`tmp_file` set is not empty"))
-
-        if exceptions:
-            done()
-            return exceptions
+            if self.fsync_dir2:
+                for path, flags in sorted(self.fsync_dir2.items()):
+                    try:
+                        fsync_file(path, flags, simulate=simulate)
+                    except Exception as exc:
+                        on_warning(exc, path, "fsync_dir", flags)
+                    del self.fsync_dir2[path]
 
         if self._after is not None:
-            excs = self._after.sync(strict, simulate)
-            if len(excs) > 0:
-                exceptions += excs
-            else:
+            self._after.flush(on_warning, on_error, simulate=simulate)
+            if len(self._after) == 0:
                 self._after = None
-
-        return exceptions
-
-    def flush(self, strict: bool = True) -> None:
-        """Like `sync` but raises collected exceptions as an exception group and calls
-        `.clear` in that case.
-        """
-        try:
-            excs = self.sync(strict)
-            if len(excs) > 0:
-                raise ExceptionGroup("failed to sync", excs)
-        finally:
-            self.clear()
 
 
 def fsync_maybe(fd: int) -> None:
@@ -796,427 +761,683 @@ def fsync_maybe(fd: int) -> None:
         raise
 
 
-def fsync_file(path: str | bytes, flags: int = 0) -> None:
+def fsync_file[AnyStr: (
+    str,
+    bytes,
+)](
+    path: AnyStr,
+    flags: int = 0,
+    *,
+    sync: bool | Deferred[AnyStr] = True,
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
+) -> None:
     """Run `os.fsync` on a given `path`."""
-    oflags = _os.O_RDONLY | _os.O_NOFOLLOW | _os.O_CLOEXEC if _POSIX else _os.O_RDWR
-    try:
-        fd = _os.open(path, oflags | flags)
-    except OSError as exc:
-        if exc.errno == _errno.ELOOP:
-            # ignore symlinks; doing it this way insead of `stat`ing the path to
-            # ensure atomicity
-            return
-        raise
-    try:
-        _os.fsync(fd)
-    except OSError as exc:
-        exc.filename = path
-        raise exc
-    finally:
-        _os.close(fd)
 
-
-def fsync_many_files[AnyStr: (
-    str,
-    bytes,
-)](paths: _t.Iterable[AnyStr], flags: int = 0, exceptions: list[Exception] | None = None) -> list[
-    AnyStr
-]:
-    """`os.fsync` many paths, optionally collecting exceptions.
-    Returns the paths for which `os.fsync` failed.
-    """
-    left = []
-    for path in paths:
-        try:
-            fsync_file(path, flags)
-        except Exception as exc:
-            if exceptions is None:
-                raise
-            left.append(path)
-            exceptions.append(exc)
-    return left
-
-
-def unlink_maybe(path: str | bytes) -> None:
-    """Try to `os.unlink` and ignore `Exception`s."""
-    try:
-        _os.unlink(path)
-    except Exception:
-        pass
-
-
-def unlink_many[AnyStr: (
-    str,
-    bytes,
-)](paths: _t.Iterable[AnyStr], exceptions: list[Exception] | None = None) -> list[AnyStr]:
-    """`os.unlink` many paths, optionally collecting exceptions.
-    Returns the paths for which `os.unlink` failed.
-    """
-    left = []
-    for path in paths:
-        try:
-            _os.unlink(path)
-        except Exception as exc:
-            if exceptions is None:
-                raise
-            left.append(path)
-            exceptions.append(exc)
-    return left
-
-
-def atomic_unlink[AnyStr: (
-    str,
-    bytes,
-)](path: AnyStr, *, sync: Deferred[AnyStr] | bool = True,) -> None:
-    """Atomically unlink `path`."""
-
-    dirname, _ = dirname_dot(path)
-
-    if isinstance(sync, Deferred) and sync.defer:
-        sync.unlink_file.add(path)
-        sync.fsync_dir.add(dirname)
-        return
-
-    _os.unlink(path)
+    is_dir = flags & _os.O_DIRECTORY
 
     if isinstance(sync, Deferred):
-        sync.fsync_dir.add(dirname)
+        if is_dir:
+            sync.fsync_dir[path] = flags
+        else:
+            sync.fsync_file[path] = flags
         return
 
-    if sync and _POSIX:
-        fsync_file(dirname, _os.O_DIRECTORY)
+    if simulate is not None:
+        simulate("fsync", path, flags)
+    elif is_dir and _WINDOWS:
+        # On Windows, try fsyncing the first file instead.
+        scandir_it = _os.scandir(path)
+        with scandir_it:
+            try:
+                entry: _os.DirEntry[_t.Any] = next(scandir_it)
+            except StopIteration:
+                pass
+            else:
+                try:
+                    fsync_file(entry.path, flags & ~_os.O_DIRECTORY)
+                except OSError:
+                    pass
+    else:
+        oflags = _os.O_RDONLY | _os.O_NOFOLLOW | _os.O_CLOEXEC if _POSIX else _os.O_RDWR
+        try:
+            fd = _os.open(path, oflags | flags)
+        except OSError as exc:
+            if exc.errno == _errno.ELOOP:
+                # ignore symlinks; doing it this way insead of `stat`ing the path to
+                # ensure atomicity
+                return
+            raise
+        try:
+            _os.fsync(fd)
+        except OSError as exc:
+            exc.filename = path
+            raise exc
+        finally:
+            _os.close(fd)
 
 
-def rename[AnyStr: (
+def _fsync_file_barrier[AnyStr: (
+    str,
+    bytes,
+)](
+    path: AnyStr,
+    fsyncs: dict[AnyStr, int],
+    *,
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
+) -> None:
+    try:
+        flags = fsyncs.pop(path)
+    except KeyError:
+        pass
+    else:
+        fsync_file(path, flags, simulate=simulate)
+
+
+def unlink_file[AnyStr: (
+    str,
+    bytes,
+)](
+    path: AnyStr,
+    exists: bool | _os.stat_result = True,
+    *,
+    dirname: AnyStr | None = None,
+    sync: bool | Deferred[AnyStr] = True,
+    defer_defer: bool = True,
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
+) -> None:
+    """Atomically unlink `path`."""
+
+    if isinstance(sync, Deferred) and sync.defer and defer_defer:
+        sync.unlink_file[path] = exists
+        return
+
+    if simulate is not None:
+        simulate("unlink", path)
+    else:
+        if isinstance(exists, _os.stat_result) and not unchanged_stat(_os.lstat(path), exists):
+            raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), path)
+        try:
+            _os.unlink(path)
+        except FileNotFoundError:
+            if exists:
+                raise
+
+    if sync is not False:
+        if dirname is None:
+            dirname, _ = dirname_dot(path)
+        fsync_file(dirname, _os.O_DIRECTORY, sync=sync, simulate=simulate)
+
+
+def rename_file[AnyStr: (
     str,
     bytes,
 )](
     src_path: AnyStr,
     dst_path: AnyStr,
-    allow_overwrites: bool,
+    allow_overwrites: bool | _os.stat_result = False,
     *,
-    makedirs: bool = True,
+    makedirs: bool | set[AnyStr] = True,
+    src_dir: AnyStr | None = None,
     dst_dir: AnyStr | None = None,
+    sync: bool | Deferred[AnyStr] = True,
+    defer_defer: bool = True,
+    sync_files: bool = False,
+    sync_dirs: bool = True,
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
 ) -> None:
+    """Atomically rename a file, performing all necesary `fsync`s."""
+
+    if isinstance(sync, Deferred) and sync.defer and defer_defer:
+        if not allow_overwrites and (
+            dst_path in sync.unsafe_make_file
+            or dst_path in sync.rename_file
+            or _op.lexists(dst_path)
+        ):
+            raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
+        sync.rename_file[dst_path] = (src_path, allow_overwrites, makedirs is not False)
+        return
+
+    # if not allow_overwrites and _op.lexists(dst_path):
+    #     raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
+
+    if src_dir is None:
+        src_dir, _ = dirname_dot(src_path)
+
     if dst_dir is None:
-        dst_dir, nondot = dirname_dot(dst_path)
-        makedirs = makedirs and nondot
+        dst_dir, _ = dirname_dot(dst_path)
 
-    if makedirs:
-        _os.makedirs(dst_dir, exist_ok=True)
+    cross = src_dir != dst_dir
 
-    if allow_overwrites:
+    if isinstance(sync, Deferred):
+        # (OrderedFSMode) Enforce ordered FS mode, because, technically, on POSIX, rename(2) can
+        # loose files when moving between different directories and fsyncing out of order. For
+        # example, consider the following unfortunate order of operations:
+        #
+        #   rename(src, dst) (== atomically: link(src, dst) -> unlink(src))
+        #   -> fsync(src_dir)
+        #   -> (OS crashes)
+        #   -> fsync(dst_dir)
+        #
+        # This code prevents issues in such and similar situations.
+        #
+        # One of the previous writes wanted `src_path` to be synced.
+        _fsync_file_barrier(src_path, sync.fsync_file, simulate=simulate)
+        # One of the previous renames moved files from our `dst_dir`.
+        _fsync_file_barrier(dst_dir, sync.fsync_dir2, simulate=simulate)
+        if cross:
+            # One of the previous renames had our `src_dir` as destination.
+            _fsync_file_barrier(src_dir, sync.fsync_dir, simulate=simulate)
+    elif sync and sync_files:
+        fsync_file(src_path, 0, simulate=simulate)
+
+    if dst_dir in (".", b"."):
+        makedirs_ = False
+    else:
+        makedirs_ = dst_dir not in makedirs if isinstance(makedirs, set) else makedirs
+
+    if makedirs_:
+        if simulate is not None:
+            simulate("makedirs", dst_dir)
+        else:
+            _os.makedirs(dst_dir, exist_ok=True)
+        if isinstance(makedirs, set):
+            makedirs.add(dst_dir)
+
+    if simulate is not None:
+        simulate("replace" if allow_overwrites else "rename", src_path, dst_path)
+    elif allow_overwrites:
+        if isinstance(allow_overwrites, _os.stat_result) and not unchanged_stat(
+            _os.lstat(dst_path), allow_overwrites
+        ):
+            raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
         _os.replace(src_path, dst_path)
     elif _POSIX:
         with Directory(dst_dir) as d:
             d.flock()
-            # this is now atomic
-            if _os.path.lexists(dst_path):
+            # NB: this is now atomic
+            if _op.lexists(dst_path):
                 raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
             _os.rename(src_path, dst_path)
     else:
-        # this is both atomic and fails with `FileExistsError` on Windows
+        # NB: this is both atomic and fails with `FileExistsError` on Windows
         _os.rename(src_path, dst_path)
 
+    if not sync_dirs:
+        pass
+    elif isinstance(sync, Deferred):
+        sync.fsync_dir[dst_dir] = _os.O_DIRECTORY
+        if cross:
+            sync.fsync_dir2[src_dir] = _os.O_DIRECTORY
+    elif sync:
+        fsync_file(dst_dir, _os.O_DIRECTORY, simulate=simulate)
+        if cross:
+            fsync_file(src_dir, _os.O_DIRECTORY, simulate=simulate)
 
-def atomic_rename[AnyStr: (
+
+def unsafe_make_file[Data, AnyStr: (
     str,
     bytes,
 )](
-    src_path: AnyStr,
+    func: _t.Callable[[Data, AnyStr, bool], None],
+    data: Data,
     dst_path: AnyStr,
-    allow_overwrites: bool,
     *,
-    makedirs: bool = True,
-    sync: Deferred[AnyStr] | bool = True,
+    makedirs: bool | set[AnyStr] = True,
+    dst_dir: AnyStr | None = None,
+    sync: bool | Deferred[AnyStr] = True,
+    defer_defer: bool = True,
+    sync_files: bool = False,
+    sync_dirs: bool = True,
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
 ) -> None:
-    """Atomically rename a file, performing all necesary `fsync`s."""
+    """Create a file using the given `func` function, `os.unlink`ing any partial results."""
 
-    src_dir, _ = dirname_dot(src_path)
-    dst_dir, nondot = dirname_dot(dst_path)
-
-    if makedirs and nondot:
-        _os.makedirs(dst_dir, exist_ok=True)
-
-    if isinstance(sync, Deferred) and sync.defer:
-        sync.rename_file.append((src_path, dst_path, allow_overwrites, src_dir, dst_dir))
+    if isinstance(sync, Deferred) and sync.defer and defer_defer:
+        if dst_path in sync.unsafe_make_file or _op.lexists(dst_path):
+            raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
+        sync.unsafe_make_file[dst_path] = func, data, makedirs is not False
         return
 
-    rename(src_path, dst_path, allow_overwrites, makedirs=False, dst_dir=dst_dir)
+    # if _op.lexists(dst_path):
+    #     raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
 
-    if isinstance(sync, Deferred):
-        sync.fsync_dir.add(dst_dir)
-        return
+    if dst_dir is None:
+        dst_dir, _ = dirname_dot(dst_path)
 
-    if sync:
-        if _POSIX:
-            fsync_file(dst_dir, _os.O_DIRECTORY)
-            if src_dir != dst_dir:
-                fsync_file(src_dir, _os.O_DIRECTORY)
+    if dst_dir in (".", b"."):
+        makedirs_ = False
+    else:
+        makedirs_ = dst_dir not in makedirs if isinstance(makedirs, set) else makedirs
+
+    if makedirs_:
+        if simulate is not None:
+            simulate("makedirs", dst_dir)
         else:
-            # on Windows, some docs claim, this helps
-            fsync_file(dst_path)
+            _os.makedirs(dst_dir, exist_ok=True)
+        if isinstance(makedirs, set):
+            makedirs.add(dst_dir)
 
-
-def make_file[AnyStr: (
-    str,
-    bytes,
-)](
-    make_dst: _t.Callable[[AnyStr, bool], None],
-    dst_path: AnyStr,
-    allow_overwrites: bool = False,
-    *,
-    makedirs: bool = True,
-    sync: Deferred[AnyStr] | bool = True,
-) -> None:
-    """Create a file using a given `make_dst` function."""
-
-    if not allow_overwrites and _os.path.lexists(dst_path):
-        # fail early
-        raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
-
-    dst_dir, nondot = dirname_dot(dst_path)
-
-    if makedirs and nondot:
-        _os.makedirs(dst_dir, exist_ok=True)
-    make_dst(dst_path, isinstance(sync, bool))
+    if simulate is not None:
+        simulate("make", dst_path)
+        if sync is True and sync_files:
+            simulate("fsync", dst_path, 0)
+    else:
+        func(data, dst_path, sync is True and sync_files)
 
     if isinstance(sync, Deferred):
-        sync.fsync_file.add(dst_path)
-        sync.fsync_dir.add(dst_dir)
-        return
-
-    if sync and _POSIX:
-        fsync_file(dst_dir, _os.O_DIRECTORY)
+        sync.fsync_file[dst_path] = 0
+        if sync_dirs:
+            sync.fsync_dir[dst_dir] = _os.O_DIRECTORY
+    elif sync and sync_dirs:
+        # NB: `fsync(dst_path)` is done by `func`
+        fsync_file(dst_dir, _os.O_DIRECTORY, simulate=simulate)
 
 
 _dot_part = ".part"
 _dot_partb = b".part"
 
 
-def atomic_make_file[AnyStr: (
+def make_file[Data, AnyStr: (
     str,
     bytes,
 )](
-    make_dst: _t.Callable[[AnyStr, bool], None],
+    func: _t.Callable[[Data, AnyStr, bool], None],
+    data: Data,
     dst_path: AnyStr,
-    allow_overwrites: bool = False,
+    allow_overwrites: bool | _os.stat_result = False,
     *,
-    makedirs: bool = True,
-    sync: Deferred[AnyStr] | bool = True,
+    makedirs: bool | set[AnyStr] = True,
+    sync: bool | Deferred[AnyStr] = True,
+    sync_files: bool = True,
+    sync_dirs: bool = True,
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
 ) -> None:
-    """Atomically create a file using a given `make_dst` function. This
-    runs `make_dst` on a `.part` path first, `fsync`s it, then does
-    `os.rename` or `os.replace` to `dst_path` (on POSIX, `flock`ing
-    the target directory, to make it truly atomic), then `fsync`s the
-    target directory.
-    """
+    """Run `unsafe_make_file` into a temporary file and then `os.rename` or `os.replace` to `dst_path`."""
 
-    if not allow_overwrites and _os.path.lexists(dst_path):
-        # fail early
-        raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
+    tmp_path = dst_path + (_dot_part if isinstance(dst_path, str) else _dot_partb)
 
-    if isinstance(dst_path, str):
-        tmp_path = dst_path + _dot_part
-    else:
-        tmp_path = dst_path + _dot_partb
-
-    dst_dir, nondot = dirname_dot(dst_path)
-
-    if makedirs and nondot:
-        _os.makedirs(dst_dir, exist_ok=True)
-    make_dst(tmp_path, isinstance(sync, bool) and sync)
+    dst_dir, _ = dirname_dot(dst_path)
 
     if isinstance(sync, Deferred) and sync.defer:
-        sync.tmp_file.add(tmp_path)
-        sync.fsync_file.add(tmp_path)
-        sync.rename_file.append((tmp_path, dst_path, allow_overwrites, dst_dir, dst_dir))
-        return
+        sync.unlink_file[tmp_path] = False
+
+    unsafe_make_file(
+        func,
+        data,
+        tmp_path,
+        makedirs=makedirs,
+        dst_dir=dst_dir,
+        sync=sync,
+        sync_files=sync_files,
+        sync_dirs=False,
+        simulate=simulate,
+    )
 
     try:
-        if sync:
-            fsync_file(tmp_path)
-        rename(tmp_path, dst_path, allow_overwrites, dst_dir=dst_dir)
-    except Exception:
-        unlink_maybe(tmp_path)
+        rename_file(
+            tmp_path,
+            dst_path,
+            allow_overwrites,
+            makedirs=False,
+            src_dir=dst_dir,
+            dst_dir=dst_dir,
+            sync=sync,
+            sync_dirs=sync_dirs,
+            simulate=simulate,
+        )
+    except BaseException:
+        if isinstance(sync, Deferred):
+            try:
+                del sync.fsync_file[tmp_path]
+            except KeyError:
+                pass
+            if sync.defer:
+                try:
+                    del sync.unlink_file[tmp_path]
+                except KeyError:
+                    pass
+        try:
+            _os.unlink(tmp_path)
+        except Exception:
+            pass
         raise
 
-    if isinstance(sync, Deferred):
-        sync.fsync_dir.add(dst_dir)
-        return
 
-    if sync and _POSIX:
-        fsync_file(dst_dir, _os.O_DIRECTORY)
-        # NB: src_dir == dst_dir
+def unsafe_write_file[AnyStr: (
+    str,
+    bytes,
+)](data: bytes | _io.IOBase, dst_path: AnyStr, fsync_immediately: bool = True) -> None:
+    try:
+        with open(dst_path, "xb") as fdst:
+            if isinstance(data, bytes):
+                fdst.write(data)
+            else:
+                _shutil.copyfileobj(data, fdst)
+            fdst.flush()
+            if fsync_immediately:
+                _os.fsync(fdst.fileno())
+    except FileExistsError:
+        raise
+    except BaseException:
+        try:
+            _os.unlink(dst_path)
+        except Exception:
+            pass
+        raise
 
 
-def atomic_write[AnyStr: (
+def write_file[AnyStr: (
     str,
     bytes,
 )](
-    data: bytes,
+    data: bytes | _io.IOBase,
     dst_path: AnyStr,
-    allow_overwrites: bool = False,
+    allow_overwrites: bool | _os.stat_result = False,
     *,
-    makedirs: bool = True,
-    sync: Deferred[AnyStr] | bool = True,
+    makedirs: bool | set[AnyStr] = True,
+    sync: bool | Deferred[AnyStr] = True,
+    sync_files: bool = True,
+    sync_dirs: bool = True,
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
 ) -> None:
-    """Atomically write given `data` to `dst_path`."""
+    """Atomically write given `data` to `dst_path` via writing `data` to a temporary file first and then
+    `rename`s it to `dst_path`.
+    """
 
-    def make_dst(tmp_path: AnyStr, fsync_immediately: bool) -> None:
+    make_file(
+        unsafe_write_file,
+        data,
+        dst_path,
+        allow_overwrites,
+        makedirs=makedirs,
+        sync=sync,
+        sync_files=sync_files,
+        sync_dirs=sync_dirs,
+        simulate=simulate,
+    )
+
+
+def unsafe_copy_file(
+    src_path: str | bytes, dst_path: str | bytes, fsync_immediately: bool = True
+) -> None:
+    with open(src_path, "rb") as fsrc:
         try:
-            with open(tmp_path, "xb") as fdst:
-                fdst.write(data)
+            with open(dst_path, "xb") as fdst:
+                _shutil.copyfileobj(fsrc, fdst)
                 fdst.flush()
+                _shutil.copystat(src_path, dst_path, follow_symlinks=True)
                 if fsync_immediately:
                     _os.fsync(fdst.fileno())
-        except Exception:
-            unlink_maybe(tmp_path)
+        except FileExistsError:
+            raise
+        except BaseException:
+            try:
+                _os.unlink(dst_path)
+            except Exception:
+                pass
             raise
 
-    atomic_make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
 
-
-def atomic_copy2[AnyStr: (
+def copy_file[AnyStr: (
     str,
     bytes,
 )](
-    src_path: AnyStr,
+    src_path: str | bytes,
     dst_path: AnyStr,
-    allow_overwrites: bool = False,
+    allow_overwrites: bool | _os.stat_result = False,
     *,
-    follow_symlinks: bool = False,
-    makedirs: bool = True,
-    sync: Deferred[AnyStr] | bool = True,
+    makedirs: bool | set[AnyStr] = True,
+    sync: bool | Deferred[AnyStr] = True,
+    sync_files: bool = True,
+    sync_dirs: bool = True,
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
 ) -> None:
-    """Atomically copy `src_path` to `dst_path`."""
+    """Atomically copy `src_path` to `dst_path`, following symlinks."""
 
-    def make_dst(tmp_path: AnyStr, fsync_immediately: bool) -> None:
-        try:
-            if not follow_symlinks and _os.path.islink(src_path):
-                _os.symlink(_os.readlink(src_path), tmp_path)
-                _shutil.copystat(src_path, tmp_path, follow_symlinks=False)
-            else:
-                with open(src_path, "rb") as fsrc:
-                    with open(tmp_path, "xb") as fdst:
-                        _shutil.copyfileobj(fsrc, fdst)
-                        fdst.flush()
-                        _shutil.copystat(src_path, tmp_path, follow_symlinks=follow_symlinks)
-                        if fsync_immediately:
-                            _os.fsync(fdst.fileno())
-        except Exception:
-            unlink_maybe(tmp_path)
-            raise
-
-    # always use the atomic version here, like rsync does,
-    # since copying can be interrupted in the middle
-    atomic_make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
+    make_file(
+        unsafe_copy_file,
+        src_path,
+        dst_path,
+        allow_overwrites,
+        makedirs=makedirs,
+        sync=sync,
+        sync_files=sync_files,
+        sync_dirs=sync_dirs,
+        simulate=simulate,
+    )
 
 
-def atomic_link[AnyStr: (
-    str,
-    bytes,
-)](
-    src_path: AnyStr,
-    dst_path: AnyStr,
-    allow_overwrites: bool = False,
-    *,
-    follow_symlinks: bool = False,
-    makedirs: bool = True,
-    sync: Deferred[AnyStr] | bool = True,
+def unsafe_symlink_file(
+    src_path: str | bytes, dst_path: str | bytes, _fsync_immediately: bool = False
 ) -> None:
-    """Atomically hardlink `src_path` to `dst_path`."""
-
-    if follow_symlinks and _os.path.islink(src_path):
-        src_path = _os.path.realpath(src_path)
-
-    def make_dst(dst_path: AnyStr, _fsync_immediately: bool) -> None:
-        _os.link(src_path, dst_path, follow_symlinks=follow_symlinks)
-
-    # _os.link is atomic, so non-atomic make_file is ok
-    if allow_overwrites or (isinstance(sync, Deferred) and sync.defer):
-        atomic_make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
-    else:
-        make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
+    # NB: this raises `FileExistsError` when `dst_path` exists
+    _os.symlink(src_path, dst_path)
+    # if fsync_immediately:
+    #     fsync_file(dst_dir, _os.O_SYMLINK)
 
 
-def atomic_symlink[AnyStr: (
+def symlink_file[AnyStr: (
     str,
     bytes,
 )](
-    src_path: AnyStr,
+    src_path: str | bytes,
     dst_path: AnyStr,
-    allow_overwrites: bool = False,
+    allow_overwrites: bool | _os.stat_result = False,
     *,
-    follow_symlinks: bool = False,
-    makedirs: bool = True,
-    sync: Deferred[AnyStr] | bool = True,
+    makedirs: bool | set[AnyStr] = True,
+    sync: bool | Deferred[AnyStr] = True,
+    sync_files: bool = True,
+    sync_dirs: bool = True,
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
 ) -> None:
     """Atomically symlink `src_path` to `dst_path`."""
 
-    if follow_symlinks and _os.path.islink(src_path):
-        src_path = _os.path.realpath(src_path)
-
-    def make_dst(dst_path: AnyStr, _fsync_immediately: bool) -> None:
-        _os.symlink(src_path, dst_path)
-
-    # _os.symlink is atomic, so non-atomic make_file is ok
     if allow_overwrites or (isinstance(sync, Deferred) and sync.defer):
-        atomic_make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
+        make_file(
+            unsafe_symlink_file,
+            src_path,
+            dst_path,
+            allow_overwrites,
+            makedirs=makedirs,
+            sync=sync,
+            sync_files=sync_files,
+            sync_dirs=sync_dirs,
+            simulate=simulate,
+        )
     else:
-        make_file(make_dst, dst_path, allow_overwrites, makedirs=makedirs, sync=sync)
+        # `_os.symlink` is atomic, so non-atomic `unsafe_make_file` is ok in this case
+        unsafe_make_file(
+            unsafe_symlink_file,
+            src_path,
+            dst_path,
+            makedirs=makedirs,
+            sync=sync,
+            sync_files=sync_files,
+            sync_dirs=sync_dirs,
+            simulate=simulate,
+        )
 
 
-def atomic_link_or_copy2[AnyStr: (
+def unsafe_copy_symlink(
+    src_path: str | bytes, dst_path: str | bytes, _fsync_immediately: bool = False
+) -> None:
+    data = _os.readlink(fsencode(src_path))
+    _os.symlink(data, dst_path)
+    _shutil.copystat(src_path, dst_path, follow_symlinks=False)
+    # if fsync_immediately:
+    #     fsync_file(dst_dir, _os.O_SYMLINK)
+
+
+def unsafe_clone_file(
+    src_path: str | bytes, dst_path: str | bytes, fsync_immediately: bool = True
+) -> None:
+    if _op.islink(src_path):
+        unsafe_copy_symlink(src_path, dst_path, fsync_immediately)
+        return
+    unsafe_copy_file(src_path, dst_path, fsync_immediately)
+
+
+def clone_file[AnyStr: (
     str,
     bytes,
 )](
-    src_path: AnyStr,
+    src_path: str | bytes,
     dst_path: AnyStr,
-    allow_overwrites: bool = False,
+    allow_overwrites: bool | _os.stat_result = False,
     *,
-    follow_symlinks: bool = False,
-    makedirs: bool = True,
-    sync: Deferred[AnyStr] | bool = True,
+    makedirs: bool | set[AnyStr] = True,
+    sync: bool | Deferred[AnyStr] = True,
+    sync_files: bool = True,
+    sync_dirs: bool = True,
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
+) -> None:
+    """Atomically copy `src_path` to `dst_path`, not following and preserving symlinks."""
+
+    make_file(
+        unsafe_clone_file,
+        src_path,
+        dst_path,
+        allow_overwrites,
+        makedirs=makedirs,
+        sync=sync,
+        sync_files=sync_files,
+        sync_dirs=sync_dirs,
+        simulate=simulate,
+    )
+
+
+def unsafe_link_file(
+    src_path: str | bytes, dst_path: str | bytes, _fsync_immediately: bool = False
+) -> None:
+    # NB: this raises `FileExistsError` when `dst_path` exists
+    _os.link(src_path, dst_path, follow_symlinks=False)
+
+
+def link_file[AnyStr: (
+    str,
+    bytes,
+)](
+    src_path: str | bytes,
+    dst_path: AnyStr,
+    allow_overwrites: bool | _os.stat_result = False,
+    *,
+    makedirs: bool | set[AnyStr] = True,
+    sync: bool | Deferred[AnyStr] = True,
+    sync_files: bool = False,
+    sync_dirs: bool = True,
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
+) -> None:
+    """Atomically hardlink `src_path` to `dst_path`."""
+
+    if allow_overwrites or (isinstance(sync, Deferred) and sync.defer):
+        make_file(
+            unsafe_link_file,
+            src_path,
+            dst_path,
+            allow_overwrites,
+            makedirs=makedirs,
+            sync=sync,
+            sync_files=sync_files,
+            sync_dirs=sync_dirs,
+            simulate=simulate,
+        )
+    else:
+        # `_os.link` is atomic, so non-atomic `unsafe_make_file` is ok in this case
+        unsafe_make_file(
+            unsafe_link_file,
+            src_path,
+            dst_path,
+            makedirs=makedirs,
+            sync=sync,
+            sync_files=sync_files,
+            sync_dirs=sync_dirs,
+            simulate=simulate,
+        )
+
+
+def link_or_clone_file[AnyStr: (
+    str,
+    bytes,
+)](
+    src_path: str | bytes,
+    dst_path: AnyStr,
+    allow_overwrites: bool | _os.stat_result = False,
+    *,
+    makedirs: bool | set[AnyStr] = True,
+    sync: bool | Deferred[AnyStr] = True,
+    sync_files: bool = True,
+    sync_dirs: bool = True,
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
 ) -> None:
     """Atomically hardlink or copy `src_path` to `dst_path`."""
 
     try:
-        atomic_link(src_path, dst_path, allow_overwrites, follow_symlinks=follow_symlinks, makedirs=makedirs, sync=sync)  # fmt: skip
+        link_file(
+            src_path,
+            dst_path,
+            allow_overwrites,
+            makedirs=makedirs,
+            sync=sync,
+            sync_dirs=sync_dirs,
+            simulate=simulate,
+        )
     except OSError as exc:
         if exc.errno != _errno.EXDEV:
             raise
-        atomic_copy2(src_path, dst_path, allow_overwrites, follow_symlinks=follow_symlinks, makedirs=makedirs, sync=sync)  # fmt: skip
+        clone_file(
+            src_path,
+            dst_path,
+            allow_overwrites,
+            makedirs=makedirs,
+            sync=sync,
+            sync_files=sync_files,
+            sync_dirs=sync_dirs,
+            simulate=simulate,
+        )
 
 
-def atomic_move[AnyStr: (
+def move_file[AnyStr: (
     str,
     bytes,
 )](
     src_path: AnyStr,
     dst_path: AnyStr,
-    allow_overwrites: bool = False,
+    allow_overwrites: bool | _os.stat_result = False,
     *,
-    follow_symlinks: bool = False,
-    makedirs: bool = True,
-    sync: Deferred[AnyStr] | bool = True,
+    unlink_safely: bool = True,
+    makedirs: bool | set[AnyStr] = True,
+    sync: bool | Deferred[AnyStr] = True,
+    sync_files: bool = True,
+    sync_dirs: bool = True,
+    simulate: _t.Callable[_t.Concatenate[str, ...], None] | None = None,
 ) -> None:
     """Atomically move `src_path` to `dst_path`."""
 
-    src_dir, _ = dirname_dot(src_path)
+    exists: bool | _os.stat_result = (
+        _os.lstat(src_path)
+        if unlink_safely
+        and isinstance(sync, Deferred)
+        and (not sync.defer or src_path in sync.unsafe_make_file or src_path in sync.rename_file)
+        and simulate is None
+        else True
+    )
 
-    atomic_link_or_copy2(src_path, dst_path, allow_overwrites, follow_symlinks=follow_symlinks, makedirs=makedirs, sync=sync)  # fmt: skip
+    link_or_clone_file(
+        src_path,
+        dst_path,
+        allow_overwrites,
+        makedirs=makedirs,
+        sync=sync,
+        sync_files=sync_files,
+        sync_dirs=sync_dirs,
+        simulate=simulate,
+    )
 
     if isinstance(sync, Deferred):
-        after = sync.after
-        after.unlink_file.add(src_path)
-        after.fsync_dir.add(src_dir)
+        sync.after.unlink_file[src_path] = exists
         return
 
-    _os.unlink(src_path)
-
-    if sync and _POSIX:
-        fsync_file(src_dir, _os.O_DIRECTORY)
+    unlink_file(src_path, sync=sync, simulate=simulate)
 
 
 def setup_fs(prog: str | None = None, ext: str = ".part", add_pid: bool = True) -> None:

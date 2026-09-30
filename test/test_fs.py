@@ -97,10 +97,11 @@ def fs1(
         syncs: list[tuple[_t.Any, ...]],
         defer_main: list[tuple[_t.Any, ...]] | None = None,
         defer_syncs: list[tuple[_t.Any, ...]] | None = None,
+        full_main: list[tuple[_t.Any, ...]] | None = None,
     ) -> None:
         for e in (main, syncs):
             sync_acc.extend(e)
-            nosync_acc.extend(filter(lambda x: not x[0].startswith("fsync"), e))
+            nosync_acc.extend(filter(lambda x: x[0] != "fsync", e))
 
         if defer_main is None:
             defer_main = main
@@ -114,15 +115,15 @@ def fs1(
             def simulate2(*args: str) -> None:
                 log2.append(args)
 
-            sync.copy().sync(simulate=simulate2)
+            sync.copy().flush(simulate=simulate2)
 
             if sync.defer:
-                assert log2 in (defer_log, main + syncs)
+                assert log2 == defer_log
             else:
-                assert log2 in (defer_syncs, syncs)
+                assert log2 == defer_syncs
 
             if flush:
-                sync.sync(simulate=simulate)
+                sync.flush(simulate=simulate)
 
         if simulate is not None:
             if isinstance(sync, Deferred):
@@ -131,7 +132,7 @@ def fs1(
                 elif sync.defer:
                     assert log == defer_log
                 else:
-                    pass
+                    assert log == (defer_log if full_main is None else full_main + defer_syncs)
             elif sync:
                 assert log == sync_acc
             else:
@@ -155,130 +156,138 @@ def fs1(
         gd = list(describe_forest(["."], hash_length=8))
         assert gd == ed
 
-    atomic_write(b"test a", "test.a", sync=sync)
-    atomic_write(b"test b", "test.b", sync=sync)
-    atomic_write(b"test c", "test.c", sync=sync)
+    write_file(b"test a", "test.a", sync=sync, simulate=simulate)
+    write_file(b"test b", "test.b", sync=sync, simulate=simulate)
+    write_file(b"test c", "test.c", sync=sync, simulate=simulate)
     check(
         [
-            ("fsync", "test.a.part"),
+            ("make", "test.a.part"),
+            ("fsync", "test.a.part", 0),
             ("rename", "test.a.part", "test.a"),
-            ("fsync_win", "test.a"),
-            ("fsync", "test.b.part"),
+            ("fsync", ".", os.O_DIRECTORY),
+            ("make", "test.b.part"),
+            ("fsync", "test.b.part", 0),
             ("rename", "test.b.part", "test.b"),
-            ("fsync_win", "test.b"),
-            ("fsync", "test.c.part"),
+            ("fsync", ".", os.O_DIRECTORY),
+            ("make", "test.c.part"),
+            ("fsync", "test.c.part", 0),
             ("rename", "test.c.part", "test.c"),
-            ("fsync_win", "test.c"),
         ],
         [
-            ("fsync_dir", "."),
+            ("fsync", ".", os.O_DIRECTORY),
         ],
         [
-            ("fsync", "test.a.part"),
-            ("fsync", "test.b.part"),
-            ("fsync", "test.c.part"),
+            ("make", "test.a.part"),
+            ("make", "test.b.part"),
+            ("make", "test.c.part"),
+            ("fsync", "test.a.part", 0),
+            ("fsync", "test.b.part", 0),
+            ("fsync", "test.c.part", 0),
             ("rename", "test.a.part", "test.a"),
             ("rename", "test.b.part", "test.b"),
             ("rename", "test.c.part", "test.c"),
-            ("fsync_win", "test.a"),
-            ("fsync_win", "test.b"),
-            ("fsync_win", "test.c"),
         ],
     )
-    atomic_rename("test.a", "a/test.a", False, sync=sync)
+    rename_file("test.a", "a/test.a", False, sync=sync, simulate=simulate)
     check(
         [
+            ("makedirs", "a"),
             ("rename", "test.a", "a/test.a"),
-            ("fsync_win", "a/test.a"),
         ],
         [
-            ("fsync_dir", "."),
-            ("fsync_dir", "a"),
+            ("fsync", "a", os.O_DIRECTORY),
+            ("fsync", ".", os.O_DIRECTORY),
         ],
         [
-            ("fsync", "test.a.part"),
-            ("fsync", "test.b.part"),
-            ("fsync", "test.c.part"),
+            ("make", "test.a.part"),
+            ("make", "test.b.part"),
+            ("make", "test.c.part"),
+            ("fsync", "test.a.part", 0),
+            ("fsync", "test.b.part", 0),
+            ("fsync", "test.c.part", 0),
             ("rename", "test.a.part", "test.a"),
             ("rename", "test.b.part", "test.b"),
             ("rename", "test.c.part", "test.c"),
-            ("barrier",),
-            ("fsync_win", "test.a"),
-            ("fsync_win", "test.b"),
-            ("fsync_win", "test.c"),
-            ("fsync_dir", "."),
+            ("fsync", ".", os.O_DIRECTORY),
+            ("makedirs", "a"),
             ("rename", "test.a", "a/test.a"),
-            ("fsync_win", "a/test.a"),
-        ],
-        [
-            ("fsync_dir", "a"),
-            ("fsync_dir", "."),
         ],
     )
-    atomic_rename("test.b", "a/test.b", False, sync=sync)
+    rename_file("test.b", "a/test.b", False, sync=sync, simulate=simulate)
     check(
         [
+            ("makedirs", "a"),
             ("rename", "test.b", "a/test.b"),
         ],
         [
-            ("fsync_dir", "."),
-            ("fsync_dir", "a"),
+            ("fsync", "a", os.O_DIRECTORY),
+            ("fsync", ".", os.O_DIRECTORY),
         ],
         [
-            ("fsync", "test.a.part"),
-            ("fsync", "test.b.part"),
-            ("fsync", "test.c.part"),
+            ("make", "test.a.part"),
+            ("make", "test.b.part"),
+            ("make", "test.c.part"),
+            ("fsync", "test.a.part", 0),
+            ("fsync", "test.b.part", 0),
+            ("fsync", "test.c.part", 0),
             ("rename", "test.a.part", "test.a"),
             ("rename", "test.b.part", "test.b"),
             ("rename", "test.c.part", "test.c"),
-            ("barrier",),
-            ("fsync_win", "test.a"),
-            ("fsync_win", "test.b"),
-            ("fsync_win", "test.c"),
-            ("fsync_dir", "."),
+            ("fsync", ".", os.O_DIRECTORY),
+            ("makedirs", "a"),
             ("rename", "test.a", "a/test.a"),
             ("rename", "test.b", "a/test.b"),
-            ("fsync_win", "a/test.a"),
-            ("fsync_win", "a/test.b"),
-        ],
-        [
-            ("fsync_dir", "a"),
-            ("fsync_dir", "."),
         ],
     )
-    atomic_rename("test.c", "b/test.c", False, sync=sync)
+    rename_file("test.c", "b/test.c", False, sync=sync, simulate=simulate)
     check_flush(
         [
+            ("makedirs", "b"),
             ("rename", "test.c", "b/test.c"),
         ],
         [
-            ("fsync_dir", "."),
-            ("fsync_dir", "a"),
-            ("fsync_dir", "b"),
+            ("fsync", "b", os.O_DIRECTORY),
+            ("fsync", ".", os.O_DIRECTORY),
         ],
         [
-            ("fsync", "test.a.part"),
-            ("fsync", "test.b.part"),
-            ("fsync", "test.c.part"),
+            ("make", "test.a.part"),
+            ("make", "test.b.part"),
+            ("make", "test.c.part"),
+            ("fsync", "test.a.part", 0),
+            ("fsync", "test.b.part", 0),
+            ("fsync", "test.c.part", 0),
             ("rename", "test.a.part", "test.a"),
             ("rename", "test.b.part", "test.b"),
             ("rename", "test.c.part", "test.c"),
-            ("barrier",),
-            ("fsync_win", "test.a"),
-            ("fsync_win", "test.b"),
-            ("fsync_win", "test.c"),
-            ("fsync_dir", "."),
+            ("fsync", ".", os.O_DIRECTORY),
+            ("makedirs", "a"),
             ("rename", "test.a", "a/test.a"),
             ("rename", "test.b", "a/test.b"),
+            ("makedirs", "b"),
             ("rename", "test.c", "b/test.c"),
-            ("fsync_win", "a/test.a"),
-            ("fsync_win", "a/test.b"),
-            ("fsync_win", "b/test.c"),
         ],
         [
-            ("fsync_dir", "a"),
-            ("fsync_dir", "b"),
-            ("fsync_dir", "."),
+            ("fsync", "a", os.O_DIRECTORY),
+            ("fsync", "b", os.O_DIRECTORY),
+            ("fsync", ".", os.O_DIRECTORY),
+        ],
+        [
+            ("make", "test.a.part"),
+            ("fsync", "test.a.part", 0),
+            ("rename", "test.a.part", "test.a"),
+            ("make", "test.b.part"),
+            ("fsync", "test.b.part", 0),
+            ("rename", "test.b.part", "test.b"),
+            ("make", "test.c.part"),
+            ("fsync", "test.c.part", 0),
+            ("rename", "test.c.part", "test.c"),
+            ("fsync", ".", os.O_DIRECTORY),
+            ("makedirs", "a"),
+            ("rename", "test.a", "a/test.a"),
+            ("makedirs", "a"),
+            ("rename", "test.b", "a/test.b"),
+            ("makedirs", "b"),
+            ("rename", "test.c", "b/test.c"),
         ],
     )
 
@@ -293,22 +302,14 @@ def fs1(
         ]
     )
 
-    atomic_rename("a/test.b", "test.b", False, sync=sync)
+    rename_file("a/test.b", "test.b", False, sync=sync, simulate=simulate)
     check_flush(
         [
             ("rename", "a/test.b", "test.b"),
-            ("fsync_win", "test.b"),
         ],
         [
-            ("fsync_dir", "."),
-        ],
-        [
-            ("rename", "a/test.b", "test.b"),
-            ("fsync_win", "test.b"),
-        ],
-        [
-            ("fsync_dir", "."),
-            ("fsync_dir", "a"),
+            ("fsync", ".", os.O_DIRECTORY),
+            ("fsync", "a", os.O_DIRECTORY),
         ],
     )
 
@@ -323,25 +324,36 @@ def fs1(
         ]
     )
 
-    if simulate is not None:
-        return
-
-    atomic_link("a/test.a", "test.a", True, sync=sync)
-    atomic_symlink("b/test.c", "test.c", True, sync=sync)
+    link_file("a/test.a", "test.a", True, sync=sync, simulate=simulate)
+    symlink_file("b/test.c", "test.c", True, sync=sync, simulate=simulate)
     check_flush(
         [
-            # TODO
+            ("make", "test.a.part"),
+            ("replace", "test.a.part", "test.a"),
+            ("fsync", ".", os.O_DIRECTORY),
+            ("make", "test.c.part"),
+            ("fsync", "test.c.part", 0),
+            ("replace", "test.c.part", "test.c"),
         ],
         [
-            ("fsync_dir", "."),
+            ("fsync", ".", os.O_DIRECTORY),
         ],
         [
-            ("fsync", "test.a.part"),
-            ("fsync", "test.c.part"),
+            ("make", "test.a.part"),
+            ("make", "test.c.part"),
+            ("fsync", "test.a.part", 0),
+            ("fsync", "test.c.part", 0),
             ("replace", "test.a.part", "test.a"),
             ("replace", "test.c.part", "test.c"),
-            ("fsync_win", "test.a"),
-            ("fsync_win", "test.c"),
+        ],
+        None,
+        [
+            ("make", "test.a.part"),
+            ("fsync", "test.a.part", 0),
+            ("replace", "test.a.part", "test.a"),
+            ("make", "test.c.part"),
+            ("fsync", "test.c.part", 0),
+            ("replace", "test.c.part", "test.c"),
         ],
     )
 
@@ -358,30 +370,67 @@ def fs1(
         ]
     )
 
-    atomic_copy2("test.a", "x/test.a", True, sync=sync)
-    atomic_copy2("test.c", "x/test.c", True, sync=sync)
-    atomic_link("test.c", "x/test.c.lnk", True, sync=sync)
-    atomic_copy2("test.c", "x/test.c.sym", True, sync=sync)
+    copy_file("test.a", "x/test.a", True, sync=sync, simulate=simulate)
+    clone_file("test.c", "x/test.c", True, sync=sync, simulate=simulate)
+    link_file("test.c", "x/test.c.lnk", True, sync=sync, simulate=simulate)
+    clone_file("test.c", "x/test.c.sym", True, sync=sync, simulate=simulate)
     check_flush(
         [
-            # TODO
+            ("makedirs", "x"),
+            ("make", "x/test.a.part"),
+            ("fsync", "x/test.a.part", 0),
+            ("replace", "x/test.a.part", "x/test.a"),
+            ("fsync", "x", os.O_DIRECTORY),
+            ("makedirs", "x"),
+            ("make", "x/test.c.part"),
+            ("fsync", "x/test.c.part", 0),
+            ("replace", "x/test.c.part", "x/test.c"),
+            ("fsync", "x", os.O_DIRECTORY),
+            ("makedirs", "x"),
+            ("make", "x/test.c.lnk.part"),
+            ("replace", "x/test.c.lnk.part", "x/test.c.lnk"),
+            ("fsync", "x", os.O_DIRECTORY),
+            ("makedirs", "x"),
+            ("make", "x/test.c.sym.part"),
+            ("fsync", "x/test.c.sym.part", 0),
+            ("replace", "x/test.c.sym.part", "x/test.c.sym"),
         ],
         [
-            ("fsync_dir", "x"),
+            ("fsync", "x", os.O_DIRECTORY),
         ],
         [
-            ("fsync", "x/test.a.part"),
-            ("fsync", "x/test.c.lnk.part"),
-            ("fsync", "x/test.c.part"),
-            ("fsync", "x/test.c.sym.part"),
+            ("makedirs", "x"),
+            ("make", "x/test.a.part"),
+            ("make", "x/test.c.part"),
+            ("make", "x/test.c.lnk.part"),
+            ("make", "x/test.c.sym.part"),
+            ("fsync", "x/test.a.part", 0),
+            ("fsync", "x/test.c.lnk.part", 0),
+            ("fsync", "x/test.c.part", 0),
+            ("fsync", "x/test.c.sym.part", 0),
             ("replace", "x/test.a.part", "x/test.a"),
             ("replace", "x/test.c.part", "x/test.c"),
             ("replace", "x/test.c.lnk.part", "x/test.c.lnk"),
             ("replace", "x/test.c.sym.part", "x/test.c.sym"),
-            ("fsync_win", "x/test.a"),
-            ("fsync_win", "x/test.c"),
-            ("fsync_win", "x/test.c.lnk"),
-            ("fsync_win", "x/test.c.sym"),
+        ],
+        None,
+        [
+            ("makedirs", "x"),
+            ("make", "x/test.a.part"),
+            ("fsync", "x/test.a.part", 0),
+            ("replace", "x/test.a.part", "x/test.a"),
+            ("makedirs", "x"),
+            ("make", "x/test.c.part"),
+            ("fsync", "x/test.c.part", 0),
+            ("replace", "x/test.c.part", "x/test.c"),
+            ("makedirs", "x"),
+            ("make", "x/test.c.lnk.part"),
+            ("fsync", "x/test.c.lnk.part", 0),
+            ("replace", "x/test.c.lnk.part", "x/test.c.lnk"),
+            ("makedirs", "x"),
+            ("make", "x/test.c.sym.part"),
+            ("fsync", "x/test.c.sym.part", 0),
+            ("replace", "x/test.c.sym.part", "x/test.c.sym"),
         ],
     )
 
@@ -403,40 +452,87 @@ def fs1(
         ]
     )
 
-    atomic_copy2("test.a", "y/test.a", True, sync=sync)
-    atomic_copy2("test.c", "y/test.c", True, sync=sync)
-    atomic_link("test.c", "y/test.c.lnk", True, sync=sync)
-    atomic_copy2("test.c", "y/test.c.sym", True, sync=sync)
-    atomic_move("test.c", "z/test.c", True, sync=sync)
+    copy_file("test.a", "y/test.a", True, sync=sync, simulate=simulate)
+    clone_file("test.c", "y/test.c", True, sync=sync, simulate=simulate)
+    link_file("test.c", "y/test.c.lnk", True, sync=sync, simulate=simulate)
+    clone_file("test.c", "y/test.c.sym", True, sync=sync, simulate=simulate)
+    move_file("test.c", "z/test.c", True, sync=sync, simulate=simulate)
     check_flush(
         [
-            # TODO
+            ("makedirs", "y"),
+            ("make", "y/test.a.part"),
+            ("fsync", "y/test.a.part", 0),
+            ("replace", "y/test.a.part", "y/test.a"),
+            ("fsync", "y", os.O_DIRECTORY),
+            ("makedirs", "y"),
+            ("make", "y/test.c.part"),
+            ("fsync", "y/test.c.part", 0),
+            ("replace", "y/test.c.part", "y/test.c"),
+            ("fsync", "y", os.O_DIRECTORY),
+            ("makedirs", "y"),
+            ("make", "y/test.c.lnk.part"),
+            ("replace", "y/test.c.lnk.part", "y/test.c.lnk"),
+            ("fsync", "y", os.O_DIRECTORY),
+            ("makedirs", "y"),
+            ("make", "y/test.c.sym.part"),
+            ("fsync", "y/test.c.sym.part", 0),
+            ("replace", "y/test.c.sym.part", "y/test.c.sym"),
+            ("fsync", "y", os.O_DIRECTORY),
+            ("makedirs", "z"),
+            ("make", "z/test.c.part"),
+            ("replace", "z/test.c.part", "z/test.c"),
+            ("fsync", "z", os.O_DIRECTORY),
+            ("unlink", "test.c"),
         ],
         [
-            ("fsync_dir", "."),
+            ("fsync", ".", os.O_DIRECTORY),
         ],
         [
-            ("fsync", "y/test.a.part"),
-            ("fsync", "y/test.c.lnk.part"),
-            ("fsync", "y/test.c.part"),
-            ("fsync", "y/test.c.sym.part"),
-            ("fsync", "z/test.c.part"),
+            ("makedirs", "y"),
+            ("make", "y/test.a.part"),
+            ("make", "y/test.c.part"),
+            ("make", "y/test.c.lnk.part"),
+            ("make", "y/test.c.sym.part"),
+            ("makedirs", "z"),
+            ("make", "z/test.c.part"),
+            ("fsync", "y/test.a.part", 0),
+            ("fsync", "y/test.c.lnk.part", 0),
+            ("fsync", "y/test.c.part", 0),
+            ("fsync", "y/test.c.sym.part", 0),
+            ("fsync", "z/test.c.part", 0),
             ("replace", "y/test.a.part", "y/test.a"),
             ("replace", "y/test.c.part", "y/test.c"),
             ("replace", "y/test.c.lnk.part", "y/test.c.lnk"),
             ("replace", "y/test.c.sym.part", "y/test.c.sym"),
             ("replace", "z/test.c.part", "z/test.c"),
-            ("fsync_win", "y/test.a"),
-            ("fsync_win", "y/test.c"),
-            ("fsync_win", "y/test.c.lnk"),
-            ("fsync_win", "y/test.c.sym"),
-            ("fsync_win", "z/test.c"),
         ],
         [
-            ("fsync_dir", "y"),
-            ("fsync_dir", "z"),
+            ("fsync", "y", os.O_DIRECTORY),
+            ("fsync", "z", os.O_DIRECTORY),
             ("unlink", "test.c"),
-            ("fsync_dir", "."),
+            ("fsync", ".", os.O_DIRECTORY),
+        ],
+        [
+            ("makedirs", "y"),
+            ("make", "y/test.a.part"),
+            ("fsync", "y/test.a.part", 0),
+            ("replace", "y/test.a.part", "y/test.a"),
+            ("makedirs", "y"),
+            ("make", "y/test.c.part"),
+            ("fsync", "y/test.c.part", 0),
+            ("replace", "y/test.c.part", "y/test.c"),
+            ("makedirs", "y"),
+            ("make", "y/test.c.lnk.part"),
+            ("fsync", "y/test.c.lnk.part", 0),
+            ("replace", "y/test.c.lnk.part", "y/test.c.lnk"),
+            ("makedirs", "y"),
+            ("make", "y/test.c.sym.part"),
+            ("fsync", "y/test.c.sym.part", 0),
+            ("replace", "y/test.c.sym.part", "y/test.c.sym"),
+            ("makedirs", "z"),
+            ("make", "z/test.c.part"),
+            ("fsync", "z/test.c.part", 0),
+            ("replace", "z/test.c.part", "z/test.c"),
         ],
     )
 
@@ -464,7 +560,10 @@ def fs1(
         ]
     )
 
-    atomic_symlink("/home", "y/home")
+    symlink_file("/home", "y/home")
+
+    if simulate is not None:
+        return
 
     # to test `describe_forest` with multiple paths
     w = list(describe_forest(["x", "y"], hash_length=8))
