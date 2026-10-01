@@ -955,9 +955,9 @@ def rename_file[AnyStr: (
         with Directory(dst_dir) as d:
             d.flock()
             # NB: this is now atomic
-            if _op.lexists(dst_path):
-                raise FileExistsError(_errno.EEXIST, _os.strerror(_errno.EEXIST), dst_path)
-            _os.rename(src_path, dst_path)
+            # NB: this raises `FileExistsError` when `dst_path` exists
+            _os.link(src_path, dst_path, follow_symlinks=False)
+            _os.unlink(src_path)
     else:
         # NB: this is both atomic and fails with `FileExistsError` on Windows
         _os.rename(src_path, dst_path)
