@@ -25,6 +25,8 @@
 import os
 import typing as _t
 
+import pytest
+
 from kisstdlib.failure import *
 from kisstdlib.fs import *
 
@@ -157,18 +159,49 @@ def fs1(
         assert gd == ed
 
     write_file(b"test a", "test.a", sync=sync, simulate=simulate)
-    write_file(b"test b", "test.b", sync=sync, simulate=simulate)
-    write_file(b"test c", "test.c", sync=sync, simulate=simulate)
     check(
         [
             ("make", "test.a.part"),
             ("fsync", "test.a.part", 0),
             ("rename", "test.a.part", "test.a"),
+        ],
+        [
             ("fsync", ".", os.O_DIRECTORY),
+        ],
+        [
+            ("make", "test.a.part"),
+            ("fsync", "test.a.part", 0),
+            ("rename", "test.a.part", "test.a"),
+        ],
+    )
+
+    with pytest.raises(FileExistsError):
+        if simulate_whole:
+            raise FileExistsError()
+        write_file(b"test e", "test.a", sync=sync, simulate=simulate)
+
+    write_file(b"test b", "test.b", sync=sync, simulate=simulate)
+    check(
+        [
             ("make", "test.b.part"),
             ("fsync", "test.b.part", 0),
             ("rename", "test.b.part", "test.b"),
+        ],
+        [
             ("fsync", ".", os.O_DIRECTORY),
+        ],
+        [
+            ("make", "test.a.part"),
+            ("make", "test.b.part"),
+            ("fsync", "test.a.part", 0),
+            ("fsync", "test.b.part", 0),
+            ("rename", "test.a.part", "test.a"),
+            ("rename", "test.b.part", "test.b"),
+        ],
+    )
+    write_file(b"test c", "test.c", sync=sync, simulate=simulate)
+    check(
+        [
             ("make", "test.c.part"),
             ("fsync", "test.c.part", 0),
             ("rename", "test.c.part", "test.c"),
@@ -562,6 +595,130 @@ def fs1(
 
     symlink_file("/home", "y/home")
 
+    for create in (True, False):
+        for p in ("test.a", "test.b"):
+            pp = p + "x"
+            dp = "r/" + p
+            dpp = "r/" + pp
+
+            if create:
+                clone_file(p, dp, sync=sync, simulate=simulate)
+                clone_file(p, dpp, sync=sync, simulate=simulate)
+                continue
+
+            unlink_file(dp, True, sync=sync, simulate=simulate)
+            unlink_file(dp, False, sync=sync, simulate=simulate)
+            unlink_file(dp, False, sync=sync, simulate=simulate)
+
+            unlink_file(dpp, False, sync=sync, simulate=simulate)
+            if simulate_whole or isinstance(sync, Deferred) and sync.defer:
+                unlink_file(dpp, True, sync=sync, simulate=simulate)
+            else:
+                with pytest.raises(FileNotFoundError):
+                    unlink_file(dpp, True, sync=sync, simulate=simulate)
+            unlink_file(dpp, False, sync=sync, simulate=simulate)
+
+    check_flush(
+        [
+            ("makedirs", "r"),
+            ("make", "r/test.a.part"),
+            ("fsync", "r/test.a.part", 0),
+            ("rename", "r/test.a.part", "r/test.a"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("makedirs", "r"),
+            ("make", "r/test.ax.part"),
+            ("fsync", "r/test.ax.part", 0),
+            ("rename", "r/test.ax.part", "r/test.ax"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("makedirs", "r"),
+            ("make", "r/test.b.part"),
+            ("fsync", "r/test.b.part", 0),
+            ("rename", "r/test.b.part", "r/test.b"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("makedirs", "r"),
+            ("make", "r/test.bx.part"),
+            ("fsync", "r/test.bx.part", 0),
+            ("rename", "r/test.bx.part", "r/test.bx"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("unlink", "r/test.a"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("unlink", "r/test.a"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("unlink", "r/test.a"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("unlink", "r/test.ax"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("unlink", "r/test.ax"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("unlink", "r/test.ax"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("unlink", "r/test.b"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("unlink", "r/test.b"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("unlink", "r/test.b"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("unlink", "r/test.bx"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("unlink", "r/test.bx"),
+            ("fsync", "r", os.O_DIRECTORY),
+            ("unlink", "r/test.bx"),
+        ],
+        [
+            ("fsync", "r", os.O_DIRECTORY),
+        ],
+        [
+            ("makedirs", "r"),
+            ("make", "r/test.a.part"),
+            ("make", "r/test.ax.part"),
+            ("make", "r/test.b.part"),
+            ("make", "r/test.bx.part"),
+            ("fsync", "r/test.a.part", 0),
+            ("fsync", "r/test.ax.part", 0),
+            ("fsync", "r/test.b.part", 0),
+            ("fsync", "r/test.bx.part", 0),
+            ("rename", "r/test.a.part", "r/test.a"),
+            ("rename", "r/test.ax.part", "r/test.ax"),
+            ("rename", "r/test.b.part", "r/test.b"),
+            ("rename", "r/test.bx.part", "r/test.bx"),
+            ("unlink", "r/test.a"),
+            ("unlink", "r/test.ax"),
+            ("unlink", "r/test.b"),
+            ("unlink", "r/test.bx"),
+        ],
+        None,
+        [
+            ("makedirs", "r"),
+            ("make", "r/test.a.part"),
+            ("fsync", "r/test.a.part", 0),
+            ("rename", "r/test.a.part", "r/test.a"),
+            ("makedirs", "r"),
+            ("make", "r/test.ax.part"),
+            ("fsync", "r/test.ax.part", 0),
+            ("rename", "r/test.ax.part", "r/test.ax"),
+            ("makedirs", "r"),
+            ("make", "r/test.b.part"),
+            ("fsync", "r/test.b.part", 0),
+            ("rename", "r/test.b.part", "r/test.b"),
+            ("makedirs", "r"),
+            ("make", "r/test.bx.part"),
+            ("fsync", "r/test.bx.part", 0),
+            ("rename", "r/test.bx.part", "r/test.bx"),
+            ("unlink", "r/test.a"),
+            ("unlink", "r/test.a"),
+            ("unlink", "r/test.a"),
+            ("unlink", "r/test.ax"),
+            ("unlink", "r/test.ax"),
+            ("unlink", "r/test.ax"),
+            ("unlink", "r/test.b"),
+            ("unlink", "r/test.b"),
+            ("unlink", "r/test.b"),
+            ("unlink", "r/test.bx"),
+            ("unlink", "r/test.bx"),
+            ("unlink", "r/test.bx"),
+        ],
+    )
+
     if simulate is not None:
         return
 
@@ -587,12 +744,24 @@ def test_fs_without_Deferred_no_fsync(tmp_path: str) -> None:
     fs1(tmp_path, False)
 
 
+def test_fs_without_Deferred_no_fsync_simulate(tmp_path: str) -> None:
+    fs1(tmp_path, False, True)
+
+
 def test_fs_without_Deferred(tmp_path: str) -> None:
     fs1(tmp_path, True)
 
 
+def test_fs_without_Deferred_simulate(tmp_path: str) -> None:
+    fs1(tmp_path, True, True)
+
+
 def test_fs_with_Deferred_no_defer(tmp_path: str) -> None:
     fs1(tmp_path, Deferred(False))
+
+
+def test_fs_with_Deferred_no_defer_simulate(tmp_path: str) -> None:
+    fs1(tmp_path, Deferred(False), True)
 
 
 def test_fs_with_Deferred_defer(tmp_path: str) -> None:
