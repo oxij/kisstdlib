@@ -682,6 +682,7 @@ after={self._after!r}>"""
                         )
                     except Exception as exc:
                         on_error(exc, dst_path, "unsafe_make_file", func, data, makedirs)
+                        self.cancel_rename_from(dst_path)
                     del self.unsafe_make_file[dst_path]
 
             if self.fsync_file:
@@ -707,11 +708,8 @@ after={self._after!r}>"""
                         )
                     except Exception as exc:
                         on_error(exc, dst_path, "rename_file", src_path, allow_overwrites, makedirs)
+                    self.cancel_unlink(src_path)
                     del self.rename_file[dst_path]
-                    try:
-                        del self.unlink_file[src_path]
-                    except KeyError:
-                        pass
 
             if self.unlink_file:
                 for dst_path, exists in sorted(self.unlink_file.items()):
@@ -747,6 +745,43 @@ after={self._after!r}>"""
             self._after.flush(on_warning, on_error, simulate=simulate)
             if len(self._after) == 0:
                 self._after = None
+
+    def cancel_unsafe_make_file(self, dst_path: AnyStr) -> None:
+        try:
+            self.unsafe_make_file.pop(dst_path)
+        except KeyError:
+            pass
+        else:
+            self.cancel_fsync(dst_path)
+            self.cancel_rename_from(dst_path)
+
+    def cancel_fsync(self, path: AnyStr) -> None:
+        try:
+            self.fsync_file.pop(path)
+        except KeyError:
+            pass
+
+    def cancel_rename(self, dst_path: AnyStr) -> None:
+        try:
+            self.rename_file.pop(dst_path)
+        except KeyError:
+            pass
+        else:
+            self.cancel_fsync(dst_path)
+            self.cancel_unlink(dst_path)
+
+    def cancel_rename_from(self, src_path: AnyStr) -> None:
+        for dst_path, op in self.rename_file.items():
+            if op[0] == src_path:
+                self.cancel_rename(dst_path)
+                self.cancel_unlink(src_path)
+                break
+
+    def cancel_unlink(self, path: AnyStr) -> None:
+        try:
+            self.unlink_file.pop(path)
+        except KeyError:
+            pass
 
 
 def fsync_maybe(fd: int) -> None:
