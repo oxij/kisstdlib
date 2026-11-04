@@ -40,10 +40,10 @@ check() {
     shift 2
 
     begin "$script"
-    ok_stdio2 "$out" py "$file" "$@"
-    sed -i "s/0x[0-9a-f]\+/0xdeadbeef/g" "$out"
-    sed -i 's/\(File "\)[^"]*\(", line \)[0-9]\+\(, in .module.\)/\1FILE\2NUM\3/g' "$out"
-    fixed_file "$file" "$out"
+    ok_stdio "$out" py "$file" "$@"
+    sed -i "s/0x[0-9a-f]\+/0xdeadbeef/g" "$out.stdio"
+    sed -i 's/\(File "\)[^"]*\(", line \)[0-9]\+\(, in .module.\)/\1FILE\2NUM\3/g' "$out.stdio"
+    fixed_file "$file" "$out.stdio"
     end
 }
 

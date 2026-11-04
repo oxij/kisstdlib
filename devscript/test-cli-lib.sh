@@ -17,16 +17,39 @@ errors=0
 task_errors=0
 
 error() {
-    echo -e "\e[1;31m" >&2
+    echo -en "\e[1;31merror: " >&2
     echo -n "$*" >&2
     echo -e "\e[0m" >&2
     ((errors+=1))
     ((task_errors+=1))
+    return 1
 }
 
 die() {
     error "$*"
     exit 1
+}
+
+abbrev_file() {
+    local len=$(cat "$1" | wc -l)
+    if ((len <= 10)); then
+        cat "$1"
+    else
+        head -n 5 "$1"
+        echo "..."
+        tail -n 5 "$1"
+    fi
+}
+
+diff_files() {
+    local tmp=$(mktemp --tmpdir "test-dir-$PACKAGE-$TAG-$INPUT-XXXXXXXX.diff")
+    diff -U 0 "$1" "$2" > "$tmp"
+    local code=$?
+    if [[ $code != 0 ]]; then
+        abbrev_file "$tmp" >&2
+    fi
+    rm -f "$tmp"
+    return $code
 }
 
 task_started=0
@@ -114,18 +137,18 @@ set_subtree_dir_mtimes() {
 }
 
 equal_file() {
-    if ! diff -U 0 "$1" "$2"; then
-        error "equal_file \`$1\` \`$2\` failed"
+    if ! diff_files "$1" "$2"; then
+        error "equal_file $*: wrong file content"
     fi
 }
 
 equal_dir() {
-    if ! diff -U 0 <(describe-forest "$1") <(describe-forest "$2"); then
-        error "equal_dir \`$1\` \`$2\` failed"
+    if ! diff_files <(describe-forest "$1") <(describe-forest "$2"); then
+        error "equal_dir $*: wrong directory content"
     fi
 }
 
-fixed_file() {
+fixed_file_quiet() {
     local src="$1"
     local got="$2"
     shift 2
@@ -140,60 +163,124 @@ fixed_file() {
     fi
     if ! [[ -e "$expected" ]] ; then
         ln "$expected.$TAG" "$expected"
-    elif ! diff -U 0 "$expected" "$expected.$TAG" ; then
-        error "fixed_file \`$bn\` failed"
+    elif ! diff_files "$expected" "$expected.$TAG" ; then
+        return 1
+    fi
+}
+
+fixed_file() {
+    if ! fixed_file_quiet "$@"; then
+        error "fixed_file $*: wrong file content"
     fi
 }
 
 fixed_dir() {
     describe-forest "$2" > "$2.describe-dir"
-    fixed_file "$1" "$2.describe-dir"
-}
-
-ok() {
-    "$@"
-    code=$?
-    if ((code != 0)); then
-        die "$*: return code $code"
+    local code=$?
+    if [[ $code != 0 ]]; then
+        error "fixed_dir $*: describe-forest: expected return code 0, got $code"
+    fi
+    if ! fixed_file_quiet "$1" "$2.describe-dir"; then
+        error "fixed_dir $*: wrong directory content"
     fi
 }
 
-ok_stdio2() {
-    local dst="$1"
+retcode() {
+    local ret=$1
+    shift
+
+    "$@"
+    local code=$?
+    if [[ $code != $ret ]]; then
+        error "retcode $ret $*: expected return code $ret, got $code"
+    fi
+}
+
+retcode_stdio() {
+    local ret=$1
+    local dst_="$2"
+    local dst="$2.stdio"
+    shift 2
+
+    "$@" &> "$dst"
+    local code=$?
+    if [[ $code != $ret ]]; then
+        abbrev_file "$dst" >&2
+        error "retcode_stdio $ret $dst_ $*: expected return code $ret, got $code"
+    fi
+}
+
+ok() {
+    retcode 0 "$@"
+}
+
+ok_stdio() {
+    retcode_stdio 0 "$@"
+}
+
+retcode_fixed_stdio() {
+    local ret=$1
+    local src="$2"
+    local dst="$3"
+    shift 3
+
+    retcode_stdio $ret "$dst" "$@"
+    local code=$?
+    if [[ $? != 0 ]]; then
+        error "retcode_fixed_stdio $ret $src $dst $*: retcode_stdio: expected return code 0, got $code"
+    fi
+    sed -i "s%$tmpdir/%./%g" "$dst.stdio"
+    if ! fixed_file_quiet "$src" "$dst.stdio"; then
+        error "retcode_fixed_stdio $ret $src $dst $*: wrong stdio content"
+    fi
+}
+
+ok_fixed_stdio() {
+    retcode_fixed_stdio 0 "$@"
+}
+
+ok_no_stdio() {
+    local dst_="$1"
+    local dst="$1.stdio"
     shift 1
 
     "$@" &> "$dst"
-    code=$?
-    if ((code != 0)); then
-        cat "$dst" >&2
-        die "$*: return code $code"
+    local code=$?
+    if [[ $code != 0 ]]; then
+        abbrev_file "$dst" >&2
+        error "ok_no_stdio $dst_ $*: expected return code 0, got $code"
+    elif [[ -s "$dst" ]]; then
+        abbrev_file "$dst" >&2
+        error "ok_no_stdio $dst_ $*: stdio is not empty"
     fi
 }
 
 ok_no_stderr() {
-    local tmp=$(mktemp --tmpdir test-cli-lib-stderr-XXXXXXXX)
+    local dst_="$1"
+    local dst="$1.stderr"
+    shift 1
 
-    "$@" > /dev/null 2> "$tmp"
-    code=$?
-    if ((code != 0)); then
-        cat "$tmp" >&2
-        die "$*: return code $code"
-    elif [[ -s "$tmp" ]]; then
-        cat "$tmp" >&2
-        error "$*: stderr is not empty"
+    "$@" > /dev/null 2> "$dst"
+    local code=$?
+    if [[ $code != 0 ]]; then
+        abbrev_file "$dst" >&2
+        error "ok_no_stderr $dst_ $*: expected return code 0, got $code"
+    elif [[ -s "$dst" ]]; then
+        abbrev_file "$dst" >&2
+        error "ok_no_stderr $dst_ $*: stderr is not empty"
     fi
-    rm -r "$tmp"
 }
 
-any_stdio2() {
-    local dst="$1"
+any_result() {
+    local dst="$1.result"
     shift 1
 
     "$@" &> "$dst"
-    code=$?
-    if ((code != 0)); then
+    local code=$?
+    if [[ $code != 0 ]]; then
         echo "# \$? == $code" >> "$dst"
     fi
+    return $code
 }
 
 # temp dir
