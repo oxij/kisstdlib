@@ -6,6 +6,111 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 Also, at the bottom of this file there is a [TODO list](#todo) with planned future changes.
 
+## [v0.0.14] - 2026-11-06
+
+### Added/Changed/Removed/Fixed: Incompatible changes
+
+- `kisstdlib/time.py`:
+
+  - Renamed all `*gmtoff` fields and arguments -\> `tz`.
+
+- `kisstdlib/fs.py`:
+
+  - Renamed:
+    - `atomic_unlink` -\> `unlink_file`,
+    - `atomic_rename` -\> `rename_file`,
+    - `make_file` -\> `unsafe_make_file`,
+    - `atomic_make_file` -\> `make_file`,
+    - `atomic_write` -\> `write_file`,
+    - `atomic_copy2` -\> `clone_file`,
+    - `atomic_link` -\> `link_file`,
+    - `atomic_symlink` -\> `symlink_file`,
+    - `atomic_link_or_copy2` -\> `link_or_clone_file`,
+    - `atomic_move` -\> `move_file`.
+  - Edited all functions to use `follow_symlinks = False` by default.
+  - Reworked all `simulate` arguments into callbacks.
+  - Reworked the internals of `Deferred`:
+    - Started processing `Deferred.unlink_file` after `Deferred.rename_file`.
+    - Removed `Deferred.tmp_file`, since `unlink_file` can do its job now.
+    - Renamed `Deferred.sync` -\> `Deferred.flush`.
+    - Introduced `on_warning` and `on_error` arguments to `Deferred.flush`.
+    - Introduced `cancel_*` methods.
+    - Greatly simplified the implementation of `Deferred.flush`.
+  - Re-implemented `fsync_file`, allowing it to (attempt to) `fsync` directories on Windows too.
+  - Reworked the internals of most functions taking `sync` arguments, solving a bunch of `fsync`-is-out-of-order issues.
+    Most notably, reworked `rename_file` to do barrier `fsync`s when needed.
+  - Added `simulate` argument support to most of those functions.
+  - Added `allow_overwrites`/`exists` arguments to most of them and allow those arguments to take `os.stat_result` inputs, thus making those functions check relevant `path`s with `unchanged_stat` before doing anything.
+  - Therefore, replaced `unlink_maybe` with `unlink_file(..., exists = False)`.
+  - Removed `fsync_many_files` and `unlink_many`, since these can now be implemented by trivial loops.
+
+- `devscript/test-cli-lib.sh`:
+
+  - Renamed:
+    - `ok_stdio2` -\> `ok_stdio`,
+    - `any_stdio2` -\> `any_result`,
+    - `set_tmpdir` -\> `setup_tests`,
+    - `TARGETS` -\> `INCLUDE`,
+    - capitalized all other internal variable names, e.g., `errors` -\> `ERRORS`.
+
+### Added/Changed
+
+- `kisstdlib/base.py`:
+
+  - Replaced `noop_` -\> `noop`, `identity_` -\> `identity`, `const_` -\> `const` since multi-argument versions work perfectly fine with new `mypy` versions now.
+  - Made `compose(f, g)` propagate all of its resulting arguments to `g`.
+  - Introduced `compose_wide` that propagates them to both `f` and `g`, similarly to how `compose_pipe` works.
+  - introduced `raise_one` and `raise_all`.
+
+- `kisstdlib/logging_ext.py`:
+
+  - Introduced `log_exception*` functions.
+
+- `kisstdlib/time.py`:
+
+  - Implemented support for `tz: str`, i.e., named times zones, like "America/Los_Angeles".
+
+- `kisstdlib/fs.py`:
+
+  - Introduced:
+    - `fsreencode`,
+    - `equal_path`,
+    - `unchanged_stat`,
+    - `describe_file_type`,
+    - `copy_file`,
+    - `unsafe_write_file`,
+    - `unsafe_symlink_file`,
+    - `unsafe_copy_symlink`,
+    - `unsafe_copy_file`,
+    - `unsafe_clone_file`,
+    - `unsafe_link_file`.
+
+  - Improved `rename_file` implementation on POSIX a bit.
+
+- `devscript/test-cli-lib.sh`:
+
+  - Introduced `PACKAGE`, `TAG`, and `INPUT` configuration variables to better control the results of `setup_tests`.
+  - Introduced `EXCLUDE` configuration variable, as a reverse of `INCLUDE`.
+  - Introduced:
+    - `should_start`,
+    - `abbrev_file`,
+    - `diff_files`,
+    - `retcode`,
+    - `retcode_stdio`,
+    - `retcode_fixed_stdio`,
+    - `ok_fixed_stdio`,
+    - `ok_no_stdio`,
+    - `equal_forest_dir`,
+    - `to_kill`,
+    - `kill_all_to_kill`
+    functions.
+  - Replaced `die` -\> `error` in all functions.
+  - Made `fixed_dir` and `retcode_fixed_stdio` abort with an error when their main commands fail.
+  - Made `error` and all of those functions return with non-zero codes on errors.
+  - Homogenized implementations of all of those functions.
+  - Improve their error messages.
+  - The script now `trap`s `SIGINT` and `SIGTERM` to run `exit 1`.
+
 ## [v0.0.13] - 2026-09-14
 
 ### Added/Changed/Removed/Fixed: Incompatible changes
@@ -592,6 +697,7 @@ Also, at the bottom of this file there is a [TODO list](#todo) with planned futu
 
 - Initial release.
 
+[v0.0.14]: https://github.com/oxij/kisstdlib/compare/v0.0.13...v0.0.14
 [v0.0.13]: https://github.com/oxij/kisstdlib/compare/v0.0.12...v0.0.13
 [v0.0.12]: https://github.com/oxij/kisstdlib/compare/v0.0.11...v0.0.12
 [v0.0.11]: https://github.com/oxij/kisstdlib/compare/v0.0.10...v0.0.11
